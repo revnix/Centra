@@ -70,3 +70,7 @@ git branch new_branch(<--- name of branch)
 git branch design
 <!-- agr dusri branch par shift hona ho to -->
 git checkout design
+
+<!-- Merge two branches -->
+git merge design  (<--- branch name design)
+
