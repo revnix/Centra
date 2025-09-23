@@ -74,3 +74,5 @@ git checkout design
 <!-- Merge two branches -->
 git merge design  (<--- branch name design)
 
+<!-- Merge Conflict -->
+<!-- agr ak hi  cheez par 2 log same hi cheez pr changes ya kam kr rhy hon -->
