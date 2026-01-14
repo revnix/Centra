@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -56,11 +56,17 @@ import {
     Twitter,
     Facebook,
     Instagram,
-    Rocket
+    Rocket,
+    AlertCircle,
+    MapPin,
+    Briefcase,
+    TrendingUp,
+    Zap
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useJobGeneration } from "@/lib/hooks/useJobGeneration";
 
 // --- Schemas ---
 
@@ -113,6 +119,9 @@ export default function CreateJobPage() {
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
 
+    // LangGraph Job Generation Hook
+    const jobGeneration = useJobGeneration();
+
     // Data State
     const [formData, setFormData] = useState<Partial<Step1Data & Step2Data>>({});
 
@@ -128,6 +137,8 @@ export default function CreateJobPage() {
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
         connectedAccounts.map(a => a.id) // Default all selected
     );
+
+    const company_name = connectedAccounts.find(a => a.id === selectedAccounts[0])?.name || connectedAccounts[0]?.name || "TechCorp Inc.";
 
     // Forms
     const form1 = useForm<Step1Data>({
@@ -157,6 +168,34 @@ export default function CreateJobPage() {
 
     const onStep2Submit = (data: Step2Data) => {
         setFormData((prev) => ({ ...prev, ...data }));
+
+        // Map employment type
+        const employmentTypeMap: Record<string, 'Full-time' | 'Part-time' | 'Contract' | 'Internship'> = {
+            'full-time': 'Full-time',
+            'part-time': 'Part-time',
+            'contract': 'Contract',
+            'internship': 'Internship',
+        };
+
+        // Map experience level
+        const experienceLevelMap: Record<string, 'Junior' | 'Mid' | 'Senior' | 'Lead'> = {
+            'junior': 'Junior',
+            'mid': 'Mid',
+            'senior': 'Senior',
+            'lead': 'Lead',
+        };
+
+        // Start LangGraph job generation
+        jobGeneration.generateJob({
+            role: formData.title || 'Software Engineer',
+            location: formData.location || 'Remote',
+            skills: data.requiredSkills.split(',').map(s => s.trim()),
+            company_name: formData.department || 'TechCorp',
+            employment_type: employmentTypeMap[formData.type || 'full-time'] || 'Full-time',
+            experience_level: experienceLevelMap[data.experienceLevel] || 'Mid',
+        });
+
+        // Generate social post placeholder
         generateInitialSocialPost(formData.title || "Job");
         setStep(3);
     };
@@ -397,126 +436,378 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
             {/* STEP 3: Review & Refine (The Feedback Loop) */}
             {step === 3 && (
                 <div className="space-y-6">
-                    <Alert className="bg-blue-50 border-blue-200">
-                        <Wand2 className="h-4 w-4 text-blue-600" />
-                        <AlertTitle className="text-blue-800">AI Content Generated (Version {version})</AlertTitle>
-                        <AlertDescription className="text-blue-700">
-                            Please review the job post and social media draft. You can approve them for publication or request AI refinement.
-                        </AlertDescription>
-                    </Alert>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Left: Job Post */}
-                        <Card className="flex flex-col h-full">
-                            <CardHeader>
-                                <CardTitle>Job Post Preview</CardTitle>
-                                <CardDescription>Visible on career page</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-1">
-                                <div className="prose prose-sm max-w-none">
-                                    <h3 className="text-lg font-bold">{formData.title}</h3>
-                                    <div className="flex gap-2 text-sm text-slate-500 mb-4">
-                                        <span>{formData.department}</span> • <span>{formData.location}</span>
-                                    </div>
-                                    <div className="whitespace-pre-wrap text-sm bg-slate-50 p-4 rounded-md border">
-                                        {formData.description || form1.getValues("description")}
-                                    </div>
+                    {/* Loading State */}
+                    {jobGeneration.isLoading && !jobGeneration.generatedPost && (
+                        <Card className="p-12">
+                            <div className="flex flex-col items-center justify-center gap-4">
+                                <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+                                <div className="text-center">
+                                    <h3 className="text-lg font-semibold text-slate-900">Generating Job Description...</h3>
+                                    <p className="text-slate-500">AI is crafting your job post. This may take a few seconds.</p>
                                 </div>
-                            </CardContent>
+                            </div>
                         </Card>
+                    )}
 
-                        {/* Right: Social Media */}
-                        <Card className="flex flex-col h-full border-blue-200 shadow-sm">
-                            <CardHeader className="bg-blue-50/50">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Share2 className="h-4 w-4 text-blue-600" />
-                                    Social Media Draft
-                                </CardTitle>
-                                <CardDescription>LinkedIn / Twitter preview</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-1 pt-6">
-                                <div className="bg-white p-4 rounded-lg border shadow-sm">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className="h-10 w-10 bg-slate-100 rounded-full" />
-                                        <div>
-                                            <div className="font-semibold text-sm">TechCorp Inc.</div>
-                                            <div className="text-xs text-slate-500">Just now • 🌍</div>
+                    {/* Error State */}
+                    {jobGeneration.error && (
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>
+                                {jobGeneration.error.message || 'Failed to generate job description. Please try again.'}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-2"
+                                    onClick={() => setStep(2)}
+                                >
+                                    Go Back
+                                </Button>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
+                    {/* Generated Content */}
+                    {(jobGeneration.generatedPost || jobGeneration.isAwaitingReview) && (
+                        <>
+                            <Alert className="bg-blue-50 border-blue-200">
+                                <Wand2 className="h-4 w-4 text-blue-600" />
+                                <AlertTitle className="text-blue-800">AI Content Generated (Version {version})</AlertTitle>
+                                <AlertDescription className="text-blue-700">
+                                    Please review the job post. You can approve it for publication or request AI refinement.
+                                </AlertDescription>
+                            </Alert>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                {/* Left: Job Post from AI */}
+                                <Card className="lg:col-span-3 flex flex-col h-full overflow-hidden border-blue-200 shadow-xl rounded-2xl transition-all hover:shadow-2xl">
+                                    <CardHeader className="bg-gradient-to-br from-blue-700 via-indigo-700 to-purple-800 text-white border-b-0 py-8 relative">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <Wand2 className="h-32 w-32 -mr-8 -mt-8" />
+                                        </div>
+                                        <div className="flex justify-between items-start relative z-10">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Badge className="bg-blue-400/20 text-blue-100 hover:bg-blue-400/30 border-blue-400/30 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-wider font-bold">
+                                                        <Zap className="h-3 w-3 mr-1 fill-blue-400" /> AI Synthesized
+                                                    </Badge>
+                                                    <Badge className="bg-white/10 text-white hover:bg-white/20 border-white/20 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-wider font-bold">
+                                                        v{version}
+                                                    </Badge>
+                                                </div>
+                                                <CardTitle className="text-3xl font-extrabold tracking-tight">
+                                                    {jobGeneration.generatedPost?.job_title || formData.title}
+                                                </CardTitle>
+                                                <div className="flex flex-wrap gap-4 pt-2 text-indigo-100 font-medium">
+                                                    <div className="flex items-center gap-1.5 text-sm">
+                                                        <MapPin className="h-4 w-4" />
+                                                        {jobGeneration.generatedPost?.location || formData.location}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-sm">
+                                                        <Briefcase className="h-4 w-4" />
+                                                        {formData.type || 'Full-time'}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-sm">
+                                                        <TrendingUp className="h-4 w-4" />
+                                                        {form2.getValues("experienceLevel") || 'Mid-Level'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="flex-1 overflow-y-auto p-0 bg-slate-50/30">
+                                        <div className="p-8 space-y-8">
+                                            {/* Summary */}
+                                            {jobGeneration.generatedPost?.summary && (
+                                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                                    <h4 className="text-[11px] uppercase font-bold text-indigo-500 tracking-[0.2em] mb-4">Executive Summary</h4>
+                                                    <p className="text-slate-700 leading-relaxed font-medium text-base">
+                                                        {jobGeneration.generatedPost.summary}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Skills */}
+                                            {jobGeneration.generatedPost?.skills && jobGeneration.generatedPost.skills.length > 0 && (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-2 bg-indigo-100 rounded-lg">
+                                                            <Wand2 className="h-4 w-4 text-indigo-600" />
+                                                        </div>
+                                                        <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wider">Technical Stack</h4>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {jobGeneration.generatedPost.skills.map((skill: string, i: number) => (
+                                                            <Badge key={i} variant="secondary" className="bg-white text-indigo-700 border-indigo-100 shadow-sm hover:bg-indigo-50 px-3 py-1 font-semibold text-xs">
+                                                                {skill}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Grid layout for Lists */}
+                                            <div className="grid grid-cols-1 gap-8">
+                                                {/* Responsibilities */}
+                                                {jobGeneration.generatedPost?.responsibilities && jobGeneration.generatedPost.responsibilities.length > 0 && (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="p-2 bg-blue-100 rounded-lg">
+                                                                <Check className="h-4 w-4 text-blue-600" />
+                                                            </div>
+                                                            <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wider">Core Responsibilities</h4>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 gap-3">
+                                                            {jobGeneration.generatedPost.responsibilities.map((item: string, i: number) => (
+                                                                <div key={i} className="group bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-start gap-4 transition-all hover:border-blue-200 hover:shadow-md">
+                                                                    <div className="mt-1 h-6 w-6 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition-colors">
+                                                                        <span className="text-[10px] font-bold text-blue-600">{i + 1}</span>
+                                                                    </div>
+                                                                    <span className="text-sm text-slate-700 leading-relaxed font-medium">{item}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Requirements & Preferred */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                    {/* Requirements */}
+                                                    {jobGeneration.generatedPost?.requirements && jobGeneration.generatedPost.requirements.length > 0 && (
+                                                        <div className="space-y-4">
+                                                            <h4 className="font-bold text-[11px] text-slate-400 uppercase tracking-[0.2em] px-1">Essential Qualifications</h4>
+                                                            <div className="space-y-2">
+                                                                {jobGeneration.generatedPost.requirements.map((item: string, i: number) => (
+                                                                    <div key={i} className="flex items-start gap-3 bg-white p-3 rounded-lg border border-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                                                                        <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] flex-shrink-0" />
+                                                                        <span className="text-xs text-slate-700 font-medium">{item}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Preferred */}
+                                                    {jobGeneration.generatedPost?.preferred_qualifications && jobGeneration.generatedPost.preferred_qualifications.length > 0 && (
+                                                        <div className="space-y-4">
+                                                            <h4 className="font-bold text-[11px] text-slate-400 uppercase tracking-[0.2em] px-1">Bonus Points</h4>
+                                                            <div className="space-y-2">
+                                                                {jobGeneration.generatedPost.preferred_qualifications.map((item: string, i: number) => (
+                                                                    <div key={i} className="flex items-start gap-3 bg-white p-3 rounded-lg border border-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                                                                        <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)] flex-shrink-0" />
+                                                                        <span className="text-xs text-slate-700 font-medium">{item}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Benefits */}
+                                                {jobGeneration.generatedPost?.benefits && jobGeneration.generatedPost.benefits.length > 0 && (
+                                                    <div className="space-y-4">
+                                                        <h4 className="font-bold text-[11px] text-slate-400 uppercase tracking-[0.2em] px-1">Why Join Us?</h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {jobGeneration.generatedPost.benefits.map((item: string, i: number) => (
+                                                                <Badge key={i} variant="outline" className="text-emerald-700 border-emerald-100 bg-emerald-50/50 px-4 py-1.5 rounded-full font-bold text-[10px] tracking-tight hover:bg-emerald-100 transition-colors cursor-default">
+                                                                    {item}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                    <div className="bg-slate-900 border-t border-slate-800 px-6 py-4 flex justify-between items-center text-[10px] text-slate-400 font-bold tracking-widest uppercase">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                            <span>Candidate Screened with Evalyn AI</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-60">
+                                            <Zap className="h-3 w-3 text-blue-500 fill-blue-500" />
+                                            <span>Synthesized Intelligence</span>
                                         </div>
                                     </div>
-                                    <div className="whitespace-pre-wrap text-sm text-slate-800">
-                                        {socialPost}
-                                    </div>
-                                    <div className="mt-4 h-32 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-sm border-2 border-dashed">
-                                        [Job Image Placeholder]
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                </Card>
 
-                    {/* Feedback Controls */}
-                    <Card className={`border-2 ${showFeedbackInput ? 'border-amber-200 bg-amber-50' : 'border-slate-100'}`}>
-                        <CardContent className="p-6">
-                            {!showFeedbackInput ? (
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h3 className="font-semibold text-lg">Does this look good?</h3>
-                                        <p className="text-slate-500 text-sm">Approve to publish immediately or request changes.</p>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <Button
-                                            variant="outline"
-                                            className="border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
-                                            onClick={() => setShowFeedbackInput(true)}
-                                            disabled={isLoading}
-                                        >
-                                            <ThumbsDown className="mr-2 h-4 w-4" />
-                                            Reject & Refine
-                                        </Button>
-                                        <Button
-                                            className="bg-green-600 hover:bg-green-700 min-w-[140px]"
-                                            onClick={() => setShowPublishDialog(true)}
-                                            disabled={isLoading}
-                                        >
-                                            <ThumbsUp className="mr-2 h-4 w-4" />
-                                            Approve & Publish
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-amber-800 font-medium">
-                                        <MessageSquare className="h-4 w-4" />
-                                        Provide Feedback for AI Iteration
-                                    </div>
-                                    <Textarea
-                                        placeholder="e.g. Make the social post more energetic, mentioning our summer retreat. Also make the job description sound more authoritative."
-                                        value={feedback}
-                                        onChange={(e) => setFeedback(e.target.value)}
-                                        className="bg-white min-h-[100px]"
-                                    />
-                                    <div className="flex justify-end gap-3">
-                                        <Button variant="ghost" onClick={() => setShowFeedbackInput(false)}>Cancel</Button>
-                                        <Button onClick={handleRefineWithFeedback} disabled={isRegenerating || !feedback} className="bg-amber-600 hover:bg-amber-700 text-white">
-                                            {isRegenerating ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Regenerating...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                                    Regenerate Content
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                {/* Right: Social Media */}
+                                {/* Right: Social Media */}
+                                <Card className="lg:col-span-2 flex flex-col h-full border-slate-200 shadow-xl rounded-2xl overflow-hidden bg-white group">
+                                    <CardHeader className="bg-slate-50/80 border-b py-6 px-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                                                <Share2 className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg font-bold text-slate-900">Social Media Draft</CardTitle>
+                                                <CardDescription className="text-xs font-medium">LinkedIn / Twitter optimized preview</CardDescription>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="flex-1 p-6 space-y-6">
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                            {/* LinkedIn Header */}
+                                            <div className="p-4 flex items-center gap-3">
+                                                <div className="h-12 w-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center border border-slate-200">
+                                                    <Briefcase className="h-6 w-6 text-slate-400" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-bold text-sm text-slate-900">{company_name || 'TechCorp Inc.'}</span>
+                                                        <span className="text-[10px] text-slate-400">• 1st</span>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500 font-medium">Hiring modern talent today</div>
+                                                    <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                        Just now • <MapPin className="h-2 w-2" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Content */}
+                                            <div className="px-4 pb-4 space-y-4">
+                                                <div className="whitespace-pre-wrap text-sm text-slate-800 leading-relaxed">
+                                                    {socialPost || "🚀 Join our team as a " + (jobGeneration.generatedPost?.job_title || formData.title) + "! We're looking for passionate individuals to help us build the future. #Hiring #TechJobs"}
+                                                </div>
+
+                                                {/* Job Card Placeholder in Post */}
+                                                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                                                    <div className="h-40 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex flex-col items-center justify-center text-white p-6 text-center space-y-2">
+                                                        <Zap className="h-10 w-10 text-blue-200 fill-blue-200/20" />
+                                                        <div className="font-extrabold text-lg leading-tight">We are hiring a<br />{jobGeneration.generatedPost?.job_title || formData.title}!</div>
+                                                        <Badge className="bg-white/20 text-white hover:bg-white/30 border-none text-[10px] uppercase font-bold">Apply Now</Badge>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <div className="font-bold text-sm">{jobGeneration.generatedPost?.job_title || formData.title}</div>
+                                                        <div className="text-xs text-slate-500">{jobGeneration.generatedPost?.location || formData.location} • {formData.type || 'Full-time'}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Interaction Bar */}
+                                            <div className="px-4 py-3 border-t bg-slate-50/30 flex items-center justify-between">
+                                                <div className="flex items-center gap-6">
+                                                    <button className="flex items-center gap-1.5 text-slate-500 hover:text-blue-600 transition-colors">
+                                                        <ThumbsUp className="h-4 w-4" />
+                                                        <span className="text-[11px] font-bold">Like</span>
+                                                    </button>
+                                                    <button className="flex items-center gap-1.5 text-slate-500 hover:text-blue-600 transition-colors">
+                                                        <MessageSquare className="h-4 w-4" />
+                                                        <span className="text-[11px] font-bold">Comment</span>
+                                                    </button>
+                                                    <button className="flex items-center gap-1.5 text-slate-500 hover:text-blue-600 transition-colors">
+                                                        <Share2 className="h-4 w-4" />
+                                                        <span className="text-[11px] font-bold">Share</span>
+                                                    </button>
+                                                </div>
+                                                <button className="flex items-center gap-1 text-slate-400 hover:text-blue-600 transition-colors">
+                                                    <RefreshCw className="h-3 w-3" />
+                                                    <span className="text-[10px] font-bold">Sync AI</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Feedback Controls */}
+                            <div className="animate-in fade-in slide-in-from-bottom-2 duration-1000 delay-300">
+                                <Card className={`border-none shadow-2xl rounded-2xl overflow-hidden transition-all duration-500 ${showFeedbackInput ? 'ring-2 ring-amber-400 ring-offset-4' : ''}`}>
+                                    <div className={`h-1.5 w-full ${showFeedbackInput ? 'bg-amber-500' : 'bg-blue-600'}`} />
+                                    <CardContent className="p-8">
+                                        {!showFeedbackInput ? (
+                                            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                                                <div className="text-center md:text-left">
+                                                    <h3 className="font-extrabold text-2xl text-slate-900 tracking-tight">Does this look perfect?</h3>
+                                                    <p className="text-slate-500 font-medium text-base mt-1">Approve to launch immediately or collaborative with AI for refinements.</p>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="lg"
+                                                        className="border-slate-200 hover:bg-slate-50 hover:text-slate-900 px-8 py-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
+                                                        onClick={() => setShowFeedbackInput(true)}
+                                                        disabled={jobGeneration.isLoading}
+                                                    >
+                                                        <MessageSquare className="mr-2 h-5 w-5" />
+                                                        Suggest Improvements
+                                                    </Button>
+                                                    <Button
+                                                        size="lg"
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 px-10 py-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 group"
+                                                        onClick={async () => {
+                                                            await jobGeneration.approveJob();
+                                                            setShowPublishDialog(true);
+                                                        }}
+                                                        disabled={jobGeneration.isLoading}
+                                                    >
+                                                        <Rocket className="mr-2 h-5 w-5 group-hover:animate-bounce" />
+                                                        Launch Job Post
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-amber-100 rounded-lg">
+                                                        <Wand2 className="h-5 w-5 text-amber-600" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="font-extrabold text-xl text-slate-900 tracking-tight">Refine with Feedback</h3>
+                                                        <p className="text-slate-500 text-sm font-medium">Tell the AI what to change and it will regenerate the post.</p>
+                                                    </div>
+                                                </div>
+                                                <Textarea
+                                                    placeholder="Example: 'Make the summary more punchy and add a requirement for React Native experience...'"
+                                                    value={feedback}
+                                                    onChange={(e) => setFeedback(e.target.value)}
+                                                    className="bg-slate-50/50 min-h-[140px] border-slate-200 rounded-xl focus:ring-amber-500 focus:border-amber-500 text-base p-4 placeholder:text-slate-400"
+                                                />
+                                                <div className="flex justify-end gap-4">
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="rounded-xl font-bold text-slate-500 hover:bg-slate-100"
+                                                        onClick={() => setShowFeedbackInput(false)}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        size="lg"
+                                                        onClick={async () => {
+                                                            setIsRegenerating(true);
+                                                            await jobGeneration.rejectWithFeedback(feedback);
+                                                            setVersion(v => v + 1);
+                                                            setFeedback("");
+                                                            setShowFeedbackInput(false);
+                                                            setIsRegenerating(false);
+                                                        }}
+                                                        disabled={isRegenerating || !feedback || jobGeneration.isLoading}
+                                                        className="bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-200 px-8 rounded-xl font-bold hover:scale-105 transition-all"
+                                                    >
+                                                        {isRegenerating || jobGeneration.isLoading ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                                                Updating JD...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <RefreshCw className="mr-2 h-5 w-5" />
+                                                                Regenerate Post
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </>
+                    )}
                 </div>
-            )}
+            )
+            }
 
             {/* Publish Dialog - Account Selection */}
             <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
@@ -545,8 +836,8 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                     key={account.id}
                                     onClick={() => handleAccountToggle(account.id)}
                                     className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-colors ${isSelected
-                                            ? 'border-green-300 bg-green-50'
-                                            : 'border-slate-200 hover:bg-slate-50'
+                                        ? 'border-green-300 bg-green-50'
+                                        : 'border-slate-200 hover:bg-slate-50'
                                         }`}
                                 >
                                     <Checkbox
