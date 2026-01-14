@@ -6,9 +6,10 @@ Next.js frontend for the AI-powered hiring automation system.
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - Backend API running (default: `http://localhost:8000`)
+- LangGraph server running (default: `http://localhost:2024`)
 
 ### Installation
 
@@ -19,8 +20,9 @@ npm install
 # Create environment file
 cp .env.example .env.local
 
-# Update .env.local with your backend URL
+# Update .env.local with your backend URLs
 # NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+# NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:2024
 
 # Start development server
 npm run dev
@@ -32,7 +34,7 @@ Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## 📁 Project Structure
 
-```
+```text
 src/
 ├── app/                    # Next.js App Router
 │   ├── (auth)/            # Authentication pages
@@ -43,7 +45,7 @@ src/
 │   └── ui/                # shadcn/ui components
 ├── lib/
 │   ├── api/               # API client & services
-│   ├── hooks/             # TanStack Query hooks
+│   ├── hooks/             # Custom React hooks (including LangGraph)
 │   ├── stores/            # Zustand stores
 │   └── types/             # TypeScript types
 └── middleware.ts          # Route protection
@@ -54,25 +56,25 @@ src/
 ## 🔑 Key Features (Phase 1 - Complete)
 
 ✅ **Type-safe API client** with Axios interceptors  
-✅ **TanStack Query** hooks for all entities (jobs, candidates, interviews, coding)  
-✅ **Server-Sent Events (SSE)** for real-time updates  
+✅ **LangGraph Integration**: Real-time AI job generation with HITL support  
+✅ **Custom Hooks**: `useJobGeneration` for managing complex AI state and streaming updates  
+✅ **Premium UI**: High-fidelity job preview and social media drafts with smooth animations  
+✅ **TanStack Query** for standard entity management  
 ✅ **Zustand** for UI state (sidebar, filters, notifications)  
-✅ **shadcn/ui** component library (12 components)  
-✅ **Route protection** middleware with RBAC placeholder  
+✅ **shadcn/ui** component library  
 ✅ **Responsive layouts** for dashboard and candidate portal  
-✅ **Jobs dashboard** with stats and job cards  
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
+- **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
+- **AI Orchestration**: @langchain/langgraph-sdk
 - **Styling**: TailwindCSS + shadcn/ui
 - **State**: TanStack Query (server) + Zustand (client)
 - **HTTP Client**: Axios
 - **Forms**: React Hook Form + Zod
-- **Real-time**: Server-Sent Events (SSE)
 
 ---
 
@@ -86,6 +88,7 @@ Currently uses **mock authentication** for development:
 4. Click "Sign In"
 
 **Redirects**:
+
 - Admin → `/dashboard/jobs`
 - Reviewer → `/dashboard/reviews`
 - Candidate → `/portal/status`
@@ -101,7 +104,8 @@ Currently uses **mock authentication** for development:
 The frontend expects the following API structure:
 
 #### Jobs
-```
+
+```bash
 GET    /api/jobs
 POST   /api/jobs
 GET    /api/jobs/:id
@@ -111,7 +115,8 @@ POST   /api/jobs/:id/publish
 ```
 
 #### Candidates
-```
+
+```bash
 GET    /api/jobs/:jobId/candidates
 GET    /api/candidates/:id
 GET    /api/candidates/:id/resume
@@ -121,7 +126,8 @@ POST   /api/candidates/:id/decision
 ```
 
 #### Interviews
-```
+
+```bash
 GET    /api/interviews/:id
 GET    /api/interviews/:id/transcript
 POST   /api/interviews/:id/answer
@@ -130,27 +136,19 @@ POST   /api/interviews/:id/override
 ```
 
 #### Coding Exercises
-```
+
+```bash
 GET    /api/coding/:id
 POST   /api/coding/:id/submit
 POST   /api/coding/:id/run_tests
 GET    /api/coding/:id/results
 ```
 
-#### Real-time Events
-```
-GET    /api/events/stream  (Server-Sent Events)
-```
+#### Real-time Events (LangGraph)
 
-**Event types**: 
-- `candidate.stage_changed`
-- `candidate.review_required`
-- `interview.completed`
-- `coding.submitted`
-- `job.published`
-- `job.closed`
-
-See [lib/types/index.ts](src/lib/types/index.ts) for complete type definitions.
+```text
+The new job creation flow connects directly to LangGraph SDK at port 2024.
+```
 
 ---
 
@@ -187,15 +185,13 @@ Installed components:
 
 ---
 
-## 📋 Next Steps (Phase 2)
+## 📋 Roadmap
 
-- [ ] Job creation flow (intent → AI generation → approval)
+- [x] Job creation flow (intent → AI generation → approval)
 - [ ] Candidate pipeline Kanban board
 - [ ] Candidate detail page with AI explanations
 - [ ] Interview review interface
 - [ ] Coding exercise review
-
-See [Implementation Plan](/home/revnix/.gemini/antigravity/brain/4963c865-0504-42f4-b546-2ef08da74e08/implementation_plan.md) for full roadmap.
 
 ---
 
@@ -205,46 +201,10 @@ Create `.env.local`:
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:2024
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key
 ```
-
----
-
-## 🐛 Troubleshooting
-
-### "Cannot connect to backend"
-- Ensure backend is running at `NEXT_PUBLIC_API_BASE_URL`
-- Check browser console for CORS errors
-- Verify authentication token in localStorage
-
-### "Real-time events not working"
-- Check if backend SSE endpoint is available
-- Verify access token exists: `localStorage.getItem('access_token')`
-- Open browser DevTools → Network → EventStream
-
-### "Middleware redirect loop"
-- Clear localStorage: `localStorage.clear()`
-- Delete cookies
-- Restart dev server
-
----
-
-## 📚 Documentation
-
-- [Implementation Plan](/.gemini/antigravity/brain/.../implementation_plan.md)
-- [Phase 1 Walkthrough](/.gemini/antigravity/brain/.../walkthrough.md)
-- [Task Breakdown](/.gemini/antigravity/brain/.../task.md)
-
----
-
-## 🤝 Contributing
-
-1. Create feature branch from `frontend`
-2. Follow existing code structure
-3. Use TypeScript types from `lib/types`
-4. Test with React Query DevTools
-5. Submit PR
 
 ---
 
