@@ -1,7 +1,11 @@
 from langchain_groq import ChatGroq
+from dotenv import load_dotenv
+
 import os
 
-def get_chatgroq_llm():
+load_dotenv()
+
+def get_llm():
     """
     Returns a ChatGroq model instance using GROQ_API_KEY from .env.
     """
