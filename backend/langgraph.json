@@ -3,7 +3,7 @@
     "."
   ],
   "graphs": {
-    "workflow": "src/flow/main:graph"
+    "workflow": "./src/flow/main.py:graph"
   },
   "env": ".env"
 }
