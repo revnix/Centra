@@ -1,0 +1,8 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "dependencies": ["./backend"],
+  "graphs": {
+    "workflow": "./backend/src/flow/graph/workflow.py:build_workflow"
+  },
+  "env": ".env"
+}
