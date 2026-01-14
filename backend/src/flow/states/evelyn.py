@@ -1,20 +1,23 @@
-from typing import TypedDict, Dict, Any, Optional, List, Literal
+from typing import Dict, Any, Optional, List, Literal
+from typing_extensions import TypedDict
 from datetime import datetime
 
-class PostState(TypedDict):
+class PostState(TypedDict, total=False):
     """
     Global workflow state for Job Post generation
     with Human-in-the-Loop (HITL) support.
+    Matches the JobPost Pydantic model structure.
     """
 
-    # Core Job Post fields
+    # Core Job Post fields (matching JobPost schema)
     job_title: str
     location: str
+    summary: str
     skills: List[str]
     responsibilities: List[str]
-    requirements: Dict[str, List[str]]  # 'required' and 'preferred'
-    benefits: Optional[List[str]]
-    summary: str
+    requirements: List[str]
+    preferred_qualifications: List[str] 
+    benefits: List[str]  
 
     # HITL fields
     feedback: Optional[str]           

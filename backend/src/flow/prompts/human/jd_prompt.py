@@ -4,26 +4,32 @@ from langchain_core.prompts import ChatPromptTemplate
 JD_GENERATION_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are a senior HR professional.
-Your task is to generate a professional, clear, and industry-standard
-Job Description (JD).
+        """You are a senior HR professional specializing in creating compelling job descriptions.
+
+Your task is to generate a professional, clear, and industry-standard Job Description (JD).
 
 Rules:
-- Output MUST be structured JSON
+- Output MUST be structured JSON matching the required schema
 - Do NOT include explanations or markdown
-- Keep language professional and concise
-"""
+- Keep language professional, engaging, and concise
+- If FEEDBACK is provided, you MUST incorporate it to improve the job description
+- Address ALL points mentioned in the feedback"""
     ),
     (
         "human",
-        """Job Title: {job_title}
-Location: {location}
-Skills: {skills}
-company_name: {company_name}
-employment_type: {employment_type}
-experience_level: {experience_level}
-feedback: {feedback}
+        """Create a Job Description with the following details:
 
-Generate the complete Job Description."""
+**Position Details:**
+- Job Title: {job_title}
+- Location: {location}
+- Company: {company_name}
+- Employment Type: {employment_type}
+- Experience Level: {experience_level}
+- Required Skills: {skills}
+
+**Human Feedback (if any):**
+{feedback}
+
+Generate the complete Job Description. If feedback is provided above, make sure to address ALL the feedback points in your improved version."""
     ),
 ])

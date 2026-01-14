@@ -29,7 +29,7 @@ def build_workflow():
         router,
         {
             END: END,
-            "generate_jd": "generate_jd"
+            "create_post": "create_post"
         }
     )
     return graph.compile()
