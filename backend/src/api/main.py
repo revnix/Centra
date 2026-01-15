@@ -1,39 +1,45 @@
-from dotenv import load_dotenv
-load_dotenv()
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from src.api.core.config import settings
+from src.api.routes import auth, jobs, users
 
-from backend.src.flow.core.llm.chatgroq_model import get_chatgroq_llm
-from backend.src.flow.graph.workflow import build_workflow
+# Lifecycle method for database initialization can be added here
+# For now, we assume external migration or manual sync. 
+# But let's add a startup event to create tables for this MVP context.
+from src.api.db.session import engine
+from src.api.db.base import Base
+from contextlib import asynccontextmanager
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create tables (simplistic approach for MVP without Alembic)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    # Shutdown
 
-if __name__ == "__main__":
-    app = build_workflow()
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan
+)
 
-    result = app.invoke({
-    "job_title": "Frontend Web Developer",
-    "job_summary": "Responsible for building modern and responsive user interfaces.",
-    "duties_responsibilities": [
-        "Develop frontend components",
-        "Collaborate with backend engineers",
-        "Optimize performance"
-    ],
-    "qualifications_skills": [
-        "BS in CS or related field",
-        "Strong JavaScript & React skills",
-        "Good communication"
-    ],
-    "company_name": "Revnix",
-    "working_conditions": "Full-time, reports to Engineering Manager.",
-    "compensation_benefits": "Competitive salary, health insurance.",
-    "location": "Haripur",
-    "benefits": [
-        "Health insurance",
-        "Flexible hours"
-    ]
-})
+# CORS
+origins = ["*"] # Adjust for production
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    import json
-    print("========== STRUCTURED JOB DESCRIPTION ==========")
-    print(json.dumps(result, indent=4))
+# Routes
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
+app.include_router(jobs.router, prefix=f"{settings.API_V1_STR}/jobs", tags=["jobs"])
+app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 
-
+@app.get("/")
+def root():
+    return {"message": "Welcome to the FastAPI Backend"}
