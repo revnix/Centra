@@ -16,3 +16,4 @@ class JobPosting(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     creator = relationship("User", back_populates="jobs")
+#j

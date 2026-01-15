@@ -43,3 +43,4 @@ app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["u
 @app.get("/")
 def root():
     return {"message": "Welcome to the FastAPI Backend"}
+#e

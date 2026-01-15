@@ -33,3 +33,4 @@ def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password, salt)
     return hashed.decode('utf-8') # Return as string for DB storage
+#gt
