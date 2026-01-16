@@ -10,6 +10,7 @@ Your task is to generate a professional, clear, and industry-standard Job Descri
 
 Rules:
 - Output MUST be structured JSON matching the required schema
+- Ensure fields like 'skills', 'responsibilities', 'requirements', 'benefits', and 'preferred_qualifications' are FLAT lists of strings (e.g., ["a", "b"]) and NOT nested lists (e.g., [["a", "b"]])
 - Do NOT include explanations or markdown
 - Keep language professional, engaging, and concise
 - If FEEDBACK is provided, you MUST incorporate it to improve the job description

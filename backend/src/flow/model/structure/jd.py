@@ -27,31 +27,31 @@ class JobPost(BaseModel):
 
     skills: List[str] = Field(
         ...,
-        description="List of core technical or professional skills required",
-        examples=[["Python", "FastAPI", "PostgreSQL", "Docker"]]
+        description="A flat list of core technical or professional skills strings. Do NOT use nested lists.",
+        examples=["Python", "FastAPI", "PostgreSQL", "Docker"]
     )
 
     responsibilities: List[str] = Field(
         ...,
-        description="List of key responsibilities and duties for the role",
-        examples=[["Design and implement APIs", "Mentor junior developers", "Participate in code reviews"]]
+        description="A flat list of key responsibility strings. Do NOT use nested lists.",
+        examples=["Design and implement APIs", "Mentor junior developers"]
     )
 
     requirements: List[str] = Field(
         ...,
-        description="List of mandatory requirements and qualifications",
-        examples=[["5+ years of Python experience", "Bachelor's degree in CS", "Strong communication skills"]]
+        description="A flat list of mandatory requirement strings. Do NOT use nested lists.",
+        examples=["5+ years of Python experience", "Bachelor's degree in CS"]
     )
 
     preferred_qualifications: List[str] = Field(
         default_factory=list,
-        description="List of nice-to-have qualifications. Use empty array [] if none",
-        examples=[["AWS certification", "Experience with microservices"]]
+        description="A flat list of nice-to-have qualification strings. Use empty array [] if none. Do NOT use nested lists.",
+        examples=["AWS certification", "Experience with microservices"]
     )
 
     benefits: List[str] = Field(
         default_factory=list,
-        description="List of benefits and perks offered. Use empty array [] if none",
-        examples=[["Health insurance", "401k matching", "Remote work", "Unlimited PTO"]]
+        description="A flat list of benefits and perk strings. Use empty array [] if none. Do NOT use nested lists.",
+        examples=["Health insurance", "401k matching", "Remote work"]
     )
 

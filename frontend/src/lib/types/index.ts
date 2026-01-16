@@ -2,6 +2,10 @@
  * Core TypeScript type definitions for the HR Automation System
  */
 
+// LangGraph types
+export * from './langgraph';
+
+
 // ============================================================================
 // USER & AUTH TYPES
 // ============================================================================
@@ -67,13 +71,13 @@ export interface AIJobDraft {
 // CANDIDATE TYPES
 // ============================================================================
 
-export type CandidateStage = 
-  | 'applied' 
-  | 'screening' 
-  | 'interview' 
-  | 'coding' 
-  | 'decision' 
-  | 'rejected' 
+export type CandidateStage =
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'coding'
+  | 'decision'
+  | 'rejected'
   | 'accepted';
 
 export interface Candidate {
@@ -259,7 +263,7 @@ export interface AICodeFeedback {
 // REAL-TIME EVENT TYPES
 // ============================================================================
 
-export type EventType = 
+export type EventType =
   | 'candidate.stage_changed'
   | 'candidate.review_required'
   | 'interview.completed'
