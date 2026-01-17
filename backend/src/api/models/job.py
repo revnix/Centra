@@ -7,7 +7,12 @@ class JobPosting(Base):
     __tablename__ = "job_postings"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
-    description = Column(Text, nullable=False)
+    summary = Column(Text, nullable=False)
+    skills = Column(Text, nullable=True)
+    responsibilities = Column(Text, nullable=True)
+    requirements = Column(Text, nullable=True)
+    preferred_qualifications = Column(Text, nullable=True)
+    benefits = Column(Text, nullable=True)
     company_name = Column(String, nullable=False)
     location = Column(String, nullable=False)
     salary = Column(String, nullable=True)

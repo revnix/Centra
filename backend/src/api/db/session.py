@@ -8,9 +8,13 @@ from src.api.core.config import settings
 database_url = settings.DATABASE_URL
 # Check which driver is being used
 if "asyncpg" in database_url:
-    # Asyncpg: Strip sslmode from URL, pass via connect_args
-    if "sslmode=" in database_url:
-        database_url = database_url.replace("?sslmode=require", "").replace("&sslmode=require", "")
+    # Asyncpg: Strip sslmode and other incompatible params from URL, pass via connect_args
+    import re
+    database_url = re.sub(r'(\?|&)(sslmode|channel_binding)=[^&]*', '', database_url)
+    # Fix if we removed the first param and now it starts with & or has no ?
+    if '?' not in database_url and '&' in database_url:
+        database_url = database_url.replace('&', '?', 1)
+    
     connect_args = {"ssl": "require"} if "neon.tech" in settings.DATABASE_URL else {}
 else:
     # Psycopg / Default: Keep sslmode in URL (or ensure it's there for Neon), do NOT pass 'ssl' to connect_args
