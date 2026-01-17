@@ -17,10 +17,15 @@ async def test_full_flow(client):
     # 3. Create Job (Admin)
     job_data = {
         "title": "Backend Dev",
-        "description": "Python FastAPI",
+        "summary": "Python FastAPI",
         "company_name": "Tech Corp",
         "location": "Remote",
-        "salary": "120k"
+        "salary": "120k",
+        "skills": "Python, SQL",
+        "responsibilities": "Develop APIs",
+        "requirements": "3+ years experience",
+        "preferred_qualifications": "FastAPI knowledge",
+        "benefits": "Health insurance, 401k"
     }
     response = await client.post("/api/v1/jobs/", json=job_data, headers=admin_headers)
     assert response.status_code == 201, f"Create job failed: {response.text}"

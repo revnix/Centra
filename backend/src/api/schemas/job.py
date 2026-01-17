@@ -4,19 +4,30 @@ from datetime import datetime
 
 class JobBase(BaseModel):
     title: str
-    description: str
+    summary: str
     company_name: str
     location: str
     salary: Optional[str] = None
+    skills: Optional[str] = None
+    responsibilities: Optional[str] = None
+    requirements: Optional[str] = None
+    preferred_qualifications: Optional[str] = None
+    benefits: Optional[str] = None
 
 class JobCreate(JobBase):
     pass
 
 class JobUpdate(JobBase):
     title: Optional[str] = None
-    description: Optional[str] = None
+    summary: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
+    salary: Optional[str] = None
+    skills: Optional[str] = None
+    responsibilities: Optional[str] = None
+    requirements: Optional[str] = None
+    preferred_qualifications: Optional[str] = None
+    benefits: Optional[str] = None
 
 class JobResponse(JobBase):
     id: int
