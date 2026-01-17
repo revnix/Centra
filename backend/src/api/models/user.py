@@ -16,6 +16,20 @@ class User(Base):
     role = Column(SqlEnum(UserRole), default=UserRole.GUEST)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Relationship with integrations (social media accounts)
+    integrations = relationship(
+        "Integration", 
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="select"
+    )
     
-    jobs = relationship("JobPosting", back_populates="creator")
+    # Relationship with jobs
+    jobs = relationship(
+        "Job", 
+        back_populates="creator",
+        foreign_keys="Job.created_by",
+        cascade="all, delete-orphan",
+        lazy="select"
+    )
 #ww
