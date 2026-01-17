@@ -1,20 +1,55 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from functools import lru_cache
+from typing import List
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "FastAPI Backend"
-    API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+    """Application settings"""
+
+    # Application
+    APP_NAME: str = "Evalyn"
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
+    API_V1_PREFIX: str = "/api/v1"
+    LOG_LEVEL: str = "INFO"   # ✅ FIXED
+
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://neondb_owner:npg_MPCme14rlwYx@ep-super-darkness-ah973sum-pooler.c-3.us-east-1.aws.neon.tech/neondb"
+    )
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    # Security
+    SECRET_KEY: str = os.getenv(
+        "SECRET_KEY",
+        "your-secret-key-change-in-production"
+    )
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-@lru_cache()
-def get_settings():
-    return Settings()
+    # CORS
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+    ]
 
-settings = get_settings()
-#comment
+    # Social Media API Endpoints
+    LINKEDIN_API_ENDPOINT: str = "https://api.linkedin.com/v2"
+    FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
+    TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
+    INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
+
+    # ✅ Pydantic v2 config
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="forbid"   # keeps config strict & safe
+    )
+
+
+settings = Settings()
