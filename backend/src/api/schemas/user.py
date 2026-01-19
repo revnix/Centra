@@ -30,4 +30,3 @@ class UserRegisterResponse(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
-#ee

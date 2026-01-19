@@ -8,3 +8,20 @@ __pycache__/
 *.swp
 *.swo
 *~
+# Python virtual environment
+myenv/
+
+# Environment files
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+
+# VS Code / IDE
+.vscode/
+.idea/

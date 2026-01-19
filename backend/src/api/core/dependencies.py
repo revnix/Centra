@@ -16,7 +16,8 @@ from src.api.db.session import get_db
 from src.api.services.auth_service import AuthService
 from src.api.models.user import User, UserRole
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
@@ -44,4 +45,3 @@ async def get_current_active_admin(current_user: User = Depends(get_current_user
             status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
         )
     return current_user
-#dp
