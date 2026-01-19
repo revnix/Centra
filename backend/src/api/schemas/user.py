@@ -24,6 +24,10 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class UserRegisterResponse(BaseModel):
+    user: UserResponse
+    access_token: Token
+
 class TokenData(BaseModel):
     email: Optional[str] = None
 #ee

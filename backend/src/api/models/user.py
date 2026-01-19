@@ -15,6 +15,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(SqlEnum(UserRole), default=UserRole.GUEST)
     is_active = Column(Boolean, default=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     jobs = relationship("JobPosting", back_populates="creator")

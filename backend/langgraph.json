@@ -5,5 +5,10 @@
   "graphs": {
     "workflow": "./src/flow/main.py:graph"
   },
+  "http": {
+    "app": "src/api/main.py:app"
+  },
+  "image_distro": "wolfi",
+  "pip_installer": "uv",
   "env": ".env"
 }
