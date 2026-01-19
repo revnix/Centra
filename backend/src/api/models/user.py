@@ -15,10 +15,11 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(SqlEnum(UserRole), default=UserRole.GUEST)
     is_active = Column(Boolean, default=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # Relationship with integrations (social media accounts)
     integrations = relationship(
-        "Integration", 
+        "UserIntegration", 
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="select"
@@ -32,4 +33,3 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="select"
     )
-#ww

@@ -13,9 +13,6 @@ INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
 FACEBOOK_ACCESS_TOKEN = os.getenv("FACEBOOK_ACCESS_TOKEN")
 
-LINKEDIN_ACCESS_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
-LINKEDIN_ORGANIZATION_ID = os.getenv("LINKEDIN_ORGANIZATION_ID")
-
 
 # ---------- COMMON HELPERS ----------
 
@@ -39,25 +36,6 @@ def build_instagram_caption(post: dict) -> str:
 
 def build_facebook_caption(post: dict) -> str:
     return build_full_caption(post)
-
-
-def build_linkedin_caption(post: dict) -> str:
-    caption = (
-        f" WE ARE HIRING!\n\n"
-        f"Role: {post.get('job_title', 'N/A')}\n"
-        f"Location: {post.get('location', 'N/A')}\n\n"
-        f"{post.get('summary', 'N/A')}\n\n"
-    )
-
-    if post.get("skills"):
-        caption += "Key Skills:\n" + ", ".join(post["skills"]) + "\n\n"
-
-    if post.get("apply_link"):
-        caption += f" Apply here: {post['apply_link']}\n\n"
-
-    caption += "#Hiring #Careers #Jobs #ApplyNow"
-
-    return caption[:1300]
 
 
 def build_full_caption(post: dict) -> str:
@@ -100,7 +78,7 @@ def publish_post(state: EVALN) -> dict:
 
     platform = interrupt({
         "message": "Select platform to publish the Job Description",
-        "options": ["instagram", "facebook", "linkedin", "cancel"]
+        "options": ["instagram", "facebook", "cancel"]
     })
 
     if platform == "cancel":
@@ -116,8 +94,7 @@ def publish_post(state: EVALN) -> dict:
 
     publishers = {
         "instagram": publish_to_instagram,
-        "facebook": publish_to_facebook,
-        "linkedin": publish_to_linkedin
+        "facebook": publish_to_facebook
     }
 
     success = publishers[platform](post)
@@ -180,38 +157,3 @@ def publish_to_facebook(post: dict) -> bool:
 
     response = requests.post(url, data=payload)
     return response.status_code == 200
-
-
-# ---------- LINKEDIN ----------
-
-def publish_to_linkedin(post: dict) -> bool:
-    if not LINKEDIN_ACCESS_TOKEN or not LINKEDIN_ORGANIZATION_ID:
-        return False
-
-    url = "https://api.linkedin.com/v2/ugcPosts"
-
-    headers = {
-        "Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": "202401"
-    }
-
-    payload = {
-        "author": f"urn:li:organization:{LINKEDIN_ORGANIZATION_ID}",
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {
-                    "text": build_linkedin_caption(post)
-                },
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-        }
-    }
-
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    return response.status_code in [200, 201]

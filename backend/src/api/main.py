@@ -1,15 +1,15 @@
-# src/main.py
+# src/api/main.py
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.core.config import settings
-from src.api.routes import auth, users
-
-from src.flow.router.Admin import Integrations_routes as integration_routes
+from src.api.routes import auth, jobs, integrations
+from src.api.routes.admin import users as admin_users, jobs as admin_jobs
 
 from src.api.db.session import engine
 from src.api.db.base import Base
 from contextlib import asynccontextmanager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,8 +19,10 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
 
+
 app = FastAPI(
-    title=settings.APP_NAME,  # Also updated this to use APP_NAME
+    title=settings.APP_NAME,
+    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan
 )
 
@@ -35,16 +37,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes - FIXED: Changed API_V1_STR to API_V1_PREFIX
+# Routes
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
-app.include_router(users.router, prefix=f"{settings.API_V1_PREFIX}/users", tags=["users"])
+app.include_router(jobs.router, prefix=f"{settings.API_V1_PREFIX}/jobs", tags=["jobs"])
+app.include_router(integrations.router, prefix=f"{settings.API_V1_PREFIX}/integrations", tags=["integrations"])
 
-# Integration routes (from flow/router/admin)
-app.include_router(
-    integration_routes.router, 
-    prefix=f"{settings.API_V1_PREFIX}/integrations", 
-    tags=["integrations"]
-)
+# Admin Routes
+app.include_router(admin_users.router, prefix=f"{settings.API_V1_PREFIX}/admin/users", tags=["admin-users"])
+app.include_router(admin_jobs.router, prefix=f"{settings.API_V1_PREFIX}/admin/jobs", tags=["admin-jobs"])
+
 
 @app.get("/")
 def root():
