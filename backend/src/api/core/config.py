@@ -18,8 +18,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://neondb_owner:npg_MPCme14rlwYx@ep-super-darkness-ah973sum-pooler.c-3.us-east-1.aws.neon.tech/neondb"
+        "DATABASE_URL"
     )
 
     # Security

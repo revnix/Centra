@@ -28,7 +28,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        if email is None:
+        username = payload.get("username")
+        role = payload.get("role")
+        if not email or not username or not role:
             raise credentials_exception
     except jwt.PyJWTError: # PyJWT specific error
         raise credentials_exception
@@ -37,11 +39,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     user = await auth_service.get_user_by_email(email)
     if user is None:
         raise credentials_exception
-    return user
+    return {
+        "user": user,
+        "username": username,
+        "role": role,
+        "email": email
+        }
+    
 
-async def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != UserRole.ADMIN:
+# async def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
+#     if current_user.role != UserRole.ADMIN:
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+#         )
+#     return current_user
+
+async def get_current_active_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user["role"] != UserRole.ADMIN:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
         )
     return current_user
