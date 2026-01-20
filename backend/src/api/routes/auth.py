@@ -37,5 +37,5 @@ async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
-    access_token = create_access_token(subject=user.email, username=user.username, role=user.role)
+    access_token = create_access_token(subject=user.email, username=user.username, role=user.role.id,user_id=user.id)
     return {"access_token": access_token, "token_type": "bearer"}
