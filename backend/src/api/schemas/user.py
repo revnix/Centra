@@ -4,12 +4,14 @@ from src.api.models.user import UserRole
 
 class UserBase(BaseModel):
     email: EmailStr
+    full_name: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
     role: UserRole = UserRole.GUEST
 
-class UserLogin(UserBase):
+class UserLogin(BaseModel): # Modified to not inherit from UserBase if email is only field needed, but email is in UserBase.
+    email: EmailStr
     password: str
 
 class UserResponse(UserBase):
