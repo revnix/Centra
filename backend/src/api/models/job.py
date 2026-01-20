@@ -37,13 +37,13 @@ class ExperienceLevel(str, enum.Enum):
     EXECUTIVE = "executive"
 
 
-class Job(Base):
+class Posts(Base):
     """
     Job Model
     
     Stores job postings that can be published to various social media platforms.
     """
-    __tablename__ = "jobs"
+    __tablename__ = "posts"
 
     # FIXED: Changed from UUID to Integer
     id = Column(Integer, primary_key=True, autoincrement=True)

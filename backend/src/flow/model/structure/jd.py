@@ -54,4 +54,7 @@ class JobPost(BaseModel):
         description="A flat list of benefits and perk strings. Use empty array [] if none. Do NOT use nested lists.",
         examples=["Health insurance", "401k matching", "Remote work"]
     )
-
+    apply_link: str = Field(
+        default="https://revnix.com/",
+        description="URL to apply for the job"
+    )
