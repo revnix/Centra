@@ -23,7 +23,7 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     user = await auth_service.create_user(user_in)
     
     # Generate token for immediate login after registration
-    access_token = create_access_token(subject=user.email)
+    access_token = create_access_token(subject=user.email, username=user.username, role=user.role)
     token = {"access_token": access_token, "token_type": "bearer"}
     
     return {"user": user, "access_token": token}
@@ -36,6 +36,6 @@ async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-    
-    access_token = create_access_token(subject=user.email)
-    return {"access_token": access_token, "token_type": "bearer", "user": user} # Added user to the response
+
+    access_token = create_access_token(subject=user.email, username=user.username, role=user.role.id,user_id=user.id)
+    return {"access_token": access_token, "token_type": "bearer"}

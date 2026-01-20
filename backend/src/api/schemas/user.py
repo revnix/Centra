@@ -6,6 +6,7 @@ class UserBase(BaseModel):
     email: EmailStr
 
 class UserCreate(UserBase):
+    username: str
     password: str
     role: UserRole = UserRole.GUEST
 
@@ -14,6 +15,7 @@ class UserLogin(UserBase):
 
 class UserResponse(UserBase):
     id: int
+    username: str
     role: UserRole
     is_active: bool
 
