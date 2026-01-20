@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     # Social Media API Endpoints
     LINKEDIN_API_ENDPOINT: str = "https://api.linkedin.com/v2"
+    LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")
+    LINKEDIN_CLIENT_SECRET: str = os.getenv("LINKEDIN_CLIENT_SECRET", "")
+    LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
     FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
