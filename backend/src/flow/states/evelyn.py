@@ -66,6 +66,17 @@ class JDState(TypedDict):
         "rejected"
     ]
     post: Optional[PostState]
+    
+    # Database save fields
+    user_id: Optional[int]  # User ID for saving to database
+    save_status: Optional[Literal[
+        "saved",
+        "failed",
+        "skipped_not_approved",
+        "failed_no_post_data"
+    ]]
+    saved_job: Optional[Dict[str, Any]]  # Saved job data from database
+    save_error: Optional[str]  # Error message if save failed
 
 class EVALN(TypedDict, total=False):
     """

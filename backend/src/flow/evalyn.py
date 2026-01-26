@@ -7,17 +7,23 @@ from langgraph.graph import StateGraph, END
 from src.flow.states.evelyn import EVALN
 from src.flow.post_creation.create_post import create_post
 from src.flow.post_creation.human_review import human_review
+# from src.flow.post_creation.publish_post import publish_post  # Commented out - replaced with save_job_post
+from src.flow.post_creation.save_job_post import save_job_post
 from src.flow.router.jd_router import router
 
 def build_workflow():
     """
+    Workflow:
     generate JD -> human review -> improve JD -> repeat until approved
+    After approval -> save job post to database
     """
     graph = StateGraph(EVALN)
 
     # Nodes
     graph.add_node("create_post", create_post)
     graph.add_node("human_review", human_review)
+    # graph.add_node("publish_post", publish_post)  # Commented out - replaced with save_job_post
+    graph.add_node("save_job_post", save_job_post)
 
     # Entry
     graph.set_entry_point("create_post")
@@ -28,10 +34,11 @@ def build_workflow():
         "human_review",
         router,
         {
-            END: END,
+            "save_job_post": "save_job_post",  # Changed from publish_post
             "create_post": "create_post"
         }
     )
+    graph.add_edge("save_job_post", END)  # Changed from publish_post
     return graph.compile()
 
 
@@ -53,6 +60,6 @@ if __name__ == "__main__":
         }
     }
     
-    result = build_workflow().run(initial_state)
+    result = build_workflow().invoke(initial_state)
     print("Workflow completed")
     print(result)

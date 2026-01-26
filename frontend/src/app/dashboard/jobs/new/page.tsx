@@ -437,7 +437,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
             {step === 3 && (
                 <div className="space-y-6">
                     {/* Loading State */}
-                    {jobGeneration.isLoading && !jobGeneration.generatedPost && (
+                    {jobGeneration.isLoading && !jobGeneration.generatedPost ? (
                         <Card className="p-12">
                             <div className="flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
@@ -447,7 +447,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                 </div>
                             </div>
                         </Card>
-                    )}
+                    ) : null}
 
                     {/* Error State */}
                     {jobGeneration.error && (

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { authApi } from "@/lib/api";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -20,30 +21,32 @@ export default function LoginPage() {
         setError("");
         setIsLoading(true);
 
-        // Simulate API call - In production, backend determines role from token
-        setTimeout(() => {
-            // Mock: Determine role based on email for demo purposes
-            // In real app, the backend API returns the role with the auth token
-            let role = "candidate";
-            if (email.includes("admin") || email.includes("hr") || email.includes("@company.com")) {
-                role = "admin";
-            } else if (email.includes("reviewer")) {
-                role = "reviewer";
-            }
+        try {
+            const { apiClient } = await import("@/lib/api/client");
+            const response = await apiClient.post<any>("/auth/login", {
+                email,
+                password,
+            });
+
+            const { access_token, user } = response;
+            const role = user.role;
 
             localStorage.setItem("userRole", role);
             localStorage.setItem("userEmail", email);
-            localStorage.setItem("access_token", `mock_token_${Date.now()}`);
+            localStorage.setItem("access_token", access_token);
 
             // Redirect based on role
-            if (role === "admin" || role === "reviewer") {
+            if (user.role === "admin" || user.role === "reviewer") {
                 window.location.href = "/dashboard/jobs";
             } else {
                 window.location.href = "/portal/status";
             }
-
+        } catch (err: any) {
+            console.error("Login error:", err);
+            setError(err.message || "Failed to sign in. Please check your credentials.");
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
     return (

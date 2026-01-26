@@ -19,6 +19,11 @@ def create_post(state: EVALN) -> dict:
     experience_level = jd.get("experience_level", "Mid")
     company_name = jd.get("company_name", "Example Corp")
     feedback = jd.get("feedback", None)
+    
+    apply_link = jd.get(
+        "apply_link",
+        "https://example.com/careers/apply"
+    )
 
     # Format prompt
     messages = JD_GENERATION_PROMPT.format_messages(
@@ -37,6 +42,8 @@ def create_post(state: EVALN) -> dict:
 
     # Convert to dict if needed
     post_data = response.model_dump() if hasattr(response, 'model_dump') else response
+    post_data["apply_link"] = apply_link
+    
         
     return {
             "jd":{

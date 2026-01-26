@@ -4,6 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     Linkedin,
     Twitter,
@@ -13,7 +23,14 @@ import {
     Check,
     ExternalLink,
     Settings,
-    Trash2
+    Trash2,
+    Briefcase,
+    Building2,
+    Search,
+    FileText,
+    X,
+    Loader2,
+    CheckCircle2
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +47,15 @@ interface SocialAccount {
     avatar: string;
     connected: boolean;
     autoPublish: boolean;
+}
+
+interface JobPlatform {
+    id: string;
+    name: string;
+    description: string;
+    icon: React.ElementType;
+    color: string;
+    requiresCredentials: boolean;
 }
 
 // Mock connected accounts
@@ -72,6 +98,50 @@ const initialAccounts: SocialAccount[] = [
     },
 ];
 
+// Popular job posting platforms
+const jobPlatforms: JobPlatform[] = [
+    {
+        id: 'indeed',
+        name: 'Indeed',
+        description: 'World\'s #1 job site with millions of job listings',
+        icon: Briefcase,
+        color: 'bg-blue-600',
+        requiresCredentials: true,
+    },
+    {
+        id: 'glassdoor',
+        name: 'Glassdoor',
+        description: 'Job listings with company reviews and salary insights',
+        icon: Building2,
+        color: 'bg-green-600',
+        requiresCredentials: true,
+    },
+    {
+        id: 'ziprecruiter',
+        name: 'ZipRecruiter',
+        description: 'AI-powered job matching platform',
+        icon: Search,
+        color: 'bg-emerald-500',
+        requiresCredentials: true,
+    },
+    {
+        id: 'monster',
+        name: 'Monster',
+        description: 'Global employment website for job seekers',
+        icon: FileText,
+        color: 'bg-purple-600',
+        requiresCredentials: true,
+    },
+    {
+        id: 'instagram',
+        name: 'Instagram',
+        description: 'Share job postings with visual content on Instagram',
+        icon: Instagram,
+        color: 'bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400',
+        requiresCredentials: true,
+    },
+];
+
 const platformConfig = {
     linkedin: { icon: Linkedin, color: 'bg-blue-600', name: 'LinkedIn' },
     twitter: { icon: Twitter, color: 'bg-sky-500', name: 'Twitter/X' },
@@ -81,6 +151,13 @@ const platformConfig = {
 
 export default function IntegrationsPage() {
     const [accounts, setAccounts] = useState<SocialAccount[]>(initialAccounts);
+    const [showPlatformsModal, setShowPlatformsModal] = useState(false);
+    const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+    const [selectedPlatform, setSelectedPlatform] = useState<JobPlatform | null>(null);
+    const [credentials, setCredentials] = useState({ username: '', password: '' });
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+    const [successPlatformName, setSuccessPlatformName] = useState('');
 
     const toggleConnection = (id: string) => {
         setAccounts(prev =>
@@ -98,10 +175,61 @@ export default function IntegrationsPage() {
         );
     };
 
+    const handlePlatformClick = (platform: JobPlatform) => {
+        setSelectedPlatform(platform);
+        setShowPlatformsModal(false);
+        setShowCredentialsModal(true);
+        setCredentials({ username: '', password: '' });
+    };
+
+    const handleConnect = async () => {
+        if (!credentials.username || !credentials.password) return;
+
+        setIsConnecting(true);
+
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        setIsConnecting(false);
+        setShowCredentialsModal(false);
+        setSuccessPlatformName(selectedPlatform?.name || '');
+        setShowSuccessMessage(true);
+
+        // Hide success message after 4 seconds
+        setTimeout(() => {
+            setShowSuccessMessage(false);
+        }, 4000);
+
+        // Reset credentials
+        setCredentials({ username: '', password: '' });
+        setSelectedPlatform(null);
+    };
+
     const connectedCount = accounts.filter(a => a.connected).length;
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6 max-w-4xl relative">
+            {/* Success Notification */}
+            {showSuccessMessage && (
+                <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
+                        <div className="bg-white/20 p-2 rounded-full">
+                            <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <p className="font-semibold">Connection Successful!</p>
+                            <p className="text-sm text-green-100">{successPlatformName} has been connected to your account</p>
+                        </div>
+                        <button
+                            onClick={() => setShowSuccessMessage(false)}
+                            className="ml-4 hover:bg-white/20 p-1 rounded-full transition-colors"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-slate-900">Integrations</h1>
@@ -146,9 +274,14 @@ export default function IntegrationsPage() {
                             <CardTitle>Social Media Accounts</CardTitle>
                             <CardDescription>Manage your connected platforms for job distribution</CardDescription>
                         </div>
-                        <Button variant="outline" size="sm">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Account
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowPlatformsModal(true)}
+                            className="group hover:bg-blue-50 hover:border-blue-300 transition-all duration-200"
+                        >
+                            <Plus className="h-4 w-4 mr-2 group-hover:text-blue-600 transition-colors" />
+                            <span className="group-hover:text-blue-600 transition-colors">Add Account</span>
                         </Button>
                     </div>
                 </CardHeader>
@@ -160,7 +293,7 @@ export default function IntegrationsPage() {
                         return (
                             <div
                                 key={account.id}
-                                className={`flex items-center justify-between p-4 rounded-lg border ${account.connected ? 'bg-white border-slate-200' : 'bg-slate-50 border-dashed border-slate-300'
+                                className={`flex items-center justify-between p-4 rounded-lg border transition-all duration-200 ${account.connected ? 'bg-white border-slate-200 hover:shadow-md' : 'bg-slate-50 border-dashed border-slate-300 hover:border-slate-400'
                                     }`}
                             >
                                 <div className="flex items-center gap-4">
@@ -245,6 +378,126 @@ export default function IntegrationsPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Floating Plus Button */}
+            <button
+                onClick={() => setShowPlatformsModal(true)}
+                className="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-full shadow-2xl hover:shadow-blue-500/30 hover:scale-110 transition-all duration-300 flex items-center justify-center group z-40"
+            >
+                <Plus className="h-7 w-7 group-hover:rotate-90 transition-transform duration-300" />
+            </button>
+
+            {/* Platforms Modal */}
+            <Dialog open={showPlatformsModal} onOpenChange={setShowPlatformsModal}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">Add Integration</DialogTitle>
+                        <DialogDescription>
+                            Connect popular job posting platforms to publish your listings
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-3 py-4">
+                        {jobPlatforms.map((platform) => {
+                            const Icon = platform.icon;
+                            return (
+                                <button
+                                    key={platform.id}
+                                    onClick={() => handlePlatformClick(platform)}
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 text-left group"
+                                >
+                                    <div className={`p-3 rounded-lg ${platform.color} text-white group-hover:scale-110 transition-transform duration-200`}>
+                                        <Icon className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">{platform.name}</h4>
+                                        <p className="text-sm text-slate-500">{platform.description}</p>
+                                    </div>
+                                    <ExternalLink className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                                </button>
+                            );
+                        })}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Credentials Modal */}
+            <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3 mb-2">
+                            {selectedPlatform && (
+                                <div className={`p-3 rounded-lg ${selectedPlatform.color} text-white`}>
+                                    <selectedPlatform.icon className="h-5 w-5" />
+                                </div>
+                            )}
+                            <div>
+                                <DialogTitle className="text-xl font-bold">
+                                    Connect {selectedPlatform?.name}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Enter your {selectedPlatform?.name} credentials to connect
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="username" className="text-sm font-medium">
+                                {selectedPlatform?.id === 'instagram' ? 'Instagram Username' : 'Email / Username'}
+                            </Label>
+                            <Input
+                                id="username"
+                                placeholder={selectedPlatform?.id === 'instagram' ? '@username' : 'Enter your email or username'}
+                                value={credentials.username}
+                                onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
+                                className="h-11"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="password" className="text-sm font-medium">
+                                Password
+                            </Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={credentials.password}
+                                onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
+                                className="h-11"
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Your credentials are securely encrypted and never stored in plain text.
+                        </p>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowCredentialsModal(false)}
+                            disabled={isConnecting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConnect}
+                            disabled={!credentials.username || !credentials.password || isConnecting}
+                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                        >
+                            {isConnecting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Connecting...
+                                </>
+                            ) : (
+                                <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Connect
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

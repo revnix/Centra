@@ -5,7 +5,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  * Handles authentication, request/response interceptors, and error handling
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:2024/api/v1';
 
 class ApiClient {
     private client: AxiosInstance;
@@ -42,9 +42,8 @@ class ApiClient {
             (response) => response,
             async (error: AxiosError) => {
                 if (error.response?.status === 401) {
-                    // TODO: Implement token refresh logic
                     // For now, redirect to login
-                    if (typeof window !== 'undefined') {
+                    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
                         window.location.href = '/login';
                     }
                 }
@@ -54,7 +53,6 @@ class ApiClient {
     }
 
     private getAccessToken(): string | null {
-        // TODO: Integrate with NextAuth session
         if (typeof window !== 'undefined') {
             return localStorage.getItem('access_token');
         }
@@ -64,10 +62,15 @@ class ApiClient {
     private normalizeError(error: AxiosError): { message: string; code: string; details?: any } {
         if (error.response?.data) {
             const data = error.response.data as any;
+            // Handle FastAPI 'detail' field
+            const message = typeof data.detail === 'string'
+                ? data.detail
+                : (Array.isArray(data.detail) ? 'Validation Error' : (data.message || 'An error occurred'));
+
             return {
-                message: data.message || 'An error occurred',
+                message: message,
                 code: data.code || `HTTP_${error.response.status}`,
-                details: data.details,
+                details: data.detail,
             };
         }
         return {
