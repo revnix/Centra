@@ -9,6 +9,7 @@ class UserIntegration(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     platform = Column(String, nullable=False)  # 'linkedin', 'github', etc.
+    platform_user_id = Column(String, nullable=True) # e.g., LinkedIn URN
     access_token = Column(Text, nullable=False)
     refresh_token = Column(Text, nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)

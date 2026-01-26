@@ -18,8 +18,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://neondb_owner:npg_MPCme14rlwYx@ep-super-darkness-ah973sum-pooler.c-3.us-east-1.aws.neon.tech/neondb"
+        "DATABASE_URL"
     )
 
     # Security
@@ -40,6 +39,9 @@ class Settings(BaseSettings):
 
     # Social Media API Endpoints
     LINKEDIN_API_ENDPOINT: str = "https://api.linkedin.com/v2"
+    LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")
+    LINKEDIN_CLIENT_SECRET: str = os.getenv("LINKEDIN_CLIENT_SECRET", "")
+    LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
     FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"

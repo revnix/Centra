@@ -22,16 +22,18 @@ export default function LoginPage() {
         setIsLoading(true);
 
         try {
-            const { access_token } = await authApi.login({ email, password });
+            const { apiClient } = await import("@/lib/api/client");
+            const response = await apiClient.post<any>("/auth/login", {
+                email,
+                password,
+            });
+
+            const { access_token, user } = response;
+            const role = user.role;
+
+            localStorage.setItem("userRole", role);
+            localStorage.setItem("userEmail", email);
             localStorage.setItem("access_token", access_token);
-
-            // Set cookie for middleware
-            document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
-
-            // Fetch user info to get the role
-            const user = await authApi.getMe();
-            localStorage.setItem("userRole", user.role);
-            localStorage.setItem("userEmail", user.email);
 
             // Redirect based on role
             if (user.role === "admin" || user.role === "reviewer") {
@@ -40,8 +42,8 @@ export default function LoginPage() {
                 window.location.href = "/portal/status";
             }
         } catch (err: any) {
-            console.error("Login failed:", err);
-            setError(err.message || "Invalid email or password");
+            console.error("Login error:", err);
+            setError(err.message || "Failed to sign in. Please check your credentials.");
         } finally {
             setIsLoading(false);
         }

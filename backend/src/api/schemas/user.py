@@ -7,6 +7,7 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
 
 class UserCreate(UserBase):
+    username: str
     password: str
     role: UserRole = UserRole.GUEST
 
@@ -16,6 +17,7 @@ class UserLogin(BaseModel): # Modified to not inherit from UserBase if email is 
 
 class UserResponse(UserBase):
     id: int
+    username: str
     role: UserRole
     is_active: bool
 
@@ -25,6 +27,7 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: UserResponse
 
 class UserRegisterResponse(BaseModel):
     user: UserResponse
