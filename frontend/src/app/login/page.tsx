@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { authApi } from "@/lib/api";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -35,7 +36,7 @@ export default function LoginPage() {
             localStorage.setItem("access_token", access_token);
 
             // Redirect based on role
-            if (role === "admin" || role === "reviewer") {
+            if (user.role === "admin" || user.role === "reviewer") {
                 window.location.href = "/dashboard/jobs";
             } else {
                 window.location.href = "/portal/status";

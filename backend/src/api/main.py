@@ -45,6 +45,11 @@ app.include_router(admin_users.router, prefix=f"{settings.API_V1_PREFIX}/admin/u
 app.include_router(admin_jobs.router, prefix=f"{settings.API_V1_PREFIX}/admin/jobs", tags=["admin-jobs"])
 app.include_router(admin_integrations.linkedin_router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/linkedin", tags=["admin-integrations"])
 
+# Hiring Workflow Routes
+app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["candidates"])
+app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applications", tags=["applications"])
+app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
+
 
 @app.get("/")
 def root():

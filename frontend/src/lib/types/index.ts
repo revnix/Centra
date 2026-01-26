@@ -15,10 +15,33 @@ export type UserRole = 'admin' | 'reviewer' | 'candidate';
 export interface User {
   id: string;
   email: string;
-  name: string;
+  full_name?: string;
   role: UserRole;
   avatar?: string;
-  createdAt: string;
+  createdAt?: string;
+  is_active?: boolean;
+}
+
+export interface UserCreate {
+  email: string;
+  full_name?: string;
+  password?: string;
+  role?: UserRole;
+}
+
+export interface UserLogin {
+  email: string;
+  password?: string;
+}
+
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
+export interface UserRegisterResponse {
+  user: User;
+  access_token: Token;
 }
 
 export interface AuthSession {
@@ -32,23 +55,40 @@ export interface AuthSession {
 // JOB TYPES
 // ============================================================================
 
-export type JobStatus = 'draft' | 'posted' | 'interviewing' | 'closed';
+export type JobStatus = 'draft' | 'pending' | 'published' | 'closed' | 'archived';
 
 export interface Job {
   id: string;
   title: string;
-  department: string;
-  location: string;
+  department?: string;
+  location?: string;
   status: JobStatus;
   description: string;
-  requirements: string[];
-  desiredSkills: string[];
-  candidateCount: number;
-  pendingActionCount: number;
+  short_description?: string;
+  company_name?: string;
+  job_type?: string;
+  experience_level?: string;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_range?: string;
+  required_skills?: string[];
+  preferred_skills?: string[];
+  benefits?: string[];
+  application_url?: string;
+  requirements: string[]; // Keep for backward compatibility
+  desiredSkills: string[]; // Keep for backward compatibility
+  candidateCount?: number;
+  application_count?: number;
+  pendingActionCount?: number;
   createdBy: string;
+  created_by?: number;
   createdAt: string;
+  created_at?: string;
   publishedAt?: string;
+  published_at?: string;
   closedAt?: string;
+  expires_at?: string;
 }
 
 export interface JobIntent {
