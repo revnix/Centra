@@ -1,4 +1,4 @@
-// Export all API services
+export { authApi } from './auth';
 export { apiClient } from './client';
 export { jobsApi } from './jobs';
 export { candidatesApi } from './candidates';

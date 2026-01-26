@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { authApi } from "@/lib/api";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -20,30 +21,30 @@ export default function LoginPage() {
         setError("");
         setIsLoading(true);
 
-        // Simulate API call - In production, backend determines role from token
-        setTimeout(() => {
-            // Mock: Determine role based on email for demo purposes
-            // In real app, the backend API returns the role with the auth token
-            let role = "candidate";
-            if (email.includes("admin") || email.includes("hr") || email.includes("@company.com")) {
-                role = "admin";
-            } else if (email.includes("reviewer")) {
-                role = "reviewer";
-            }
+        try {
+            const { access_token } = await authApi.login({ email, password });
+            localStorage.setItem("access_token", access_token);
 
-            localStorage.setItem("userRole", role);
-            localStorage.setItem("userEmail", email);
-            localStorage.setItem("access_token", `mock_token_${Date.now()}`);
+            // Set cookie for middleware
+            document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
+
+            // Fetch user info to get the role
+            const user = await authApi.getMe();
+            localStorage.setItem("userRole", user.role);
+            localStorage.setItem("userEmail", user.email);
 
             // Redirect based on role
-            if (role === "admin" || role === "reviewer") {
+            if (user.role === "admin" || user.role === "reviewer") {
                 window.location.href = "/dashboard/jobs";
             } else {
                 window.location.href = "/portal/status";
             }
-
+        } catch (err: any) {
+            console.error("Login failed:", err);
+            setError(err.message || "Invalid email or password");
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
     return (

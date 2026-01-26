@@ -12,8 +12,8 @@ export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login', '/register', '/'];
-    const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith(route));
+    const publicRoutes = ['/login', '/signup', '/jobs', '/'];
+    const isPublicRoute = pathname === '/' || publicRoutes.some(route => route !== '/' && (pathname === route || pathname.startsWith(route + '/')));
 
     // Get token from cookie (NextAuth will set this)
     const token = request.cookies.get('access_token')?.value;
@@ -25,8 +25,9 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Redirect to appropriate dashboard if already logged in
-    if (isPublicRoute && token) {
+    // Redirect to appropriate dashboard if already logged in (only from auth pages or landing page)
+    const authRoutes = ['/login', '/signup', '/'];
+    if (token && authRoutes.includes(pathname)) {
         // TODO: Decode token to get user role and redirect appropriately
         // For now, default to /dashboard
         return NextResponse.redirect(new URL('/dashboard', request.url));

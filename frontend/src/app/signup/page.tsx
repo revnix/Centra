@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sparkles, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { authApi } from "@/lib/api";
+import { UserRole } from "@/lib/types";
 
 export default function SignupPage() {
     const [formData, setFormData] = useState({
@@ -46,15 +48,31 @@ export default function SignupPage() {
 
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            localStorage.setItem("userRole", "admin");
-            localStorage.setItem("userEmail", formData.email);
-            localStorage.setItem("access_token", `mock_token_${Date.now()}`);
+        try {
+            // Mapping frontend signup to backend register
+            // Note: backend expects 'role' in UserCreate. Defaulting to ADMIN for this flow as per original logic.
+            const response = await authApi.register({
+                email: formData.email,
+                full_name: formData.fullName,
+                password: formData.password,
+                role: 'admin' as UserRole
+            });
+
+            localStorage.setItem("access_token", response.access_token.access_token);
+
+            // Set cookie for middleware
+            document.cookie = `access_token=${response.access_token.access_token}; path=/; max-age=86400; SameSite=Lax`;
+
+            localStorage.setItem("userRole", response.user.role);
+            localStorage.setItem("userEmail", response.user.email);
 
             window.location.href = "/dashboard/jobs";
+        } catch (err: any) {
+            console.error("Signup failed:", err);
+            setError(err.message || "Failed to create account. Please try again.");
+        } finally {
             setIsLoading(false);
-        }, 2000);
+        }
     };
 
     return (

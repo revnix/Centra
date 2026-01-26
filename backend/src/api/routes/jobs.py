@@ -9,7 +9,14 @@ from src.api.models.user import User
 
 router = APIRouter()
 
-@router.get("/public", response_model=List[JobResponse])
+@router.get("/ping")
+async def ping(db: AsyncSession = Depends(get_db)):
+    # Simple query to test DB
+    from sqlalchemy import text
+    await db.execute(text("SELECT 1"))
+    return {"message": "pong"}
+
+@router.get("/public")
 async def read_public_jobs(
     skip: int = 0,
     limit: int = 100,
@@ -20,7 +27,7 @@ async def read_public_jobs(
     return await job_service.get_jobs(skip=skip, limit=limit, status="published")
 
 
-@router.get("/", response_model=List[JobResponse])
+@router.get("/")
 async def read_jobs(
     skip: int = 0,
     limit: int = 100,
@@ -31,6 +38,22 @@ async def read_jobs(
     """Authenticated endpoint for fetching jobs with any status"""
     job_service = JobService(db)
     return await job_service.get_jobs(skip=skip, limit=limit, status=status)
+
+@router.get("/{job_id}", response_model=JobResponse)
+async def read_job(
+    job_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a specific job by ID.
+    Publicly accessible to allow candidates to view job details.
+    """
+    job_service = JobService(db)
+    job = await job_service.get_job(job_id)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @router.post("/{job_id}/publish", response_model=JobResponse)
