@@ -3,6 +3,7 @@ Save Job Post Node - Saves generated job posts to the database.
 """
 
 from src.flow.states.evelyn import EVALN
+from typing import Optional, List, Dict, Any
 # Import from models package to ensure all models are loaded for relationship resolution
 from src.api.models.job import Posts, JobType, JobStatus, ExperienceLevel
 from src.api.db.session import get_db
@@ -45,18 +46,17 @@ def map_experience_level(level: str) -> ExperienceLevel:
     return mapping.get(level.lower(), ExperienceLevel.MID_SENIOR)
 
 
-async def _save_job_to_db(job_data: dict, user_id: int) -> dict:
+async def _save_job_to_db(job_data: dict, user_id: int, existing_job_id: Optional[int] = None) -> dict:
     """
-    Async function to save job to database.
+    Async function to save or update job in database.
     Returns the saved job data.
     """
     # Create a fresh engine/session to avoid event loop issues
-    # when running in a separate thread/loop
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
     from src.api.core.config import settings
+    from sqlalchemy.future import select
 
     database_url = settings.DATABASE_URL
-    # Asyncpg + Neon SSL handling (replicated from session.py)
     if "asyncpg" in database_url:
         if "sslmode=" in database_url:
             database_url = database_url.replace("?sslmode=require", "").replace("&sslmode=require", "")
@@ -64,59 +64,64 @@ async def _save_job_to_db(job_data: dict, user_id: int) -> dict:
     else:
         connect_args = {}
 
-    engine = create_async_engine(
-        database_url,
-        echo=True,
-        future=True,
-        connect_args=connect_args
-    )
-    
-    AsyncSessionLocal = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
+    engine = create_async_engine(database_url, echo=True, future=True, connect_args=connect_args)
+    AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
     async with AsyncSessionLocal() as db:
         try:
-            job = Posts(
-                title=job_data.get("job_title", "Untitled"),
-                description=job_data.get("summary", ""),
-                short_description=job_data.get("summary", "")[:500] if job_data.get("summary") else None,
-                location=job_data.get("location", "Remote"),
-                is_remote="remote" in job_data.get("location", "").lower(),
-                location_type="remote" if "remote" in job_data.get("location", "").lower() else "on_site",
-                job_type=map_employment_type(job_data.get("employment_type", "full_time")),
-                experience_level=map_experience_level(job_data.get("experience_level", "mid")),
-                department=None,
-                required_skills=job_data.get("skills", []),
-                preferred_skills=job_data.get("preferred_qualifications", []),
-                benefits=job_data.get("benefits", []),
-                status=JobStatus.DRAFT,
-                company_name=job_data.get("company_name"),
-                application_url=job_data.get("apply_link"),
-                tags=job_data.get("skills", []),
-                metadata_json={
-                    "responsibilities": job_data.get("responsibilities", []),
-                    "requirements": job_data.get("requirements", []),
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
-                    "source": "ai_generated"
-                },
-                created_by=user_id,
-                created_at=datetime.now(timezone.utc),
-            )
+            job = None
+            if existing_job_id:
+                result = await db.execute(select(Posts).where(Posts.id == existing_job_id))
+                job = result.scalars().first()
+
+            target_status = JobStatus.PUBLISHED if job_data.get("is_approved") else JobStatus.DRAFT
+
+            if job:
+                # Update existing job
+                job.title = job_data.get("job_title", job.title)
+                job.description = job_data.get("summary", job.description)
+                job.status = target_status
+                if target_status == JobStatus.PUBLISHED and not job.published_at:
+                    job.published_at = datetime.now(timezone.utc)
+            else:
+                # Create new job
+                job = Posts(
+                    title=job_data.get("job_title", "Untitled"),
+                    description=job_data.get("summary", ""),
+                    short_description=job_data.get("summary", "")[:500] if job_data.get("summary") else None,
+                    location=job_data.get("location", "Remote"),
+                    is_remote="remote" in job_data.get("location", "").lower(),
+                    location_type="remote" if "remote" in job_data.get("location", "").lower() else "on_site",
+                    job_type=map_employment_type(job_data.get("employment_type", "full_time")),
+                    experience_level=map_experience_level(job_data.get("experience_level", "mid")),
+                    department=None,
+                    required_skills=job_data.get("skills", []),
+                    preferred_skills=job_data.get("preferred_qualifications", []),
+                    benefits=job_data.get("benefits", []),
+                    status=target_status,
+                    company_name=job_data.get("company_name"),
+                    application_url=job_data.get("apply_link"),
+                    tags=job_data.get("skills", []),
+                    metadata_json={
+                        "responsibilities": job_data.get("responsibilities", []),
+                        "requirements": job_data.get("requirements", []),
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "source": "ai_generated"
+                    },
+                    created_by=user_id,
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(job)
             
-            db.add(job)
             await db.commit()
             await db.refresh(job)
             
-            result = {
+            return {
                 "job_id": job.id,
                 "title": job.title,
                 "status": job.status.value,
                 "saved_at": job.created_at.isoformat()
             }
-            return result
             
         except Exception as e:
             await db.rollback()
@@ -125,7 +130,7 @@ async def _save_job_to_db(job_data: dict, user_id: int) -> dict:
             await engine.dispose()
 
 
-def save_job_post(state: EVALN) -> dict:
+async def save_job_post(state: EVALN) -> dict:
     """
     Save approved job post to the database.
     
@@ -135,15 +140,17 @@ def save_job_post(state: EVALN) -> dict:
     jd = state.get("jd", {})
     post = jd.get("post", {})
     
-    # Only save if the JD is approved
-    if jd.get("status") != "approved":
-        print("Job not approved, skipping save.")
+    # Only save if the JD is approved OR awaiting review
+    if jd.get("status") not in ["approved", "awaiting_review"]:
+        print(f"Job status is {jd.get('status')}, skipping save.")
         return {
             "jd": {
                 **jd,
-                "save_status": "skipped_not_approved"
+                "save_status": "skipped_invalid_status"
             }
         }
+    
+    # Removed overly aggressive skip logic to allow updates during the review process
     
     if not post:
         print("No post data found.")
@@ -173,24 +180,13 @@ def save_job_post(state: EVALN) -> dict:
         "apply_link": post.get("apply_link"),
     }
     
+    # Pass is_approved flag and existing job ID
+    job_data["is_approved"] = jd.get("status") == "approved"
+    existing_job_id = jd.get("saved_job", {}).get("job_id")
+    
     try:
-        # Run async function in sync context
-        # Create a new event loop for this thread since LangGraph runs nodes
-        # in a ThreadPoolExecutor which doesn't have an event loop
-        try:
-            loop = asyncio.get_running_loop()
-            # If we're in a running loop, we need to use run_coroutine_threadsafe
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    _save_job_to_db(job_data, user_id)
-                )
-                saved_data = future.result()
-        except RuntimeError:
-            # No running event loop - create a new one
-            saved_data = asyncio.run(_save_job_to_db(job_data, user_id))
-        
+        # Now calling _save_job_to_db directly since we are async
+        saved_data = await _save_job_to_db(job_data, user_id, existing_job_id)
         print(f"Job saved successfully: {saved_data}")
         
         return {

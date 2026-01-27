@@ -27,18 +27,35 @@ def build_workflow():
 
     # Entry
     graph.set_entry_point("create_post")
+    
+    # Path decision functions
+    def save_post_router(state: EVALN):
+        """Decide where to go after saving."""
+        jd = state.get("jd", {})
+        if jd.get("status") == "approved":
+            return END
+        return "human_review"
+
     # Edges
-    graph.add_edge("create_post", "human_review")
+    graph.add_edge("create_post", "save_job_post")
+    
+    graph.add_conditional_edges(
+        "save_job_post",
+        save_post_router,
+        {
+            "human_review": "human_review",
+            END: END
+        }
+    )
 
     graph.add_conditional_edges(
         "human_review",
         router,
         {
-            "save_job_post": "save_job_post",  # Changed from publish_post
+            "save_job_post": "save_job_post",
             "create_post": "create_post"
         }
     )
-    graph.add_edge("save_job_post", END)  # Changed from publish_post
     return graph.compile()
 
 

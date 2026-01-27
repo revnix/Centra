@@ -3,7 +3,15 @@
 import { useStream } from '@langchain/langgraph-sdk/react';
 import type { EvalynState, HITLInterrupt, HITLResponse, JDState } from '@/lib/types/langgraph';
 
-const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 'http://localhost:2024';
+const getLangGraphApiUrl = () => {
+    if (typeof window !== "undefined") {
+        const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
+        return `http://${host}:2024`;
+    }
+    return 'http://localhost:2024';
+};
+
+const LANGGRAPH_API_URL = getLangGraphApiUrl();
 
 export interface JobGenerationInput {
     role: string;

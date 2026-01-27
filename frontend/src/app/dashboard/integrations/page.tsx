@@ -30,9 +30,11 @@ import {
     FileText,
     X,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    Lock
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useIndeedStatus, useConnectIndeed } from '@/lib/hooks/useIndeed';
 
 /**
  * Integrations Page
@@ -41,7 +43,7 @@ import { useState } from 'react';
 
 interface SocialAccount {
     id: string;
-    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram';
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'indeed';
     name: string;
     handle: string;
     avatar: string;
@@ -147,6 +149,7 @@ const platformConfig = {
     twitter: { icon: Twitter, color: 'bg-sky-500', name: 'Twitter/X' },
     facebook: { icon: Facebook, color: 'bg-blue-700', name: 'Facebook' },
     instagram: { icon: Instagram, color: 'bg-gradient-to-br from-purple-600 to-pink-500', name: 'Instagram' },
+    indeed: { icon: Briefcase, color: 'bg-blue-600', name: 'Indeed' },
 };
 
 export default function IntegrationsPage() {
@@ -158,6 +161,24 @@ export default function IntegrationsPage() {
     const [isConnecting, setIsConnecting] = useState(false);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
     const [successPlatformName, setSuccessPlatformName] = useState('');
+
+    const { data: indeedStatus, isLoading: isLoadingIndeed } = useIndeedStatus();
+    const connectIndeed = useConnectIndeed();
+
+    // Add Indeed to accounts if connected
+    useEffect(() => {
+        if (indeedStatus?.connected && !accounts.find(a => a.id === 'indeed')) {
+            setAccounts(prev => [...prev, {
+                id: 'indeed',
+                platform: 'linkedin' as any, // HACK: the interface only has 4 platforms mentioned, I should probably update the interface
+                name: 'Indeed Account',
+                handle: indeedStatus.platform_user_id || 'Connected',
+                avatar: 'ID',
+                connected: true,
+                autoPublish: true,
+            }]);
+        }
+    }, [indeedStatus, accounts]);
 
     const toggleConnection = (id: string) => {
         setAccounts(prev =>
@@ -176,6 +197,10 @@ export default function IntegrationsPage() {
     };
 
     const handlePlatformClick = (platform: JobPlatform) => {
+        if (platform.id === 'indeed') {
+            connectIndeed.mutate();
+            return;
+        }
         setSelectedPlatform(platform);
         setShowPlatformsModal(false);
         setShowCredentialsModal(true);

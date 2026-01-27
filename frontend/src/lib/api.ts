@@ -1,4 +1,12 @@
-const API_BASE_URL = "http://127.0.0.1:2024/api/v1";
+const getApiBaseUrl = () => {
+    if (typeof window !== "undefined") {
+        const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
+        return `http://${host}:2024/api/v1`;
+    }
+    return "http://127.0.0.1:2024/api/v1";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
     constructor(public status: number, message: string) {
@@ -19,17 +27,27 @@ async function fetcher<T>(endpoint: string, options?: RequestInit): Promise<T> {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    console.log(`[API] Fetching: ${fullUrl}`, options);
 
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new ApiError(res.status, errorData.detail || "An error occurred");
+    try {
+        const res = await fetch(fullUrl, {
+            ...options,
+            headers,
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new ApiError(res.status, errorData.detail || "An error occurred");
+        }
+
+        return res.json();
+    } catch (error) {
+        if (error instanceof ApiError) throw error;
+
+        console.error(`[API] Network Error at ${fullUrl}:`, error);
+        throw new Error(`Connection failed to ${fullUrl}. Please ensure the backend is running at ${API_BASE_URL}`);
     }
-
-    return res.json();
 }
 
 export const api = {
@@ -113,4 +131,11 @@ export const authApi = {
             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
     }),
+};
+
+export const indeedApi = {
+    getStatus: () => fetcher<{ connected: boolean; is_expired?: boolean; expires_at?: string; platform_user_id?: string }>("/indeed/status"),
+    getConnectUrl: () => fetcher<{ url: string }>("/indeed/connect"),
+    syncJob: (jobId: number) => fetcher<any>(`/indeed/jobs/${jobId}/sync`, { method: "POST" }),
+    expireJob: (jobId: number) => fetcher<any>(`/indeed/jobs/${jobId}`, { method: "DELETE" }),
 };

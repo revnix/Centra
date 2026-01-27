@@ -4,6 +4,10 @@ from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 database_url = settings.DATABASE_URL
 
+# Convert sqlite:/// to sqlite+aiosqlite:/// for async support
+if database_url.startswith("sqlite:///"):
+    database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
 # Asyncpg + Neon SSL handling
 if "asyncpg" in database_url:
     url_obj = urlparse(database_url)
@@ -26,6 +30,16 @@ engine = create_async_engine(
     future=True,
     connect_args=connect_args
 )
+
+# Enable WAL mode for SQLite to improve concurrency and prevent locking
+if database_url.startswith("sqlite"):
+    from sqlalchemy import event
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
