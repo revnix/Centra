@@ -5,61 +5,115 @@ from src.api.db.session import get_db
 from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 from src.api.services.linkedin_service import LinkedInService
+from src.api.schemas.integration import (
+    LinkedInAuthURLResponse, 
+    LinkedInCallbackRequest, 
+    IntegrationResponse,
+    LinkedInPublishRequest
+)
 import secrets
 
 router = APIRouter()
 
-@router.get("/login")
+@router.get("/login", response_model=LinkedInAuthURLResponse)
 async def linkedin_login(
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Step 1: Redirect the user to LinkedIn for authorization.
+    Step 1: Get the LinkedIn authorization URL.
     """
     linkedin_service = LinkedInService(db)
-    # In a real app, you'd store the state in a session or cache to verify it later
     state = secrets.token_urlsafe(16)
     auth_url = linkedin_service.get_authorization_url(state)
-    return {"url": auth_url}
+    return {"authorization_url": auth_url}
 
-@router.get("/callback")
+@router.post("/callback", response_model=IntegrationResponse)
 async def linkedin_callback(
-    code: str,
-    state: str,
-    # current_user: User = Depends(get_current_user), # Callback might not have user in headers/session easily depending on flow
+    request_data: LinkedInCallbackRequest,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Step 2: Handle the LinkedIn callback, exchange code for token, and save.
+    Step 2: Handle the LinkedIn callback data sent from frontend.
     """
-    # Note: In a production app, verify the 'state' matches what was sent in /login.
-    # For now, we assume the user is the one who initiated the flow.
-    # We might need a way to link the callback to the logged-in user.
-    # Since this is an admin/integration route, we might need the user to be authenticated
-    # but the redirect from LinkedIn won't have the Bearer token in headers.
-    
-    # One way is to pass user_id in the state or use a session cookie.
-    # For simplicity here, let's assume we can get the current user if the browser session is active,
-    # but FastAPI Depends(get_current_user) usually expects a header.
-    
-    # TODO: Implement a way to associate the callback with the current user.
-    # For this example, let's assume we have a way to identify them.
-    # A common way is to include user_id in the state.
-    
     linkedin_service = LinkedInService(db)
     try:
-        token_data = await linkedin_service.exchange_code_for_token(code)
+        user = current_user["user"]
+        token_data = await linkedin_service.exchange_code_for_token(request_data.code)
         access_token = token_data.get("access_token")
         profile_data = await linkedin_service.get_user_profile(access_token)
         
-        # We need the user_id to save the integration.
-        # This is a tricky part of OAuth without sessions.
-        # For now, I'll return the data and suggest how to link it.
-        return {
-            "message": "Successfully authenticated with LinkedIn",
-            "token_data": token_data,
-            "profile_data": profile_data
-        }
+        integration = await linkedin_service.save_integration(
+            user_id=user.id,
+            token_data=token_data,
+            profile_data=profile_data
+        )
+        return integration
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/status")
+async def get_linkedin_status(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Check if LinkedIn is connected for the current user."""
+    from sqlalchemy.future import select
+    from src.api.models.integration import UserIntegration
+    
+    user = current_user["user"]
+    result = await db.execute(
+        select(UserIntegration).where(
+            UserIntegration.user_id == user.id,
+            UserIntegration.platform == "linkedin"
+        )
+    )
+    integration = result.scalars().first()
+    
+    if not integration:
+        return {"connected": False}
+        
+    return {
+        "connected": True,
+        "platform_user_id": integration.platform_user_id,
+        "created_at": integration.created_at,
+        "expires_at": integration.expires_at
+    }
+
+@router.delete("/disconnect")
+async def disconnect_linkedin(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Disconnect LinkedIn integration."""
+    from sqlalchemy import delete
+    from src.api.models.integration import UserIntegration
+    
+    user = current_user["user"]
+    await db.execute(
+        delete(UserIntegration).where(
+            UserIntegration.user_id == user.id,
+            UserIntegration.platform == "linkedin"
+        )
+    )
+    await db.commit()
+    return {"message": "LinkedIn disconnected successfully"}
+
+@router.post("/publish")
+async def linkedin_publish(
+    publish_data: LinkedInPublishRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Publish a post to LinkedIn."""
+    linkedin_service = LinkedInService(db)
+    user = current_user["user"]
+    try:
+        result = await linkedin_service.post_to_linkedin(
+            user_id=user.id,
+            text=publish_data.text
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.core.config import settings
-from src.api.routes import auth, jobs, integrations
+from src.api.routes import auth, jobs, integrations, candidates, applications, interviews
 from src.api.routes.admin import users as admin_users, jobs as admin_jobs, integrations as admin_integrations
 
 from src.api.db.session import engine

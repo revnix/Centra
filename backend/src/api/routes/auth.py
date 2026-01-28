@@ -22,13 +22,20 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
             status_code=400,
             detail="The user with this email already exists in the system.",
         )
+    
+    existing_username = await auth_service.get_user_by_username(user_in.username)
+    if existing_username:
+        raise HTTPException(
+            status_code=400,
+            detail="The username is already taken.",
+        )
     user = await auth_service.create_user(user_in)
     
     # Generate token for immediate login after registration
-    access_token = create_access_token(subject=user.email, username=user.username, role=user.role)
-    token = {"access_token": access_token, "token_type": "bearer"}
+    access_token = create_access_token(subject=user.email, username=user.username, role=user.role.value)
+    token_dict = {"access_token": access_token, "token_type": "bearer", "user": user}
     
-    return {"user": user, "access_token": token}
+    return {"user": user, "access_token": token_dict}
 
 @router.post("/login", response_model=Token)
 async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
@@ -39,5 +46,5 @@ async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
-    access_token = create_access_token(subject=user.email, username=user.username, role=user.role.id,user_id=user.id)
-    return {"access_token": access_token, "token_type": "bearer"}
+    access_token = create_access_token(subject=user.email, username=user.username, role=user.role.value)
+    return {"access_token": access_token, "token_type": "bearer", "user": user}

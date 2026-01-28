@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { MOCK_APPLICATIONS, MOCK_JOBS } from "@/lib/mock-data";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";

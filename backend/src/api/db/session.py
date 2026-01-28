@@ -6,17 +6,15 @@ database_url = settings.DATABASE_URL
 
 # Asyncpg + Neon SSL handling
 if "asyncpg" in database_url:
-    url_obj = urlparse(database_url)
-    params = dict(parse_qsl(url_obj.query))
+    # Strip all query parameters for asyncpg as it handles them via connect_args
+    if "?" in database_url:
+        database_url = database_url.split("?")[0]
     
-    # Remove parameters that are not supported in the query string by asyncpg or cause issues
-    for key in ["sslmode", "channel_binding"]:
-        if key in params:
-            del params[key]
-    
-    new_query = urlencode(params)
-    database_url = urlunparse(url_obj._replace(query=new_query))
-    connect_args = {"ssl": "require"} if "neon.tech" in settings.DATABASE_URL else {}
+    # Neon requires SSL
+    if "neon.tech" in settings.DATABASE_URL:
+        connect_args = {"ssl": "require"}
+    else:
+        connect_args = {}
 else:
     connect_args = {}
 

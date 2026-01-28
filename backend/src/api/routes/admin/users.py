@@ -13,7 +13,7 @@ router = APIRouter()
 async def read_users(
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_active_admin),
+    current_user: dict = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(User).offset(skip).limit(limit))
