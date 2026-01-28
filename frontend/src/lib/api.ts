@@ -114,3 +114,17 @@ export const authApi = {
         },
     }),
 };
+
+export const integrationsApi = {
+    linkedin: {
+        getLoginUrl: () => fetcher<{ authorization_url: string }>("/admin/integrations/linkedin/login"),
+        callback: (code: string, state: string) => fetcher<any>("/admin/integrations/linkedin/callback", {
+            method: "POST",
+            body: JSON.stringify({ code, state }),
+        }),
+        getStatus: () => fetcher<{ connected: boolean; platform_user_id?: string }>("/admin/integrations/linkedin/status"),
+        disconnect: () => fetcher<any>("/admin/integrations/linkedin/disconnect", {
+            method: "DELETE",
+        }),
+    },
+};

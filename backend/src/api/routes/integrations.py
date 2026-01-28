@@ -10,13 +10,19 @@ router = APIRouter()
 
 @router.get("/", response_model=List[IntegrationResponse])
 async def list_integrations(
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     from src.api.models.integration import UserIntegration
     from sqlalchemy.future import select
     
+    user_id = current_user["user"].id
+    print(f"DEBUG: list_integrations for user_id={user_id}")
     result = await db.execute(
-        select(UserIntegration).where(UserIntegration.user_id == current_user.id)
+        select(UserIntegration).where(UserIntegration.user_id == user_id)
     )
-    return result.scalars().all()
+    integrations = result.scalars().all()
+    print(f"DEBUG: found {len(integrations)} integrations")
+    for i in integrations:
+        print(f"DEBUG: Integration ID={i.id}, Platform={i.platform}")
+    return integrations

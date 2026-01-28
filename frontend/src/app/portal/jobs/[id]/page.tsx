@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Briefcase, ArrowLeft, CheckCircle2, Zap, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     Dialog,
     DialogContent,

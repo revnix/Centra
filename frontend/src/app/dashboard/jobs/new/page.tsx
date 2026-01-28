@@ -67,6 +67,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useJobGeneration } from "@/lib/hooks/useJobGeneration";
+import { integrationsApi } from "@/lib/api/integrations";
+import { toast } from "sonner";
 
 // --- Schemas ---
 
@@ -86,33 +88,14 @@ const aiConfigSchema = z.object({
 type Step1Data = z.infer<typeof jobBasicSchema>;
 type Step2Data = z.infer<typeof aiConfigSchema>;
 
-// Mock connected accounts (same as integrations page)
-const connectedAccounts = [
-    {
-        id: '1',
-        platform: 'linkedin' as const,
-        name: 'TechCorp Inc.',
-        handle: 'techcorp-inc',
-        icon: Linkedin,
-        color: 'bg-blue-600',
-    },
-    {
-        id: '2',
-        platform: 'twitter' as const,
-        name: 'TechCorp Careers',
-        handle: '@TechCorpJobs',
-        icon: Twitter,
-        color: 'bg-sky-500',
-    },
-    {
-        id: '3',
-        platform: 'facebook' as const,
-        name: 'TechCorp',
-        handle: 'facebook.com/techcorp',
-        icon: Facebook,
-        color: 'bg-blue-700',
-    },
-];
+interface ConnectedAccount {
+    id: string;
+    platform: 'linkedin' | 'twitter' | 'facebook';
+    name: string;
+    handle: string;
+    icon: any;
+    color: string;
+}
 
 export default function CreateJobPage() {
     const router = useRouter();
@@ -132,13 +115,49 @@ export default function CreateJobPage() {
     const [version, setVersion] = useState(1);
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
 
-    // Publishing Dialog State
     const [showPublishDialog, setShowPublishDialog] = useState(false);
-    const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
-        connectedAccounts.map(a => a.id) // Default all selected
-    );
+    const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+    const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
-    const company_name = connectedAccounts.find(a => a.id === selectedAccounts[0])?.name || connectedAccounts[0]?.name || "TechCorp Inc.";
+    useEffect(() => {
+        const fetchIntegrations = async () => {
+            try {
+                const integrations = await integrationsApi.list();
+                console.log("DEBUG: Raw integrations from API:", integrations);
+
+                if (!Array.isArray(integrations)) {
+                    console.error("DEBUG: integrations is not an array:", integrations);
+                    return;
+                }
+
+                const formatted = integrations.map(int => {
+                    console.log("DEBUG: Processing integration:", int);
+                    const platform = int.platform.toLowerCase().trim();
+                    if (platform === 'linkedin') {
+                        return {
+                            id: int.id.toString(),
+                            platform: 'linkedin' as const,
+                            name: 'LinkedIn Account',
+                            handle: int.platform_user_id || 'Connected',
+                            icon: Linkedin,
+                            color: 'bg-blue-600',
+                        };
+                    }
+                    return null;
+                }).filter(Boolean) as ConnectedAccount[];
+
+                console.log("DEBUG: Final formatted accounts:", formatted);
+                setConnectedAccounts(formatted);
+                setSelectedAccounts(formatted.map(a => a.id));
+            } catch (error) {
+                console.error("Failed to fetch integrations:", error);
+            }
+        };
+
+        fetchIntegrations();
+    }, []);
+
+    const company_name = connectedAccounts.find(a => a.id === selectedAccounts[0])?.name || connectedAccounts[0]?.name || "Your Company";
 
     // Forms
     const form1 = useForm<Step1Data>({
@@ -258,14 +277,24 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
 
     const handleFinalPublish = async () => {
         setIsLoading(true);
-        // Simulate API call to publish job + social media to selected accounts
-        console.log("Publishing to accounts:", selectedAccounts);
-        console.log("Job data:", formData);
-        console.log("Social post:", socialPost);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setIsLoading(false);
-        setShowPublishDialog(false);
-        router.push("/dashboard/jobs");
+        try {
+            const publishPromises = selectedAccounts.map(async (accId) => {
+                const account = connectedAccounts.find(a => a.id === accId);
+                if (account?.platform === 'linkedin') {
+                    return integrationsApi.linkedin.publish(socialPost);
+                }
+            });
+
+            await Promise.all(publishPromises);
+            toast.success("Job published successfully and shared to social media!");
+            router.push("/dashboard/jobs");
+        } catch (error) {
+            console.error("Failed to publish:", error);
+            toast.error("Failed to publish to one or more platforms.");
+        } finally {
+            setIsLoading(false);
+            setShowPublishDialog(false);
+        }
     };
 
     return (

@@ -12,17 +12,18 @@ router = APIRouter()
 @router.post("/", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
 async def create_job(
     job_in: JobCreate,
-    current_user: User = Depends(get_current_active_admin),
+    current_user: dict = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
     job_service = JobService(db)
-    return await job_service.create_job(job_in, current_user.id)
+    user = current_user["user"]
+    return await job_service.create_job(job_in, user.id)
 
 @router.put("/{job_id}", response_model=JobResponse)
 async def update_job(
     job_id: int,
     job_in: JobUpdate,
-    current_user: User = Depends(get_current_active_admin),
+    current_user: dict = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
     job_service = JobService(db)
@@ -34,7 +35,7 @@ async def update_job(
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_job(
     job_id: int,
-    current_user: User = Depends(get_current_active_admin),
+    current_user: dict = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
     job_service = JobService(db)

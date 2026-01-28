@@ -23,3 +23,15 @@ export interface JobIntent {
     experience_level?: string;
     department?: string;
 }
+
+export interface IntegrationResponse {
+    id: number;
+    user_id: number;
+    platform: string;
+    platform_user_id?: string;
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: string;
+    created_at: string;
+    updated_at?: string;
+}

@@ -1,5 +1,5 @@
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 from src.api.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ class LinkedInService:
 
     def get_authorization_url(self, state: str) -> str:
         """Generate the LinkedIn authorization URL."""
+        from urllib.parse import urlencode
         base_url = "https://www.linkedin.com/oauth/v2/authorization"
         params = {
             "response_type": "code",
@@ -23,8 +24,7 @@ class LinkedInService:
             "state": state,
             "scope": "openid profile email w_member_social",
         }
-        query_params = "&".join([f"{k}={v}" for k, v in params.items()])
-        return f"{base_url}?{query_params}"
+        return f"{base_url}?{urlencode(params)}"
 
     async def exchange_code_for_token(self, code: str) -> Dict[str, Any]:
         """Exchange authorization code for an access token."""
@@ -65,7 +65,7 @@ class LinkedInService:
         # LinkedIn URN is usually in 'sub' for OpenID Connect
         platform_user_id = profile_data.get("sub") 
         
-        expires_at = datetime.utcnow() + timedelta(seconds=expires_in) if expires_in else None
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in) if expires_in else None
 
         # Check for existing integration
         result = await self.db.execute(
