@@ -69,4 +69,20 @@ export const interviewsApi = {
             `/interviews/${interviewId}/complete`
         );
     },
+
+    /**
+     * Get interview session details (candidate token)
+     */
+    getSession: async (token: string): Promise<any> => {
+        return apiClient.get<any>(`/interviews/${token}`);
+    },
+
+    /**
+     * Send message to AI interviewer
+     */
+    sendMessage: async (token: string, message: string): Promise<{ reply: string; transcript: any[] }> => {
+        return apiClient.post<{ reply: string; transcript: any[] }>(`/interviews/${token}/chat`, {
+            message
+        });
+    },
 };

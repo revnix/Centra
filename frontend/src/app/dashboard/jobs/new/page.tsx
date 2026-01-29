@@ -90,7 +90,7 @@ type Step2Data = z.infer<typeof aiConfigSchema>;
 
 interface ConnectedAccount {
     id: string;
-    platform: 'linkedin' | 'twitter' | 'facebook';
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'indeed';
     name: string;
     handle: string;
     icon: any;
@@ -142,15 +142,37 @@ export default function CreateJobPage() {
                             icon: Linkedin,
                             color: 'bg-blue-600',
                         };
+                    } else if (platform === 'indeed') {
+                        return {
+                            id: int.id.toString(),
+                            platform: 'indeed' as const,
+                            name: 'Indeed Account',
+                            handle: int.platform_user_id || 'Connected',
+                            icon: Briefcase,
+                            color: 'bg-blue-600',
+                        };
                     }
                     return null;
                 }).filter(Boolean) as ConnectedAccount[];
 
-                console.log("DEBUG: Final formatted accounts:", formatted);
-                setConnectedAccounts(formatted);
-                setSelectedAccounts(formatted.map(a => a.id));
-            } catch (error) {
-                console.error("Failed to fetch integrations:", error);
+                // Deduplicate by platform to avoid visual clutter if DB has duplicates
+                const uniquePlatforms = new Map<string, ConnectedAccount>();
+                formatted.forEach(acc => {
+                    if (!uniquePlatforms.has(acc.platform)) {
+                        uniquePlatforms.set(acc.platform, acc);
+                    }
+                });
+                const uniqueAccounts = Array.from(uniquePlatforms.values());
+
+                console.log("DEBUG: Final formatted accounts (unique):", uniqueAccounts);
+                setConnectedAccounts(uniqueAccounts);
+                setSelectedAccounts(uniqueAccounts.map(a => a.id));
+            } catch (error: any) {
+                console.error("Failed to fetch integrations:", error.message || error);
+                if (error.response) {
+                    console.error("Response data:", error.response.data);
+                    console.error("Response status:", error.response.status);
+                }
             }
         };
 
@@ -282,15 +304,31 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                 const account = connectedAccounts.find(a => a.id === accId);
                 if (account?.platform === 'linkedin') {
                     return integrationsApi.linkedin.publish(socialPost);
+                } else if (account?.platform === 'indeed') {
+                    return integrationsApi.indeed.postJob({
+                        title: formData.title || 'Job Opening',
+                        description: socialPost, // Use the social post (or the full description if possible)
+                        location: formData.location || 'Remote',
+                        company: formData.department || 'Our Company'
+                    });
                 }
             });
 
             await Promise.all(publishPromises);
             toast.success("Job published successfully and shared to social media!");
             router.push("/dashboard/jobs");
-        } catch (error) {
-            console.error("Failed to publish:", error);
-            toast.error("Failed to publish to one or more platforms.");
+        } catch (error: any) {
+            console.error("DEBUG: Full publish error object:", error);
+            const detail = error.response?.data?.detail;
+            const message = typeof detail === 'string' ? detail : (error.message || "Unknown error");
+
+            toast.error(`Failed to publish: ${message}`, {
+                duration: 10000,
+            });
+
+            if (error.response) {
+                console.error("DEBUG: Publish error response detail:", error.response.data);
+            }
         } finally {
             setIsLoading(false);
             setShowPublishDialog(false);
@@ -466,7 +504,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
             {step === 3 && (
                 <div className="space-y-6">
                     {/* Loading State */}
-                    {jobGeneration.isLoading && !jobGeneration.generatedPost ? (
+                    {!!jobGeneration.isLoading && !jobGeneration.generatedPost ? (
                         <Card className="p-12">
                             <div className="flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
@@ -484,7 +522,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                             <AlertCircle className="h-4 w-4" />
                             <AlertTitle>Error</AlertTitle>
                             <AlertDescription>
-                                {jobGeneration.error.message || 'Failed to generate job description. Please try again.'}
+                                {(jobGeneration.error as any)?.message || 'Failed to generate job description. Please try again.'}
                                 <Button
                                     variant="outline"
                                     size="sm"

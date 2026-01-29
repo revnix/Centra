@@ -29,8 +29,10 @@ export const jobsApi = {
             short_description: job.short_description,
             department: job.department,
             location: job.location,
+            location_type: job.location_type,
             company_name: job.company_name,
             job_type: job.job_type,
+            type: job.job_type, // Compatibility field
             experience_level: job.experience_level,
             salary_min: job.salary_min,
             salary_max: job.salary_max,
@@ -73,8 +75,10 @@ export const jobsApi = {
             short_description: job.short_description,
             department: job.department,
             location: job.location,
+            location_type: job.location_type,
             company_name: job.company_name,
             job_type: job.job_type,
+            type: job.job_type, // Compatibility field
             experience_level: job.experience_level,
             salary_min: job.salary_min,
             salary_max: job.salary_max,

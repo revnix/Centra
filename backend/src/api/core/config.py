@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")
     LINKEDIN_CLIENT_SECRET: str = os.getenv("LINKEDIN_CLIENT_SECRET", "")
     LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
+    
+    # Indeed Integration
+    INDEED_API_ENDPOINT: str = "https://apis.indeed.com"
+    INDEED_CLIENT_ID: str = os.getenv("INDEED_CLIENT_ID", "")
+    INDEED_CLIENT_SECRET: str = os.getenv("INDEED_CLIENT_SECRET", "")
+    INDEED_REDIRECT_URI: str = os.getenv("INDEED_REDIRECT_URL", "http://localhost:3000/callback")
+    
     FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"

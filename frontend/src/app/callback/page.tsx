@@ -9,28 +9,40 @@ import { Button } from '@/components/ui/button';
 
 import { Suspense } from 'react';
 
-function LinkedInCallbackContent() {
+function GenericCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
     const [errorMessage, setErrorMessage] = useState('');
+    const [platformName, setPlatformName] = useState('Integration');
 
     useEffect(() => {
         const code = searchParams.get('code');
         const state = searchParams.get('state');
 
+        // Detect platform from URL or state if possible
+        // For now, if it's the root /callback, it's likely Indeed based on .env
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        const platform = path.includes('linkedin') ? 'linkedin' : 'indeed';
+        setPlatformName(platform.charAt(0).toUpperCase() + platform.slice(1));
+
         if (!code) {
             setStatus('error');
-            setErrorMessage('No authorization code received from LinkedIn.');
+            setErrorMessage(`No authorization code received from ${platformName}.`);
             return;
         }
 
-        handleCallback(code, state || '');
-    }, [searchParams]);
+        handleCallback(platform, code, state || '');
+    }, [searchParams, platformName]);
 
-    const handleCallback = async (code: string, state: string) => {
+    const handleCallback = async (platform: string, code: string, state: string) => {
         try {
-            await integrationsApi.linkedin.callback(code, state);
+            if (platform === 'linkedin') {
+                await integrationsApi.linkedin.callback(code, state);
+            } else {
+                await integrationsApi.indeed.callback(code, state);
+            }
+
             setStatus('success');
 
             // Redirect back to integrations after a short delay
@@ -38,9 +50,9 @@ function LinkedInCallbackContent() {
                 router.push('/dashboard/integrations');
             }, 3000);
         } catch (error: any) {
-            console.error('LinkedIn authentication failed:', error);
+            console.error(`${platformName} authentication failed:`, error);
             setStatus('error');
-            setErrorMessage(error.message || 'Failed to authenticate with LinkedIn.');
+            setErrorMessage(error.message || `Failed to authenticate with ${platformName}.`);
         }
     };
 
@@ -51,9 +63,9 @@ function LinkedInCallbackContent() {
                     <div className="mx-auto p-3 bg-blue-600 rounded-xl w-fit mb-4">
                         <Sparkles className="h-8 w-8 text-white" />
                     </div>
-                    <CardTitle className="text-2xl font-bold">LinkedIn Integration</CardTitle>
+                    <CardTitle className="text-2xl font-bold">{platformName} Integration</CardTitle>
                     <CardDescription>
-                        Finishing the connection to your LinkedIn account
+                        Finishing the connection to your {platformName} account
                     </CardDescription>
                 </CardHeader>
 
@@ -61,7 +73,7 @@ function LinkedInCallbackContent() {
                     {status === 'loading' && (
                         <>
                             <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-                            <p className="text-slate-600 font-medium text-lg">Authenticating with LinkedIn...</p>
+                            <p className="text-slate-600 font-medium text-lg">Authenticating with {platformName}...</p>
                             <p className="text-slate-400 text-sm mt-2">This will only take a moment.</p>
                         </>
                     )}
@@ -72,7 +84,7 @@ function LinkedInCallbackContent() {
                                 <CheckCircle2 className="h-12 w-12 text-green-600" />
                             </div>
                             <p className="text-slate-900 font-bold text-xl">Successfully Connected!</p>
-                            <p className="text-slate-500 mt-2">Your LinkedIn account has been linked to Evalyn.</p>
+                            <p className="text-slate-500 mt-2">Your {platformName} account has been linked to Evalyn.</p>
                             <p className="text-slate-400 text-sm mt-6 animate-pulse">Redirecting you back...</p>
                         </>
                     )}
@@ -98,14 +110,14 @@ function LinkedInCallbackContent() {
     );
 }
 
-export default function LinkedInCallbackPage() {
+export default function GenericCallbackPage() {
     return (
         <Suspense fallback={
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
                 <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
             </div>
         }>
-            <LinkedInCallbackContent />
+            <GenericCallbackContent />
         </Suspense>
     );
 }

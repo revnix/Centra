@@ -18,11 +18,20 @@ async def list_integrations(
     
     user_id = current_user["user"].id
     print(f"DEBUG: list_integrations for user_id={user_id}")
-    result = await db.execute(
-        select(UserIntegration).where(UserIntegration.user_id == user_id)
-    )
-    integrations = result.scalars().all()
-    print(f"DEBUG: found {len(integrations)} integrations")
-    for i in integrations:
-        print(f"DEBUG: Integration ID={i.id}, Platform={i.platform}")
-    return integrations
+    try:
+        from src.api.models.integration import UserIntegration
+        from sqlalchemy.future import select
+        
+        result = await db.execute(
+            select(UserIntegration).where(UserIntegration.user_id == user_id)
+        )
+        integrations = result.scalars().all()
+        print(f"DEBUG: found {len(integrations)} integrations")
+        for i in integrations:
+            print(f"DEBUG: Integration ID={i.id}, Platform={i.platform}")
+        return integrations
+    except Exception as e:
+        print(f"DEBUG: list_integrations error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

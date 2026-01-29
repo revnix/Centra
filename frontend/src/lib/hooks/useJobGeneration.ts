@@ -79,8 +79,8 @@ export function useJobGeneration() {
         isAwaitingReview: !!stream.interrupt,
 
         // Generated job post (from interrupt or state)
-        generatedPost: interruptValue?.job_post || values?.jd?.post || null,
-        status: values?.jd?.status || null,
+        generatedPost: (interruptValue?.job_post || values?.jd?.post || null) as any,
+        status: (values?.jd?.status || null) as string | null,
 
         // Actions
         generateJob,

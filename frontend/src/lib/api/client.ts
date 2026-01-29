@@ -42,9 +42,19 @@ class ApiClient {
             (response) => response,
             async (error: AxiosError) => {
                 if (error.response?.status === 401) {
-                    // For now, redirect to login
-                    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-                        window.location.href = '/login';
+                    // Clear credentials on authentication error
+                    if (typeof window !== 'undefined') {
+                        localStorage.removeItem('access_token');
+                        localStorage.removeItem('userRole');
+                        localStorage.removeItem('userEmail');
+
+                        // Clear cookie
+                        document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+
+                        // Redirect to login if not already there
+                        if (!window.location.pathname.startsWith('/login')) {
+                            window.location.href = '/login?no_redirect=true';
+                        }
                     }
                 }
                 return Promise.reject(this.normalizeError(error));

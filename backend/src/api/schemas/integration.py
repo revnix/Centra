@@ -27,3 +27,18 @@ class LinkedInCallbackRequest(BaseModel):
 
 class LinkedInPublishRequest(BaseModel):
     text: str
+
+# Indeed Integration Schemas
+class IndeedAuthURLResponse(BaseModel):
+    authorization_url: str
+
+class IndeedCallbackRequest(BaseModel):
+    code: str
+    state: str
+
+class IndeedJobPostRequest(BaseModel):
+    title: str
+    description: str
+    location: str
+    company: str
+

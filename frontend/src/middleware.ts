@@ -26,8 +26,11 @@ export function middleware(request: NextRequest) {
     }
 
     // Redirect to appropriate dashboard if already logged in (only from auth pages or landing page)
+    // BUT only if we don't have a specific instruction to stay on the login page (e.g. after a 401)
     const authRoutes = ['/login', '/signup', '/'];
-    if (token && authRoutes.includes(pathname)) {
+    const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
+
+    if (token && authRoutes.includes(pathname) && !skipRedirect) {
         // TODO: Decode token to get user role and redirect appropriately
         // For now, default to /dashboard
         return NextResponse.redirect(new URL('/dashboard', request.url));
