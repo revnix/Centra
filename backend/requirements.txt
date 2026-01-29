@@ -1,5 +1,5 @@
-fastapi
-uvicorn[standard]
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
 pydantic-settings
 sqlalchemy
 asyncpg
@@ -17,11 +17,5 @@ langchain-core>=0.1.0
 langgraph>=0.0.1
 langchain-groq>=0.1.0
 python-dotenv>=1.0.0
-pydantic>=2.0.0
-fastapi>=0.100.0
-uvicorn>=0.23.0
 instagrapi
 requests
-requests
-json
-asyncpg

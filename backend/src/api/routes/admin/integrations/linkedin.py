@@ -17,7 +17,6 @@ router = APIRouter()
 
 @router.get("/login", response_model=LinkedInAuthURLResponse)
 async def linkedin_login(
-    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
