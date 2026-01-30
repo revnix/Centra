@@ -18,9 +18,12 @@ export default function GeneratedJobsPage() {
     const handlePublish = (jobId: string) => {
         publishJob.mutate(jobId, {
             onSuccess: () => {
-                // Optionally show a toast here
+                alert("Job published successfully!");
                 router.refresh();
             },
+            onError: (error: any) => {
+                alert(`Failed to publish: ${error.message}`);
+            }
         });
     };
 
@@ -76,7 +79,7 @@ export default function GeneratedJobsPage() {
                                     <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
                                         <span className="flex items-center gap-1.5">
                                             <Calendar className="h-4 w-4" />
-                                            Generated {job.createdAt ? format(new Date(job.createdAt), 'PPP') : 'Recently'}
+                                            Generated {job.created_at ? format(new Date(job.created_at), 'PPP') : 'Recently'}
                                         </span>
                                         {job.department && (
                                             <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">

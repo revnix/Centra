@@ -9,13 +9,26 @@ class JobService:
         self.db = db
 
     async def get_jobs(self, skip: int = 0, limit: int = 100, status: str = None):
-        query = select(Posts).offset(skip).limit(limit)
+        from sqlalchemy import func
+        query = select(Posts)
+        
         if status:
-            # Import JobStatus enum to ensure correct comparison if needed, 
-            # though string comparison often works if the enum is string-based.
-            # Ideally we compare against the enum value.
-            from src.api.models.job import JobStatus
-            query = select(Posts).where(Posts.status == status).offset(skip).limit(limit)
+            # Case-insensitive match just in case
+            query = query.where(func.lower(Posts.status) == status.lower())
+            
+        query = query.offset(skip).limit(limit)
+        
+        result = await self.db.execute(query)
+        return result.scalars().all()
+    
+    async def get_my_jobs(self, user_id: int, skip: int = 0, limit: int = 100, status: str = None):
+        from sqlalchemy import func
+        query = select(Posts).where(Posts.created_by == user_id)
+        
+        if status:
+            query = query.where(func.lower(Posts.status) == status.lower())
+            
+        query = query.offset(skip).limit(limit)
         
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -52,9 +65,15 @@ class JobService:
             return True
         return False
 
-    async def publish_job(self, job_id: int):
+    async def get_total_jobs_count(self):
+        from sqlalchemy import func
+        result = await self.db.execute(select(func.count()).select_from(Posts))
+        return result.scalar()
+
+    async def publish_job(self, job_id: int, user_id: int):
         from src.api.models.job import JobStatus
         from datetime import datetime, timezone
+        from src.api.integrations.indeed import IndeedService
         
         db_job = await self.get_job(job_id)
         if not db_job:
@@ -65,4 +84,9 @@ class JobService:
         
         await self.db.commit()
         await self.db.refresh(db_job)
+        
+        # Trigger Indeed Upload
+        indeed_service = IndeedService(self.db)
+        await indeed_service.upload_job(db_job, user_id)
+        
         return db_job

@@ -30,7 +30,8 @@ import {
     FileText,
     X,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    Lock
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { integrationsApi } from '@/lib/api/index';

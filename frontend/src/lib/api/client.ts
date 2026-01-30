@@ -5,7 +5,15 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  * Handles authentication, request/response interceptors, and error handling
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:2024/api/v1';
+const getApiBaseUrl = () => {
+    if (typeof window !== "undefined") {
+        const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
+        return `http://${host}:2024/api/v1`;
+    }
+    return "http://127.0.0.1:2024/api/v1";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
     private client: AxiosInstance;
