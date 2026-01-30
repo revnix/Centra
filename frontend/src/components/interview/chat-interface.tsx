@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
-import { api } from "@/lib/api";
+import { interviewsApi } from "@/lib/api/interviews";
 
 interface Message {
     role: "assistant" | "user" | "ai"; // Backend uses 'ai' sometimes? schemas say 'role' string
@@ -59,7 +59,7 @@ export function ChatInterface({ jobTitle = "Software Engineer", token, initialMe
         setMessages(prev => [...prev, userMsg]);
 
         try {
-            const response = await api.interviews.sendMessage(token, currentInput);
+            const response = await interviewsApi.sendMessage(token, currentInput);
 
             // Backend returns { reply, transcript }
             // We can append the reply

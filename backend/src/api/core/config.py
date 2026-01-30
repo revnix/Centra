@@ -44,9 +44,25 @@ class Settings(BaseSettings):
     LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")
     LINKEDIN_CLIENT_SECRET: str = os.getenv("LINKEDIN_CLIENT_SECRET", "")
     LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
+    
+    # Indeed Integration
+    INDEED_API_ENDPOINT: str = "https://apis.indeed.com"
+    INDEED_CLIENT_ID: str = os.getenv("INDEED_CLIENT_ID", "")
+    INDEED_CLIENT_SECRET: str = os.getenv("INDEED_CLIENT_SECRET", "")
+    INDEED_REDIRECT_URI: str = os.getenv("INDEED_REDIRECT_URL", "http://localhost:3000/callback")
+    
     FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
+
+    # Indeed API
+    INDEED_CLIENT_ID: str = os.getenv("INDEED_CLIENT_ID", "")
+    INDEED_CLIENT_SECRET: str = os.getenv("INDEED_CLIENT_SECRET", "")
+    INDEED_EMPLOYER_ID: str = os.getenv("INDEED_EMPLOYER_ID", "")
+    INDEED_REDIRECT_URI: str = os.getenv("INDEED_REDIRECT_URI", "http://localhost:8000/api/v1/indeed/callback")
+    INDEED_API_ENDPOINT: str = "https://api.indeed.com/v2"
+    INDEED_AUTH_URL: str = "https://apis.indeed.com/oauth/v2/authorize"
+    INDEED_TOKEN_URL: str = "https://apis.indeed.com/oauth/v2/tokens"
 
     # ✅ Pydantic v2 config
     model_config = SettingsConfigDict(

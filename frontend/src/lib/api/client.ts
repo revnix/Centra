@@ -5,7 +5,15 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  * Handles authentication, request/response interceptors, and error handling
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:2024/api/v1';
+const getApiBaseUrl = () => {
+    if (typeof window !== "undefined") {
+        const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
+        return `http://${host}:2024/api/v1`;
+    }
+    return "http://127.0.0.1:2024/api/v1";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
     private client: AxiosInstance;
@@ -42,9 +50,19 @@ class ApiClient {
             (response) => response,
             async (error: AxiosError) => {
                 if (error.response?.status === 401) {
-                    // For now, redirect to login
-                    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-                        window.location.href = '/login';
+                    // Clear credentials on authentication error
+                    if (typeof window !== 'undefined') {
+                        localStorage.removeItem('access_token');
+                        localStorage.removeItem('userRole');
+                        localStorage.removeItem('userEmail');
+
+                        // Clear cookie
+                        document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+
+                        // Redirect to login if not already there
+                        if (!window.location.pathname.startsWith('/login')) {
+                            window.location.href = '/login?no_redirect=true';
+                        }
                     }
                 }
                 return Promise.reject(this.normalizeError(error));

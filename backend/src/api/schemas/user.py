@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
 
 class UserCreate(UserBase):
-    username: str
+    username: Optional[str] = None
     password: str
     role: UserRole = UserRole.GUEST
 

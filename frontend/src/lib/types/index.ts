@@ -62,11 +62,13 @@ export interface Job {
   title: string;
   department?: string;
   location?: string;
+  location_type?: string;
   status: JobStatus;
   description: string;
   short_description?: string;
   company_name?: string;
   job_type?: string;
+  type?: string; // Compatibility field
   experience_level?: string;
   salary_min?: number;
   salary_max?: number;
@@ -362,6 +364,22 @@ export interface ApiResponse<T> {
   data?: T;
   error?: ApiError;
   timestamp: string;
+}
+
+// ============================================================================
+// INTEGRATION TYPES
+// ============================================================================
+
+export interface IntegrationResponse {
+  id: number;
+  user_id: number;
+  platform: string;
+  platform_user_id?: string;
+  access_token?: string;
+  refresh_token?: string;
+  expires_at?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 // ============================================================================

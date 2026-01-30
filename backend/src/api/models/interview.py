@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, DateTime, Enum as SqlEnum
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, DateTime, Enum as SqlEnum, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.api.db.base import Base
@@ -30,7 +29,7 @@ class InterviewSession(Base):
     status = Column(SqlEnum(InterviewStatus), default=InterviewStatus.PENDING, nullable=False)
     
     # Data
-    transcript = Column(JSONB, default=[], nullable=False, comment="Full chat history")
+    transcript = Column(JSON, default=list, nullable=False, comment="Full chat history")
     code_submission = Column(Text, nullable=True, comment="Final code submission if applicable")
     
     # Scoring

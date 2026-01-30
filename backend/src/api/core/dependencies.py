@@ -39,12 +39,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     user = await auth_service.get_user_by_email(email)
     if user is None:
         raise credentials_exception
-    return {
-        "user": user,
-        "username": username,
-        "role": role,
-        "email": email
-        }
+    return user
     
 
 # async def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -54,8 +49,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 #         )
 #     return current_user
 
-async def get_current_active_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user["role"] != UserRole.ADMIN:
+async def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="The user doesn't have enough privileges"

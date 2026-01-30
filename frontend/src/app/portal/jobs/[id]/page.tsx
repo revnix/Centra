@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 
 export default function JobDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -106,7 +105,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                                     {job.department || 'Engineering'}
                                 </Badge>
                                 <div className="flex items-center text-sm text-muted-foreground">
-                                    <Clock className="w-3.5 h-3.5 mr-1" /> {new Date(job.created_at).toLocaleDateString()}
+                                    <Clock className="w-3.5 h-3.5 mr-1" /> {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'Recently'}
                                 </div>
                             </div>
 

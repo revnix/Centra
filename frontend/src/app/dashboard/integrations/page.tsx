@@ -30,7 +30,8 @@ import {
     FileText,
     X,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    Lock
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { integrationsApi } from '@/lib/api/index';
@@ -42,7 +43,7 @@ import { integrationsApi } from '@/lib/api/index';
 
 interface SocialAccount {
     id: string;
-    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram';
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'indeed';
     name: string;
     handle: string;
     avatar: string;
@@ -67,6 +68,15 @@ const initialAccounts: SocialAccount[] = [
         name: 'LinkedIn Professional',
         handle: 'Not connected',
         avatar: 'LI',
+        connected: false,
+        autoPublish: false,
+    },
+    {
+        id: '3',
+        platform: 'indeed',
+        name: 'Indeed Employer',
+        handle: 'Not connected',
+        avatar: 'IN',
         connected: false,
         autoPublish: false,
     },
@@ -97,7 +107,7 @@ const jobPlatforms: JobPlatform[] = [
         description: 'World\'s #1 job site with millions of job listings',
         icon: Briefcase,
         color: 'bg-blue-600',
-        requiresCredentials: true,
+        requiresCredentials: false,
     },
     {
         id: 'glassdoor',
@@ -133,8 +143,9 @@ const jobPlatforms: JobPlatform[] = [
     },
 ];
 
-const platformConfig = {
+const platformConfig: Record<string, { icon: any, color: string, name: string }> = {
     linkedin: { icon: Linkedin, color: 'bg-blue-600', name: 'LinkedIn' },
+    indeed: { icon: Briefcase, color: 'bg-blue-600', name: 'Indeed' },
     twitter: { icon: Twitter, color: 'bg-sky-500', name: 'Twitter/X' },
     facebook: { icon: Facebook, color: 'bg-blue-700', name: 'Facebook' },
     instagram: { icon: Instagram, color: 'bg-gradient-to-br from-purple-600 to-pink-500', name: 'Instagram' },
@@ -153,23 +164,30 @@ export default function IntegrationsPage() {
     const [successPlatformName, setSuccessPlatformName] = useState('');
 
     useEffect(() => {
-        fetchLinkedInStatus();
+        fetchStatus();
     }, []);
 
-    const fetchLinkedInStatus = async () => {
+    const fetchStatus = async () => {
+        setIsLoadingStatus(true);
         try {
-            setIsLoadingStatus(true);
-            const status = await integrationsApi.linkedin.getStatus();
-            setLinkedInStatus(status);
+            const [linkedin, indeed] = await Promise.all([
+                integrationsApi.linkedin.getStatus().catch(() => ({ connected: false })),
+                integrationsApi.indeed.getStatus().catch(() => ({ connected: false }))
+            ]);
 
-            // Sync dummy accounts list for UI consistency
-            setAccounts(prev => prev.map(acc =>
-                acc.platform === 'linkedin'
-                    ? { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' }
-                    : acc
-            ));
+            setAccounts(prev => prev.map(acc => {
+                if (acc.platform === 'linkedin') {
+                    const status = linkedin as any;
+                    return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
+                }
+                if (acc.platform === 'indeed') {
+                    const status = indeed as any;
+                    return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
+                }
+                return acc;
+            }));
         } catch (error) {
-            console.error("Failed to fetch LinkedIn status:", error);
+            console.error("Failed to fetch integration status:", error);
         } finally {
             setIsLoadingStatus(false);
         }
@@ -179,25 +197,27 @@ export default function IntegrationsPage() {
         const account = accounts.find(a => a.id === id);
         if (!account) return;
 
-        if (account.platform === 'linkedin') {
+        if (account.platform === 'linkedin' || account.platform === 'indeed') {
+            const api = account.platform === 'linkedin' ? integrationsApi.linkedin : integrationsApi.indeed;
+
             if (account.connected) {
-                if (confirm("Are you sure you want to disconnect LinkedIn?")) {
+                if (confirm(`Are you sure you want to disconnect ${account.platform === 'linkedin' ? 'LinkedIn' : 'Indeed'}?`)) {
                     try {
-                        await integrationsApi.linkedin.disconnect();
-                        await fetchLinkedInStatus();
+                        await api.disconnect();
+                        await fetchStatus();
                     } catch (error) {
-                        console.error("Failed to disconnect LinkedIn:", error);
+                        console.error(`Failed to disconnect ${account.platform}:`, error);
                     }
                 }
             } else {
                 // Trigger OAuth flow
                 try {
                     setIsConnecting(true);
-                    const { authorization_url } = await integrationsApi.linkedin.getLoginUrl();
+                    const { authorization_url } = await api.getLoginUrl();
                     window.location.href = authorization_url;
                 } catch (error: any) {
-                    console.error("Failed to get LinkedIn login URL:", error);
-                    alert("Failed to connect to LinkedIn: " + (error.message || "Unknown error"));
+                    console.error(`Failed to get ${account.platform} login URL:`, error);
+                    alert(`Failed to connect to ${account.platform}: ` + (error.message || "Unknown error"));
                     setIsConnecting(false);
                 }
             }
@@ -221,18 +241,20 @@ export default function IntegrationsPage() {
     };
 
     const handlePlatformClick = async (platform: JobPlatform) => {
-        if (platform.id === 'linkedin') {
+        if (platform.id === 'linkedin' || platform.id === 'indeed') {
             setSelectedPlatform(platform);
             setShowPlatformsModal(false);
 
             try {
                 setIsConnecting(true);
-                const { authorization_url } = await integrationsApi.linkedin.getLoginUrl();
-                // Redirect to LinkedIn
+                const api = platform.id === 'linkedin' ? integrationsApi.linkedin : integrationsApi.indeed;
+                const { authorization_url } = await api.getLoginUrl();
+                // Redirect to OAuth
                 window.location.href = authorization_url;
             } catch (error) {
-                console.error("Failed to get LinkedIn login URL:", error);
+                console.error(`Failed to get ${platform.name} login URL:`, error);
                 setIsConnecting(false);
+                alert(`Failed to start ${platform.name} integration. Please try again.`);
             }
             return;
         }

@@ -41,7 +41,10 @@ export default function DashboardLayout({
     const handleLogout = () => {
         if (typeof window !== 'undefined') {
             localStorage.removeItem('access_token');
-            localStorage.removeItem('user_role');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userEmail');
+            // Clear cookie
+            document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
         }
         router.push('/login');
     };
