@@ -30,7 +30,7 @@ async def linkedin_login(
 @router.post("/callback", response_model=IntegrationResponse)
 async def linkedin_callback(
     request_data: LinkedInCallbackRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -38,7 +38,7 @@ async def linkedin_callback(
     """
     linkedin_service = LinkedInService(db)
     try:
-        user = current_user["user"]
+        user = current_user
         token_data = await linkedin_service.exchange_code_for_token(request_data.code)
         access_token = token_data.get("access_token")
         profile_data = await linkedin_service.get_user_profile(access_token)
@@ -54,14 +54,14 @@ async def linkedin_callback(
 
 @router.get("/status")
 async def get_linkedin_status(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Check if LinkedIn is connected for the current user."""
     from sqlalchemy.future import select
     from src.api.models.integration import UserIntegration
     
-    user = current_user["user"]
+    user = current_user
     result = await db.execute(
         select(UserIntegration).where(
             UserIntegration.user_id == user.id,
@@ -82,14 +82,14 @@ async def get_linkedin_status(
 
 @router.delete("/disconnect")
 async def disconnect_linkedin(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Disconnect LinkedIn integration."""
     from sqlalchemy import delete
     from src.api.models.integration import UserIntegration
     
-    user = current_user["user"]
+    user = current_user
     await db.execute(
         delete(UserIntegration).where(
             UserIntegration.user_id == user.id,
@@ -102,12 +102,12 @@ async def disconnect_linkedin(
 @router.post("/publish")
 async def linkedin_publish(
     publish_data: LinkedInPublishRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Publish a post to LinkedIn."""
     linkedin_service = LinkedInService(db)
-    user = current_user["user"]
+    user = current_user
     try:
         result = await linkedin_service.post_to_linkedin(
             user_id=user.id,

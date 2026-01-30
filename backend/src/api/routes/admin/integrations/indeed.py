@@ -34,7 +34,7 @@ async def indeed_login(
 @router.post("/callback", response_model=IntegrationResponse)
 async def indeed_callback(
     request_data: IndeedCallbackRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -46,7 +46,7 @@ async def indeed_callback(
     """
     indeed_service = IndeedService(db)
     try:
-        user = current_user["user"]
+        user = current_user
         # Exchange code for access token
         token_data = await indeed_service.exchange_code_for_token(request_data.code)
         access_token = token_data.get("access_token")
@@ -66,7 +66,7 @@ async def indeed_callback(
 
 @router.get("/status")
 async def get_indeed_status(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -77,7 +77,7 @@ async def get_indeed_status(
     from sqlalchemy.future import select
     from src.api.models.integration import UserIntegration
     
-    user = current_user["user"]
+    user = current_user
     result = await db.execute(
         select(UserIntegration).where(
             UserIntegration.user_id == user.id,
@@ -98,7 +98,7 @@ async def get_indeed_status(
 
 @router.delete("/disconnect")
 async def disconnect_indeed(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -109,7 +109,7 @@ async def disconnect_indeed(
     from sqlalchemy import delete
     from src.api.models.integration import UserIntegration
     
-    user = current_user["user"]
+    user = current_user
     await db.execute(
         delete(UserIntegration).where(
             UserIntegration.user_id == user.id,
@@ -122,7 +122,7 @@ async def disconnect_indeed(
 @router.post("/post-job")
 async def indeed_post_job(
     job_data: IndeedJobPostRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -131,7 +131,7 @@ async def indeed_post_job(
     Publishes a job posting to Indeed using the stored integration credentials.
     """
     indeed_service = IndeedService(db)
-    user = current_user["user"]
+    user = current_user
     try:
         result = await indeed_service.post_job_to_indeed(
             user_id=user.id,

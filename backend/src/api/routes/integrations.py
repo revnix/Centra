@@ -10,13 +10,13 @@ router = APIRouter()
 
 @router.get("/", response_model=List[IntegrationResponse])
 async def list_integrations(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     from src.api.models.integration import UserIntegration
     from sqlalchemy.future import select
     
-    user_id = current_user["user"].id
+    user_id = current_user.id
     print(f"DEBUG: list_integrations for user_id={user_id}")
     try:
         from src.api.models.integration import UserIntegration

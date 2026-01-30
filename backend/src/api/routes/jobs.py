@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
 from src.api.services.job_service import JobService
-from src.api.schemas.job import JobResponse
+from src.api.schemas.job import JobResponse, JobCreate
 from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 
@@ -46,6 +46,16 @@ async def read_jobs(
     job_service = JobService(db)
     # Filter by current user to ensure they only see their own generated jobs
     return await job_service.get_my_jobs(user_id=current_user.id, skip=skip, limit=limit, status=status)
+
+@router.post("/", response_model=JobResponse)
+async def create_job(
+    job_data: JobCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new job posting"""
+    job_service = JobService(db)
+    return await job_service.create_job(job_in=job_data, user_id=current_user.id)
 
 @router.get("/{job_id}", response_model=JobResponse)
 async def read_job(

@@ -90,12 +90,7 @@ class IndeedService:
             url_me = f"{settings.INDEED_API_ENDPOINT}/v1/employers/me"
             headers = {
                 "Authorization": f"Bearer {access_token}",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand)";v="24", "Google Chrome";v="122"',
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
+                "Accept": "application/json",
             }
             try:
                 response = await client.get(url_me, headers=headers)
@@ -223,19 +218,18 @@ class IndeedService:
         headers = {
             "Authorization": f"Bearer {integration.access_token}",
             "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
-            "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand)";v="24", "Google Chrome";v="122"',
+            "Accept-Encoding": "gzip, deflate, br",
+            "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
             "Sec-Ch-Ua-Mobile": "?0",
             "Sec-Ch-Ua-Platform": '"Windows"',
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "cross-site",
-            "Origin": "http://localhost:3000",
-            "Referer": "http://localhost:3000/",
+            "Sec-Fetch-Site": "same-site",
+            "Origin": "https://employers.indeed.com",
+            "Referer": "https://employers.indeed.com/",
         }
         
         payload = {
@@ -247,26 +241,66 @@ class IndeedService:
             "postingStatus": "ACTIVE"
         }
 
-        async with httpx.AsyncClient() as client:
-            try:
-                print(f"DEBUG: Posting job to Indeed API. URL: {url}")
-                response = await client.post(url, headers=headers, json=payload)
-                print(f"DEBUG: Indeed API response status: {response.status_code}")
-                
-                if response.status_code != 200 and response.status_code != 201:
-                    print(f"DEBUG: Indeed API error response: {response.status_code}")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            max_retries = 3
+            retry_delay = 2  # Start with 2 seconds
+            
+            for attempt in range(max_retries):
+                try:
+                    print(f"DEBUG: Posting job to Indeed API (Attempt {attempt + 1}/{max_retries}). URL: {url}")
+                    response = await client.post(url, headers=headers, json=payload)
+                    print(f"DEBUG: Indeed API response status: {response.status_code}")
+                    
+                    if response.status_code == 200 or response.status_code == 201:
+                        return response.json()
+                    
+                    # Check for Cloudflare block
                     if "text/html" in response.headers.get("content-type", ""):
-                        print("DEBUG: Indeed API returned HTML (likely Cloudflare block)")
-                        raise Exception("Indeed API is blocking the request (Cloudflare). Please try again in a few minutes or check your connection.")
-                    else:
-                        print(f"DEBUG: Indeed API error details: {response.text}")
-                
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                if "text/html" in e.response.headers.get("content-type", ""):
-                    raise Exception("Indeed API access blocked by Cloudflare. This often happens due to high traffic or automated requests. Please wait a few minutes.")
-                raise Exception(f"Indeed API error: {e.response.text}")
-            except Exception as e:
-                print(f"DEBUG: Indeed API unexpected error: {e}")
-                raise e
+                        print(f"DEBUG: Indeed API returned HTML (likely Cloudflare block) on attempt {attempt + 1}")
+                        if attempt < max_retries - 1:
+                            # Wait before retrying
+                            import asyncio
+                            import random
+                            wait_time = retry_delay * (2 ** attempt) + random.uniform(0, 1)
+                            print(f"DEBUG: Waiting {wait_time:.2f} seconds before retry...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            raise Exception("Indeed API is blocking the request (Cloudflare). Please try again later or contact Indeed support to verify your API access.")
+                    
+                    # Other errors
+                    print(f"DEBUG: Indeed API error response: {response.status_code}")
+                    print(f"DEBUG: Indeed API error details: {response.text}")
+                    response.raise_for_status()
+                    
+                except httpx.HTTPStatusError as e:
+                    if "text/html" in e.response.headers.get("content-type", ""):
+                        if attempt < max_retries - 1:
+                            import asyncio
+                            import random
+                            wait_time = retry_delay * (2 ** attempt) + random.uniform(0, 1)
+                            print(f"DEBUG: Cloudflare block detected. Retrying in {wait_time:.2f} seconds...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        raise Exception("Indeed API access blocked by Cloudflare. This may indicate that your IP is rate-limited or your API credentials need verification. Please contact Indeed support.")
+                    raise Exception(f"Indeed API error: {e.response.text}")
+                except httpx.TimeoutException:
+                    if attempt < max_retries - 1:
+                        import asyncio
+                        wait_time = retry_delay * (2 ** attempt)
+                        print(f"DEBUG: Request timeout. Retrying in {wait_time:.2f} seconds...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise Exception("Indeed API request timed out. Please try again later.")
+                except Exception as e:
+                    print(f"DEBUG: Indeed API unexpected error: {e}")
+                    if attempt < max_retries - 1:
+                        import asyncio
+                        wait_time = retry_delay * (2 ** attempt)
+                        print(f"DEBUG: Retrying in {wait_time:.2f} seconds...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise e
+            
+            # If we get here, all retries failed
+            raise Exception("Failed to post job to Indeed after multiple attempts. Please try again later.")

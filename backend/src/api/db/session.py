@@ -26,7 +26,9 @@ engine = create_async_engine(
     database_url,
     echo=True,
     future=True,
-    connect_args=connect_args
+    connect_args=connect_args,
+    pool_pre_ping=True,
+    pool_recycle=1800,
 )
 
 # Enable WAL mode for SQLite to improve concurrency and prevent locking

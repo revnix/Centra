@@ -69,6 +69,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useJobGeneration } from "@/lib/hooks/useJobGeneration";
 import { integrationsApi } from "@/lib/api/integrations";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/api/client";
 
 // --- Schemas ---
 
@@ -786,31 +787,76 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                         {!showFeedbackInput ? (
                                             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                                                 <div className="text-center md:text-left">
-                                                    <h3 className="font-extrabold text-2xl text-slate-900 tracking-tight">Does this look perfect?</h3>
-                                                    <p className="text-slate-500 font-medium text-base mt-1">Approve to launch immediately or collaborative with AI for refinements.</p>
+                                                    <h3 className="font-extrabold text-2xl text-slate-900 tracking-tight">Ready to save this job?</h3>
+                                                    <p className="text-slate-500 font-medium text-base mt-1">Save this job to your database. You can publish it later from Generated Jobs.</p>
                                                 </div>
                                                 <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="lg"
-                                                        className="border-slate-200 hover:bg-slate-50 hover:text-slate-900 px-8 py-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
-                                                        onClick={() => setShowFeedbackInput(true)}
-                                                        disabled={jobGeneration.isLoading}
-                                                    >
-                                                        <MessageSquare className="mr-2 h-5 w-5" />
-                                                        Suggest Improvements
-                                                    </Button>
                                                     <Button
                                                         size="lg"
                                                         className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 px-10 py-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 group"
                                                         onClick={async () => {
-                                                            await jobGeneration.approveJob();
-                                                            setShowPublishDialog(true);
+                                                            setIsLoading(true);
+                                                            try {
+                                                                const jobPost = jobGeneration.generatedPost;
+                                                                if (!jobPost) {
+                                                                    toast.error("No job post to save");
+                                                                    return;
+                                                                }
+
+                                                                // Map job type to enum format
+                                                                const jobTypeMap: Record<string, string> = {
+                                                                    'full-time': 'full_time',
+                                                                    'part-time': 'part_time',
+                                                                    'contract': 'contract',
+                                                                    'internship': 'internship',
+                                                                };
+
+                                                                // Map experience level to enum format
+                                                                const experienceLevelMap: Record<string, string> = {
+                                                                    'junior': 'entry_level',
+                                                                    'mid': 'mid_senior',
+                                                                    'senior': 'mid_senior',
+                                                                    'lead': 'director',
+                                                                };
+
+                                                                // Create job in database using apiClient
+                                                                await apiClient.post('/jobs', {
+                                                                    title: jobPost.job_title || formData.title,
+                                                                    description: jobPost.summary || formData.description,
+                                                                    short_description: jobPost.summary,
+                                                                    location: jobPost.location || formData.location,
+                                                                    job_type: jobTypeMap[formData.type || 'full-time'] || 'full_time',
+                                                                    experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'mid_senior',
+                                                                    department: formData.department,
+                                                                    required_skills: (jobPost.skills || []).map(s => String(s)),
+                                                                    preferred_skills: (jobPost.preferred_qualifications || []).map(s => String(s)),
+                                                                    benefits: (jobPost.benefits || []).map(s => String(s)),
+                                                                    company_name: formData.department,
+                                                                });
+
+                                                                toast.success("Job saved successfully!");
+                                                                router.push("/dashboard/generated-jobs");
+                                                            } catch (error: any) {
+                                                                console.error('Save job failed:', error);
+                                                                const detail = error.details ? JSON.stringify(error.details) : '';
+                                                                toast.error(`Failed to save job: ${error.message || 'Unknown error'} ${detail}`);
+                                                            } finally {
+                                                                setIsLoading(false);
+                                                            }
                                                         }}
-                                                        disabled={jobGeneration.isLoading}
+                                                        disabled={isLoading || jobGeneration.isLoading}
                                                     >
-                                                        <Rocket className="mr-2 h-5 w-5 group-hover:animate-bounce" />
-                                                        Launch Job Post
+                                                        {isLoading ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                                                Saving...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Check className="mr-2 h-5 w-5" />
+                                                                Save to DB
+                                                            </>
+                                                        )}
                                                     </Button>
                                                 </div>
                                             </div>

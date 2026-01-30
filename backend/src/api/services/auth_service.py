@@ -21,10 +21,9 @@ class AuthService:
         username = user_in.username or user_in.email.split("@")[0]
         db_user = User(
             email=user_in.email,
-            username=user_in.username,
+            username=username,
             full_name=user_in.full_name,
             hashed_password=hashed_password,
-            username=username,
             role=user_in.role
         )
         self.db.add(db_user)

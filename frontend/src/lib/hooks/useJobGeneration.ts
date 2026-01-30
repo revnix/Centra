@@ -6,9 +6,11 @@ import type { EvalynState, HITLInterrupt, HITLResponse, JDState } from '@/lib/ty
 const getLangGraphApiUrl = () => {
     if (typeof window !== "undefined") {
         const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
-        return `http://${host}:2024`;
+        // LangGraph dev server usually runs on 8123.
+        // Ensure the server is started with --host 0.0.0.0 to be reachable via network IP.
+        return `http://${host}:8123`;
     }
-    return 'http://localhost:2024';
+    return 'http://localhost:8123';
 };
 
 const LANGGRAPH_API_URL = getLangGraphApiUrl();
