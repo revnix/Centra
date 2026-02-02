@@ -10,31 +10,31 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 class JobType(str, enum.Enum):
     """Job type enumeration"""
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    CONTRACT = "contract"
-    TEMPORARY = "temporary"
-    INTERNSHIP = "internship"
-    VOLUNTEER = "volunteer"
-    FREELANCE = "freelance"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    CONTRACT = "CONTRACT"
+    TEMPORARY = "TEMPORARY"
+    INTERNSHIP = "INTERNSHIP"
+    VOLUNTEER = "VOLUNTEER"
+    FREELANCE = "FREELANCE"
 
 
 class JobStatus(str, enum.Enum):
     """Job status enumeration"""
-    DRAFT = "draft"
-    PENDING = "pending"
-    PUBLISHED = "published"
-    CLOSED = "closed"
-    ARCHIVED = "archived"
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    PUBLISHED = "PUBLISHED"
+    CLOSED = "CLOSED"
+    ARCHIVED = "ARCHIVED"
 
 
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
-    ENTRY_LEVEL = "entry_level"
-    ASSOCIATE = "associate"
-    MID_SENIOR = "mid_senior"
-    DIRECTOR = "director"
-    EXECUTIVE = "executive"
+    ENTRY_LEVEL = "ENTRY_LEVEL"
+    ASSOCIATE = "ASSOCIATE"
+    MID_SENIOR = "MID_SENIOR"
+    DIRECTOR = "DIRECTOR"
+    EXECUTIVE = "EXECUTIVE"
 
 
 class Posts(Base):

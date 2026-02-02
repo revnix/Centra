@@ -8,7 +8,7 @@ from typing import List
 
 router = APIRouter()
 
-@router.get("/", response_model=List[IntegrationResponse])
+@router.get("", response_model=List[IntegrationResponse])
 async def list_integrations(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

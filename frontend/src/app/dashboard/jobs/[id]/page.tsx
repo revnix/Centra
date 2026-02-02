@@ -63,8 +63,8 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
         );
     }
 
-    const isActive = job.status === "published";
-    const isDraft = job.status === "draft";
+    const isActive = job.status === "PUBLISHED";
+    const isDraft = job.status === "DRAFT";
 
     return (
         <div className="max-w-5xl mx-auto space-y-8">
@@ -142,9 +142,18 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                             </>
                         )}
                         {isActive && (
-                            <Button variant="outline">
-                                <Globe className="w-4 h-4 mr-2" /> View Live
-                            </Button>
+                            <div className="flex gap-2">
+                                <Link href={`/jobs/${job.id}`} target="_blank">
+                                    <Button variant="outline">
+                                        <Globe className="w-4 h-4 mr-2" /> View Live
+                                    </Button>
+                                </Link>
+                                <Link href={`/jobs/${job.id}/apply`} target="_blank">
+                                    <Button variant="outline">
+                                        <Rocket className="w-4 h-4 mr-2" /> Apply Now (Test)
+                                    </Button>
+                                </Link>
+                            </div>
                         )}
                         <Button variant="outline">
                             <Edit className="w-4 h-4 mr-2" /> Edit
@@ -333,12 +342,15 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                 try {
                                     const publishPromises = selectedAccounts.map(async (accId) => {
                                         const account = connectedAccounts.find(a => a.id === accId);
+                                        const jobUrl = `${window.location.origin}/jobs/${job.id}/apply`;
+
                                         if (account?.platform === 'linkedin') {
-                                            return integrationsApi.linkedin.publish(job.description);
+                                            const publishText = `${job.description}\n\nApply Now: ${jobUrl}`;
+                                            return integrationsApi.linkedin.publish(publishText);
                                         } else if (account?.platform === 'indeed') {
                                             return integrationsApi.indeed.postJob({
                                                 title: job.title,
-                                                description: job.description,
+                                                description: `${job.description}\n\nApply Now: ${jobUrl}`,
                                                 location: job.location || 'Remote',
                                                 company: job.company_name || job.department || 'Our Company'
                                             });

@@ -15,6 +15,8 @@ class GuestApplicationCreate(BaseModel):
     job_id: int
     email: EmailStr
     full_name: str
+    phone_number: Optional[str] = None
+    cover_letter: Optional[str] = None
     resume_url: Optional[str] = None
     # Embedded profile data
     linkedin_url: Optional[str] = None

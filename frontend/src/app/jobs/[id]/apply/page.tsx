@@ -1,407 +1,264 @@
 "use client";
 
 import { use, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { api } from "@/lib/api";
+import { useJob } from "@/lib/hooks/useJobs";
 import { Button } from "@/components/ui/button";
+import {
+    Form,
+    FormControl,
+    FormDescription,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
-    Sparkles,
-    Upload,
-    FileText,
-    Loader2,
-    CheckCircle2,
-    AlertCircle,
-    ArrowLeft,
-    Mail,
-    Calendar
-} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+import { Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-const jobTitles: Record<string, string> = {
-    "1": "Senior Frontend Engineer",
-    "2": "Backend Engineer",
-    "3": "Product Designer",
-    "4": "Data Scientist"
-};
+const applicationSchema = z.object({
+    full_name: z.string().min(2, "Name must be at least 2 characters"),
+    email: z.string().email("Invalid email address"),
+    phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
+    resume_url: z.string().url("Please provide a valid URL to your resume (e.g. LinkedIn, Google Drive)").optional().or(z.literal("")),
+    cover_letter: z.string().optional(),
+    linkedin_url: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
+});
+
+type ApplicationFormValues = z.infer<typeof applicationSchema>;
 
 export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    const jobTitle = jobTitles[id] || "Software Engineer";
+    const router = useRouter();
+    const { data: job, isLoading: isJobLoading } = useJob(id);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
 
-    const [formData, setFormData] = useState({
-        fullName: "",
-        email: "",
-        phone: "",
-        linkedin: "",
-        portfolio: "",
-        coverLetter: "",
-        hearAbout: ""
+    const form = useForm<ApplicationFormValues>({
+        resolver: zodResolver(applicationSchema),
+        defaultValues: {
+            full_name: "",
+            email: "",
+            phone_number: "",
+            resume_url: "",
+            cover_letter: "",
+            linkedin_url: "",
+        },
     });
 
-    const [resumeFile, setResumeFile] = useState<File | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSubmitted, setIsSubmitted] = useState(false);
-    const [error, setError] = useState("");
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                setError("File size must be less than 5MB");
-                return;
-            }
-            if (!['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type)) {
-                setError("Please upload a PDF or Word document");
-                return;
-            }
-            setResumeFile(file);
-            setError("");
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError("");
-
-        if (!resumeFile) {
-            setError("Please upload your resume");
-            return;
-        }
-
+    const onSubmit = async (data: ApplicationFormValues) => {
         setIsSubmitting(true);
-
-        // Simulate API call to create candidate and send interview link
-        setTimeout(() => {
-            // In production:
-            // 1. Upload resume to cloud storage
-            // 2. Create candidate record with temp ID
-            // 3. Generate interview token
-            // 4. Send email with interview link
-
+        try {
+            await api.applications.guestApply({
+                job_id: parseInt(id),
+                full_name: data.full_name,
+                email: data.email,
+                phone_number: data.phone_number,
+                resume_url: data.resume_url || undefined,
+                cover_letter: data.cover_letter || undefined,
+                linkedin_url: data.linkedin_url || undefined,
+                skills: [], // Can be enhanced to extract skills or ask user
+                experience_years: 0, // Can add field if needed
+            });
+            setIsSuccess(true);
+            toast.success("Application submitted successfully!");
+        } catch (error: any) {
+            console.error("Application error:", error);
+            toast.error(error.message || "Failed to submit application. Please try again.");
+        } finally {
             setIsSubmitting(false);
-            setIsSubmitted(true);
-        }, 2000);
+        }
     };
 
-    // Success screen
-    if (isSubmitted) {
+    if (isJobLoading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex items-center justify-center p-6">
-                <Card className="max-w-2xl w-full shadow-xl border-t-4 border-t-green-600">
-                    <CardContent className="pt-12 pb-12 text-center space-y-6">
-                        <div className="mx-auto p-4 bg-green-100 rounded-full w-fit">
-                            <CheckCircle2 className="h-16 w-16 text-green-600" />
+            <div className="flex min-h-screen items-center justify-center bg-slate-50">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+        );
+    }
+
+    if (!job) {
+        return (
+            <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
+                <h2 className="mb-4 text-2xl font-bold text-slate-900">Job not found</h2>
+                <Link href="/jobs">
+                    <Button variant="outline">Back to Jobs</Button>
+                </Link>
+            </div>
+        );
+    }
+
+    if (isSuccess) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+                <Card className="w-full max-w-md text-center">
+                    <CardHeader>
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                            <CheckCircle2 className="h-8 w-8 text-green-600" />
                         </div>
-
-                        <div className="space-y-3">
-                            <h2 className="text-3xl font-bold text-slate-900">Application Submitted!</h2>
-                            <p className="text-lg text-slate-600">
-                                Thank you for applying to <span className="font-semibold text-slate-900">{jobTitle}</span>
-                            </p>
-                        </div>
-
-                        <Card className="bg-blue-50 border-blue-200 text-left">
-                            <CardContent className="p-6 space-y-4">
-                                <div className="flex items-start gap-3">
-                                    <Mail className="h-6 w-6 text-blue-600 flex-shrink-0 mt-1" />
-                                    <div>
-                                        <h3 className="font-semibold text-slate-900 mb-1">Check Your Email</h3>
-                                        <p className="text-sm text-slate-600">
-                                            We've sent an interview invitation to <span className="font-medium text-blue-600">{formData.email}</span>
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-start gap-3">
-                                    <Calendar className="h-6 w-6 text-purple-600 flex-shrink-0 mt-1" />
-                                    <div>
-                                        <h3 className="font-semibold text-slate-900 mb-1">Next Steps</h3>
-                                        <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
-                                            <li>Complete your AI interview (30 minutes)</li>
-                                            <li>Finish the coding challenge (45 minutes)</li>
-                                            <li>We'll review and get back to you within 48 hours</li>
-                                        </ol>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Alert className="bg-purple-50 border-purple-200 text-left">
-                            <Sparkles className="h-4 w-4 text-purple-600" />
-                            <AlertDescription className="text-purple-900">
-                                <strong>Pro tip:</strong> The interview link expires in 48 hours.
-                                Complete it at your convenience within that time.
-                            </AlertDescription>
-                        </Alert>
-
-                        <div className="flex gap-3 justify-center pt-4">
-                            <Button variant="outline" onClick={() => window.location.href = "/jobs"}>
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Browse More Jobs
-                            </Button>
-                            <Button onClick={() => window.location.href = "/"}>
-                                Go to Homepage
-                            </Button>
-                        </div>
-
-                        <p className="text-sm text-slate-500 pt-4">
-                            Didn't receive the email? Check your spam folder or{" "}
-                            <a href="#" className="text-blue-600 hover:underline">resend link</a>
+                        <CardTitle className="text-2xl">Application Received!</CardTitle>
+                        <CardDescription>
+                            Thanks for applying to <strong>{job.title}</strong> at {job.company_name}.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm text-slate-600">
+                            We have sent a confirmation email to <strong>{form.getValues().email}</strong>.
+                            Our team will review your application and get back to you shortly.
                         </p>
+                        <Link href={`/jobs/${id}`}>
+                            <Button className="w-full">Return to Job Posting</Button>
+                        </Link>
                     </CardContent>
                 </Card>
             </div>
         );
     }
 
-    // Application form
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-            {/* Header */}
-            <header className="border-b bg-white/80 backdrop-blur-sm">
-                <div className="container mx-auto px-6 py-4">
-                    <Link href={`/jobs/${id}`} className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
-                        <ArrowLeft className="h-5 w-5" />
-                        <span>Back to Job</span>
-                    </Link>
+        <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-2xl">
+                <Link
+                    href={`/jobs/${id}`}
+                    className="mb-6 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-700"
+                >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Job Details
+                </Link>
+
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-slate-900">Apply for {job.title}</h1>
+                    <p className="mt-2 text-lg text-slate-600">
+                        {job.company_name} • {job.location || 'Remote'}
+                    </p>
                 </div>
-            </header>
 
-            <div className="container mx-auto px-6 py-12">
-                <div className="max-w-3xl mx-auto">
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 mb-4">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            AI-Powered Hiring
-                        </Badge>
-                        <h1 className="text-4xl font-bold text-slate-900 mb-2">Apply for {jobTitle}</h1>
-                        <p className="text-lg text-slate-600">
-                            No account required • Takes 5 minutes • Get interviewed by AI
-                        </p>
-                    </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Application Form</CardTitle>
+                        <CardDescription>
+                            Please fill out the form below to apply. Fields marked with * are required.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <FormField
+                                    control={form.control}
+                                    name="full_name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Full Name *</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="John Doe" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
-                    <Card className="shadow-xl">
-                        <CardHeader>
-                            <CardTitle>Application Form</CardTitle>
-                            <CardDescription>
-                                Fill in your details below. We'll send you an interview link via email.
-                            </CardDescription>
-                        </CardHeader>
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email *</FormLabel>
+                                                <FormControl>
+                                                    <Input type="email" placeholder="john@example.com" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
-                        <CardContent>
-                            <form onSubmit={handleSubmit} className="space-y-6">
-                                {error && (
-                                    <Alert variant="destructive" className="bg-red-50 border-red-200">
-                                        <AlertCircle className="h-4 w-4" />
-                                        <AlertDescription>{error}</AlertDescription>
-                                    </Alert>
-                                )}
-
-                                {/* Personal Information */}
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-slate-900">Personal Information</h3>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="fullName">
-                                            Full Name <span className="text-red-500">*</span>
-                                        </Label>
-                                        <Input
-                                            id="fullName"
-                                            name="fullName"
-                                            placeholder="John Doe"
-                                            value={formData.fullName}
-                                            onChange={handleInputChange}
-                                            required
-                                            disabled={isSubmitting}
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="email">
-                                                Email <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="email"
-                                                name="email"
-                                                type="email"
-                                                placeholder="john@example.com"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                required
-                                                disabled={isSubmitting}
-                                            />
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="phone">
-                                                Phone <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="phone"
-                                                name="phone"
-                                                type="tel"
-                                                placeholder="+1 (555) 123-4567"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                required
-                                                disabled={isSubmitting}
-                                            />
-                                        </div>
-                                    </div>
+                                    <FormField
+                                        control={form.control}
+                                        name="phone_number"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Phone Number *</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="+1 (555) 000-0000" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
-                                {/* Resume Upload */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="resume">
-                                        Resume <span className="text-red-500">*</span>
-                                    </Label>
-                                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-                                        <input
-                                            type="file"
-                                            id="resume"
-                                            accept=".pdf,.doc,.docx"
-                                            onChange={handleFileChange}
-                                            className="hidden"
-                                            disabled={isSubmitting}
-                                        />
-                                        <label htmlFor="resume" className="cursor-pointer">
-                                            {resumeFile ? (
-                                                <div className="flex items-center justify-center gap-2 text-green-600">
-                                                    <FileText className="h-6 w-6" />
-                                                    <span className="font-medium">{resumeFile.name}</span>
-                                                    <CheckCircle2 className="h-5 w-5" />
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    <Upload className="h-12 w-12 mx-auto text-slate-400" />
-                                                    <p className="text-slate-600 font-medium">
-                                                        Click to upload or drag and drop
-                                                    </p>
-                                                    <p className="text-sm text-slate-500">
-                                                        PDF or Word document (max 5MB)
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </label>
-                                    </div>
-                                </div>
+                                <FormField
+                                    control={form.control}
+                                    name="linkedin_url"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>LinkedIn Profile URL</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="https://linkedin.com/in/johndoe" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
-                                {/* Optional Links */}
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-slate-900">Additional Information (Optional)</h3>
+                                <FormField
+                                    control={form.control}
+                                    name="resume_url"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Resume / Portfolio URL</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="https://website.com/resume.pdf" {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Please provide a link to your resume (e.g., Google Drive, Dropbox, or personal website).
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="linkedin">LinkedIn Profile</Label>
-                                            <Input
-                                                id="linkedin"
-                                                name="linkedin"
-                                                placeholder="linkedin.com/in/yourprofile"
-                                                value={formData.linkedin}
-                                                onChange={handleInputChange}
-                                                disabled={isSubmitting}
-                                            />
-                                        </div>
+                                <FormField
+                                    control={form.control}
+                                    name="cover_letter"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Cover Letter</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Tell us why you're a great fit for this role..."
+                                                    className="min-h-[150px]"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="portfolio">Portfolio/GitHub</Label>
-                                            <Input
-                                                id="portfolio"
-                                                name="portfolio"
-                                                placeholder="github.com/yourname"
-                                                value={formData.portfolio}
-                                                onChange={handleInputChange}
-                                                disabled={isSubmitting}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="coverLetter">Cover Letter</Label>
-                                        <Textarea
-                                            id="coverLetter"
-                                            name="coverLetter"
-                                            placeholder="Tell us why you're a great fit for this role..."
-                                            rows={4}
-                                            value={formData.coverLetter}
-                                            onChange={handleInputChange}
-                                            disabled={isSubmitting}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="hearAbout">How did you hear about us?</Label>
-                                        <Select value={formData.hearAbout} onValueChange={(val) => setFormData({ ...formData, hearAbout: val })}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select an option" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                                                <SelectItem value="indeed">Indeed</SelectItem>
-                                                <SelectItem value="referral">Employee Referral</SelectItem>
-                                                <SelectItem value="website">Company Website</SelectItem>
-                                                <SelectItem value="other">Other</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                <Alert className="bg-blue-50 border-blue-200">
-                                    <Sparkles className="h-4 w-4 text-blue-600" />
-                                    <AlertDescription className="text-blue-900">
-                                        After submitting, you'll receive an email with your personalized interview link.
-                                        The AI interview takes about 30 minutes and can be completed at your convenience.
-                                    </AlertDescription>
-                                </Alert>
-
-                                <Button
-                                    type="submit"
-                                    size="lg"
-                                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                                    disabled={isSubmitting}
-                                >
+                                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={isSubmitting}>
                                     {isSubmitting ? (
                                         <>
-                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                            Submitting Application...
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Submitting...
                                         </>
                                     ) : (
-                                        <>
-                                            Submit Application
-                                            <CheckCircle2 className="ml-2 h-5 w-5" />
-                                        </>
+                                        "Submit Application"
                                     )}
                                 </Button>
-
-                                <p className="text-center text-sm text-slate-500">
-                                    By submitting, you agree to our{" "}
-                                    <a href="/terms" className="text-blue-600 hover:underline">Terms of Service</a> and{" "}
-                                    <a href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</a>
-                                </p>
                             </form>
-                        </CardContent>
-                    </Card>
-                </div>
+                        </Form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );

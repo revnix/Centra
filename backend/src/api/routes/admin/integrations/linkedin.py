@@ -105,13 +105,14 @@ async def linkedin_publish(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Publish a post to LinkedIn."""
+    """Publish a post to LinkedIn with optional article link."""
     linkedin_service = LinkedInService(db)
     user = current_user
     try:
         result = await linkedin_service.post_to_linkedin(
             user_id=user.id,
-            text=publish_data.text
+            text=publish_data.text,
+            article_url=publish_data.article_url
         )
         return result
     except Exception as e:

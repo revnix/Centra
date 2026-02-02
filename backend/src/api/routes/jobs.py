@@ -34,7 +34,7 @@ async def read_public_jobs(
     """Public endpoint for fetching published jobs (no authentication required)"""
     job_service = JobService(db)
     return await job_service.get_jobs(skip=skip, limit=limit, status="published")
-@router.get("/", response_model=List[JobResponse])
+@router.get("", response_model=List[JobResponse])
 async def read_jobs(
     skip: int = 0,
     limit: int = 100,
@@ -47,7 +47,7 @@ async def read_jobs(
     # Filter by current user to ensure they only see their own generated jobs
     return await job_service.get_my_jobs(user_id=current_user.id, skip=skip, limit=limit, status=status)
 
-@router.post("/", response_model=JobResponse)
+@router.post("", response_model=JobResponse)
 async def create_job(
     job_data: JobCreate,
     current_user: User = Depends(get_current_user),

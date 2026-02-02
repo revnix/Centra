@@ -56,7 +56,12 @@ async def guest_apply(
         await cand_service.create_profile(user.id, profile_in)
         
     # 3. Create Application
-    application = await app_service.create_application(user.id, apply_data.job_id)
+    application = await app_service.create_application(
+        user.id, 
+        apply_data.job_id,
+        cover_letter=apply_data.cover_letter,
+        phone_number=apply_data.phone_number
+    )
     
     # 4. Generate Interview Token
     session = await int_service.create_session(application.id)

@@ -5,14 +5,14 @@ from src.api.db.base import Base
 import enum
 
 class ApplicationStatus(str, enum.Enum):
-    APPLIED = "applied"
-    SCREENING = "screening"
-    INTERVIEW_PENDING = "interview_pending"
-    INTERVIEW_IN_PROGRESS = "interview_in_progress"
-    INTERVIEW_COMPLETED = "interview_completed"
-    OFFER = "offer"
-    REJECTED = "rejected"
-    WITHDRAWN = "withdrawn"
+    APPLIED = "APPLIED"
+    SCREENING = "SCREENING"
+    INTERVIEW_PENDING = "INTERVIEW_PENDING"
+    INTERVIEW_IN_PROGRESS = "INTERVIEW_IN_PROGRESS"
+    INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
+    OFFER = "OFFER"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
 
 class Application(Base):
     """
@@ -31,6 +31,10 @@ class Application(Base):
     status = Column(SqlEnum(ApplicationStatus), default=ApplicationStatus.APPLIED, nullable=False, index=True)
     match_score = Column(Float, nullable=True, comment="AI compatibility score (0-100)")
     ai_feedback = Column(Text, nullable=True, comment="AI summary of the application")
+    
+    # Application details
+    cover_letter = Column(Text, nullable=True)
+    phone_number = Column(String(50), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -5,10 +5,10 @@ from src.api.db.base import Base
 import enum
 
 class InterviewStatus(str, enum.Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    EXPIRED = "expired"
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    EXPIRED = "EXPIRED"
 
 class InterviewSession(Base):
     """

@@ -143,3 +143,31 @@ async def indeed_post_job(
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/token")
+async def get_indeed_token(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a valid access token for Indeed API.
+    Used for client-side API calls to bypass WAF blocking.
+    """
+    from src.api.core.config import settings
+    indeed_service = IndeedService(db)
+    
+    # Get user integration
+    integration = await indeed_service.get_integration(current_user.id)
+    if not integration:
+        raise HTTPException(status_code=404, detail="Indeed integration not found")
+        
+    try:
+        # Get valid token (refreshes if needed)
+        token = await indeed_service.get_valid_token(integration)
+        
+        return {
+            "access_token": token,
+            "employer_id": settings.INDEED_EMPLOYER_ID
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to get token: {str(e)}")

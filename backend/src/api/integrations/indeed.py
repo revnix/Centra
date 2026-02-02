@@ -15,6 +15,13 @@ class IndeedService:
     Service to handle job uploads to the Indeed platform using Job Sync API (GraphQL).
     """
     
+    DEFAULT_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Content-Type": "application/json",
+    }
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.base_url = settings.INDEED_API_ENDPOINT
@@ -36,6 +43,9 @@ class IndeedService:
             return integration.access_token
 
         # Refresh token logic
+        headers = self.DEFAULT_HEADERS.copy()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 self.token_url,
@@ -44,7 +54,8 @@ class IndeedService:
                     "refresh_token": integration.refresh_token,
                     "client_id": settings.INDEED_CLIENT_ID,
                     "client_secret": settings.INDEED_CLIENT_SECRET,
-                }
+                },
+                headers=headers
             )
             
             if response.status_code != 200:
@@ -101,11 +112,14 @@ class IndeedService:
                 }
             }
 
+            headers = self.DEFAULT_HEADERS.copy()
+            headers["Authorization"] = f"Bearer {token}"
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.base_url}/graphql",
                     json={"query": query, "variables": variables},
-                    headers={"Authorization": f"Bearer {token}"}
+                    headers=headers
                 )
                 
                 if response.status_code != 200:
@@ -144,11 +158,15 @@ class IndeedService:
               }
             }
             """
+            
+            headers = self.DEFAULT_HEADERS.copy()
+            headers["Authorization"] = f"Bearer {token}"
+
             async with httpx.AsyncClient() as client:
                 await client.post(
                     f"{self.base_url}/graphql",
                     json={"query": query, "variables": {"externalId": str(job.id)}},
-                    headers={"Authorization": f"Bearer {token}"}
+                    headers=headers
                 )
             return True
         except Exception:

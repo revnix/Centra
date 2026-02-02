@@ -805,41 +805,74 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
 
                                                                 // Map job type to enum format
                                                                 const jobTypeMap: Record<string, string> = {
-                                                                    'full-time': 'full_time',
-                                                                    'part-time': 'part_time',
-                                                                    'contract': 'contract',
-                                                                    'internship': 'internship',
+                                                                    'full-time': 'FULL_TIME',
+                                                                    'part-time': 'PART_TIME',
+                                                                    'contract': 'CONTRACT',
+                                                                    'internship': 'INTERNSHIP',
                                                                 };
 
                                                                 // Map experience level to enum format
                                                                 const experienceLevelMap: Record<string, string> = {
-                                                                    'junior': 'entry_level',
-                                                                    'mid': 'mid_senior',
-                                                                    'senior': 'mid_senior',
-                                                                    'lead': 'director',
+                                                                    'junior': 'ENTRY_LEVEL',
+                                                                    'mid': 'MID_SENIOR',
+                                                                    'senior': 'MID_SENIOR',
+                                                                    'lead': 'DIRECTOR',
                                                                 };
 
-                                                                // Create job in database using apiClient
-                                                                await apiClient.post('/jobs', {
+                                                                // Prepare the job data
+                                                                const jobData = {
                                                                     title: jobPost.job_title || formData.title,
                                                                     description: jobPost.summary || formData.description,
                                                                     short_description: jobPost.summary,
                                                                     location: jobPost.location || formData.location,
-                                                                    job_type: jobTypeMap[formData.type || 'full-time'] || 'full_time',
-                                                                    experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'mid_senior',
+                                                                    job_type: jobTypeMap[formData.type || 'full-time'] || 'FULL_TIME',
+                                                                    experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'MID_SENIOR',
                                                                     department: formData.department,
-                                                                    required_skills: (jobPost.skills || []).map(s => String(s)),
-                                                                    preferred_skills: (jobPost.preferred_qualifications || []).map(s => String(s)),
-                                                                    benefits: (jobPost.benefits || []).map(s => String(s)),
+                                                                    required_skills: (jobPost.skills || []).map((s: any) => String(s)),
+                                                                    preferred_skills: (jobPost.preferred_qualifications || []).map((s: any) => String(s)),
+                                                                    benefits: (jobPost.benefits || []).map((s: any) => String(s)),
                                                                     company_name: formData.department,
-                                                                });
+                                                                };
+
+                                                                console.log('DEBUG: Sending job data to backend:', JSON.stringify(jobData, null, 2));
+
+                                                                // Create job in database using apiClient
+                                                                await apiClient.post('/jobs/', jobData);
 
                                                                 toast.success("Job saved successfully!");
                                                                 router.push("/dashboard/generated-jobs");
                                                             } catch (error: any) {
                                                                 console.error('Save job failed:', error);
-                                                                const detail = error.details ? JSON.stringify(error.details) : '';
-                                                                toast.error(`Failed to save job: ${error.message || 'Unknown error'} ${detail}`);
+                                                                console.error('Error object:', JSON.stringify(error, null, 2));
+
+                                                                // Enhanced error extraction
+                                                                let errorMessage = 'Unknown error';
+                                                                let errorDetails = '';
+
+                                                                if (error.message) {
+                                                                    errorMessage = error.message;
+                                                                }
+
+                                                                if (error.details) {
+                                                                    if (typeof error.details === 'string') {
+                                                                        errorDetails = error.details;
+                                                                    } else if (Array.isArray(error.details)) {
+                                                                        // Handle Pydantic validation errors
+                                                                        errorDetails = error.details.map((err: any) =>
+                                                                            `${err.loc?.join('.') || 'field'}: ${err.msg || err.message || err}`
+                                                                        ).join(', ');
+                                                                    } else if (typeof error.details === 'object') {
+                                                                        errorDetails = JSON.stringify(error.details);
+                                                                    }
+                                                                }
+
+                                                                const fullMessage = errorDetails
+                                                                    ? `${errorMessage}: ${errorDetails}`
+                                                                    : errorMessage;
+
+                                                                toast.error(`Failed to save job: ${fullMessage}`, {
+                                                                    duration: 10000,
+                                                                });
                                                             } finally {
                                                                 setIsLoading(false);
                                                             }

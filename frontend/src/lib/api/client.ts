@@ -7,20 +7,10 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
 const getApiBaseUrl = () => {
     if (typeof window !== "undefined") {
-        // If we are on localhost, use 127.0.0.1 to avoid some issues with localhost resolution in some browsers/setups
-        // But respect the current protocol (http vs https)
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-
-        // If accessing via the network IP (e.g., 172.26.64.1), use that IP for the API too
-        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-            return `${protocol}//${hostname}:2024/api/v1`;
-        }
-
-        return `${protocol}//127.0.0.1:2024/api/v1`;
+        return "/api/v1";
     }
     // Server-side default
-    return "http://127.0.0.1:2024/api/v1";
+    return "http://127.0.0.1:8123/api/v1";
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -48,6 +38,7 @@ class ApiClient {
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`;
                 }
+                console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`, config);
                 return config;
             },
             (error) => {

@@ -219,17 +219,8 @@ class IndeedService:
             "Authorization": f"Bearer {integration.access_token}",
             "Content-Type": "application/json",
             "Accept": "application/json, text/plain, */*",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Windows"',
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-site",
-            "Origin": "https://employers.indeed.com",
-            "Referer": "https://employers.indeed.com/",
         }
         
         payload = {
@@ -241,7 +232,9 @@ class IndeedService:
             "postingStatus": "ACTIVE"
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # Try using http2=True if installed, otherwise it falls back (httpx default behavior is http1 without the extra package)
+        # But we can try to make the client as standard as possible.
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             max_retries = 3
             retry_delay = 2  # Start with 2 seconds
             

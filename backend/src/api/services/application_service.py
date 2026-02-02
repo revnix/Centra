@@ -9,7 +9,13 @@ class ApplicationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_application(self, user_id: int, job_id: int) -> Application:
+    async def create_application(
+        self, 
+        user_id: int, 
+        job_id: int, 
+        cover_letter: str = None, 
+        phone_number: str = None
+    ) -> Application:
         """Create a new application for a candidate."""
         # Check if already applied
         existing = await self.get_application_by_user_and_job(user_id, job_id)
@@ -19,7 +25,9 @@ class ApplicationService:
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
-            status=ApplicationStatus.APPLIED
+            status=ApplicationStatus.APPLIED,
+            cover_letter=cover_letter,
+            phone_number=phone_number
         )
         self.db.add(application)
         await self.db.commit()
