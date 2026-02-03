@@ -1,7 +1,9 @@
 # src/api/main.py
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+import os
 from src.api.core.config import settings
 from src.api.routes import (
     auth,
@@ -42,6 +44,13 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan
 )
+
+# Ensure upload directory exists
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
+
+# Mount static files for uploads
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # CORS
 app.add_middleware(

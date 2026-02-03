@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -28,8 +28,7 @@ const applicationSchema = z.object({
     full_name: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Invalid email address"),
     phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
-    resume_url: z.string().url("Please provide a valid URL to your resume (e.g. LinkedIn, Google Drive)").optional().or(z.literal("")),
-    cover_letter: z.string().optional(),
+    resume_file: z.any().optional(),
     linkedin_url: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
 });
 
@@ -41,6 +40,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
     const { data: job, isLoading: isJobLoading } = useJob(id);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [resumeFile, setResumeFile] = useState<File | null>(null);
 
     const form = useForm<ApplicationFormValues>({
         resolver: zodResolver(applicationSchema),
@@ -48,8 +48,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             full_name: "",
             email: "",
             phone_number: "",
-            resume_url: "",
-            cover_letter: "",
+            resume_file: undefined,
             linkedin_url: "",
         },
     });
@@ -57,17 +56,21 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
     const onSubmit = async (data: ApplicationFormValues) => {
         setIsSubmitting(true);
         try {
-            await api.applications.guestApply({
-                job_id: parseInt(id),
-                full_name: data.full_name,
-                email: data.email,
-                phone_number: data.phone_number,
-                resume_url: data.resume_url || undefined,
-                cover_letter: data.cover_letter || undefined,
-                linkedin_url: data.linkedin_url || undefined,
-                skills: [], // Can be enhanced to extract skills or ask user
-                experience_years: 0, // Can add field if needed
-            });
+            const formData = new FormData();
+            formData.append('job_id', id);
+            formData.append('full_name', data.full_name);
+            formData.append('email', data.email);
+            formData.append('phone_number', data.phone_number);
+            if (data.linkedin_url) {
+                formData.append('linkedin_url', data.linkedin_url);
+            }
+            if (resumeFile) {
+                formData.append('resume_file', resumeFile);
+            }
+            formData.append('skills', JSON.stringify([]));
+            formData.append('experience_years', '0');
+
+            await api.applications.guestApply(formData);
             setIsSuccess(true);
             toast.success("Application submitted successfully!");
         } catch (error: any) {
@@ -212,34 +215,38 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
 
                                 <FormField
                                     control={form.control}
-                                    name="resume_url"
-                                    render={({ field }) => (
+                                    name="resume_file"
+                                    render={({ field: { onChange, value, ...field } }) => (
                                         <FormItem>
-                                            <FormLabel>Resume / Portfolio URL</FormLabel>
+                                            <FormLabel>Resume / CV *</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="https://website.com/resume.pdf" {...field} />
+                                                <div className="flex flex-col gap-2">
+                                                    <label
+                                                        htmlFor="resume-upload"
+                                                        className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm font-medium text-slate-600 transition-colors hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+                                                    >
+                                                        <Upload className="h-5 w-5" />
+                                                        {resumeFile ? resumeFile.name : "Click to upload resume (PDF, DOC, DOCX)"}
+                                                    </label>
+                                                    <input
+                                                        id="resume-upload"
+                                                        type="file"
+                                                        accept=".pdf,.doc,.docx"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                setResumeFile(file);
+                                                                onChange(file);
+                                                            }
+                                                        }}
+                                                        {...field}
+                                                    />
+                                                </div>
                                             </FormControl>
                                             <FormDescription>
-                                                Please provide a link to your resume (e.g., Google Drive, Dropbox, or personal website).
+                                                Upload your resume in PDF, DOC, or DOCX format (max 5MB)
                                             </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="cover_letter"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Cover Letter</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    placeholder="Tell us why you're a great fit for this role..."
-                                                    className="min-h-[150px]"
-                                                    {...field}
-                                                />
-                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}

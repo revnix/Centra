@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
-    LOG_LEVEL: str = "INFO"   # ✅ FIXED
+    LOG_LEVEL: str = "INFO"   
+    UPLOAD_DIR: str = "uploads"
 
     # Database
     DATABASE_URL: str = os.getenv(
