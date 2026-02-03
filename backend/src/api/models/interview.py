@@ -30,6 +30,7 @@ class InterviewSession(Base):
     
     # Data
     transcript = Column(JSON, default=list, nullable=False, comment="Full chat history")
+    state = Column(JSON, default=dict, nullable=False, comment="Internal AI state (current skill, stage, etc)")
     code_submission = Column(Text, nullable=True, comment="Final code submission if applicable")
     
     # Scoring

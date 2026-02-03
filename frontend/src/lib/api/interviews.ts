@@ -19,6 +19,13 @@ export const interviewsApi = {
     },
 
     /**
+     * Create interview session
+     */
+    create: async (applicationId: number): Promise<any> => {
+        return apiClient.post<any>('/interviews/', { application_id: applicationId });
+    },
+
+    /**
      * Get interview transcript (Q&A)
      */
     getTranscript: async (interviewId: string): Promise<QuestionAnswer[]> => {
@@ -84,5 +91,12 @@ export const interviewsApi = {
         return apiClient.post<{ reply: string; transcript: any[] }>(`/interviews/${token}/chat`, {
             message
         });
+    },
+
+    /**
+     * Start/Initialize interview
+     */
+    startInterview: async (token: string): Promise<{ reply: string; transcript: any[] }> => {
+        return apiClient.post<{ reply: string; transcript: any[] }>(`/interviews/${token}/start`);
     },
 };

@@ -15,7 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, Filter, Loader2 } from "lucide-react";
+import { Eye, Search, Filter, Loader2, Bot } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -137,11 +137,29 @@ export default function ApplicationsPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
-                                            <Link href={`/dashboard/applications/${app.id}`}>
-                                                <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    Review <Eye className="w-4 h-4 ml-2" />
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        try {
+                                                            const session = await api.interviews.create(app.id);
+                                                            window.open(`/interview/${session.token}`, "_blank");
+                                                        } catch (err) {
+                                                            toast.error("Failed to create interview session");
+                                                        }
+                                                    }}
+                                                >
+                                                    Interview <Bot className="w-4 h-4 ml-1" />
                                                 </Button>
-                                            </Link>
+                                                <Link href={`/dashboard/applications/${app.id}`}>
+                                                    <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        Review <Eye className="w-4 h-4 ml-2" />
+                                                    </Button>
+                                                </Link>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}

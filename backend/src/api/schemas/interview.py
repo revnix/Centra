@@ -11,6 +11,7 @@ class InterviewSessionResponse(InterviewSessionBase):
     id: int
     application_id: int
     token: str
+    state: Optional[dict] = {}
     overall_score: Optional[float] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

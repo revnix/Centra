@@ -28,6 +28,8 @@ export const api = {
     interviews: {
         getSession: (token: string) => interviewsApi.getSession(token),
         sendMessage: (token: string, message: string) => interviewsApi.sendMessage(token, message),
+        create: (applicationId: number) => interviewsApi.create(applicationId),
+        startInterview: (token: string) => interviewsApi.startInterview(token),
     },
     applications: {
         guestApply: (data: any) => applicationsApi.guestApply(data),
