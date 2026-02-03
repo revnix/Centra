@@ -125,26 +125,38 @@ class LinkedInService:
         # For member social, it's usually urn:li:person:<id>
         author = f"urn:li:person:{integration.platform_user_id}"
         
-        # If an article URL is provided, include it in the text with proper formatting
-        # LinkedIn will auto-linkify properly formatted URLs in text
-        post_text = text
+        # Prepare share content
+        share_content = {
+            "shareCommentary": {
+                "text": text
+            },
+            "shareMediaCategory": "NONE"
+        }
+        
+        # If an article URL is provided, create a rich share card (ARTICLE)
         if article_url:
-            # Ensure the URL is complete and properly formatted
             if not article_url.startswith('http'):
                 article_url = f"https://{article_url}"
-            # Add URL to the text - LinkedIn should auto-linkify it
-            post_text = f"{text}\n\n🔗 Apply here: {article_url}"
+            
+            share_content["shareMediaCategory"] = "ARTICLE"
+            share_content["media"] = [
+                {
+                    "status": "READY",
+                    "description": {
+                        "text": "Submit your application for this position."
+                    },
+                    "originalUrl": article_url,
+                    "title": {
+                        "text": "View Job Details & Apply"
+                    }
+                }
+            ]
         
         payload = {
             "author": author,
             "lifecycleState": "PUBLISHED",
             "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": {
-                        "text": post_text
-                    },
-                    "shareMediaCategory": "NONE"
-                }
+                "com.linkedin.ugc.ShareContent": share_content
             },
             "visibility": {
                 "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"

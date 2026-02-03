@@ -28,8 +28,8 @@ const applicationSchema = z.object({
     full_name: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Invalid email address"),
     phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
-    resume_file: z.any().optional(),
-    linkedin_url: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
+    resume_file: z.any().refine((file) => file !== undefined, "Resume file is required"),
+    linkedin_url: z.string().optional().or(z.literal("")),
 });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
@@ -62,7 +62,11 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('email', data.email);
             formData.append('phone_number', data.phone_number);
             if (data.linkedin_url) {
-                formData.append('linkedin_url', data.linkedin_url);
+                let url = data.linkedin_url;
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = `https://${url}`;
+                }
+                formData.append('linkedin_url', url);
             }
             if (resumeFile) {
                 formData.append('resume_file', resumeFile);
@@ -71,15 +75,28 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('experience_years', '0');
 
             await api.applications.guestApply(formData);
-            setIsSuccess(true);
+
             toast.success("Application submitted successfully!");
+            // Redirect back to job details as requested
+            router.push(`/jobs/${id}`);
         } catch (error: any) {
             console.error("Application error:", error);
-            toast.error(error.message || "Failed to submit application. Please try again.");
+            let errorMessage = error.message || "Failed to submit application. Please try again.";
+
+            if (error.details && Array.isArray(error.details)) {
+                // Formatting Pydantic validation errors
+                errorMessage = error.details.map((d: any) => {
+                    const field = d.loc[d.loc.length - 1];
+                    return `${field}: ${d.msg}`;
+                }).join('; ');
+            }
+
+            toast.error(errorMessage);
         } finally {
             setIsSubmitting(false);
         }
     };
+
 
     if (isJobLoading) {
         return (

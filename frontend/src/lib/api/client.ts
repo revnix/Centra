@@ -38,6 +38,12 @@ class ApiClient {
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`;
                 }
+
+                // Automatically handle FormData Content-Type
+                if (config.data instanceof FormData) {
+                    delete config.headers['Content-Type'];
+                }
+
                 console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`, config);
                 return config;
             },
@@ -79,12 +85,31 @@ class ApiClient {
     }
 
     private normalizeError(error: AxiosError): { message: string; code: string; details?: any } {
+        // Defensive checks for config properties
+        const config = error.config;
+        const method = config?.method?.toUpperCase() || 'UNKNOWN';
+        const url = config?.url || 'URL';
+
         if (error.response?.data) {
             const data = error.response.data as any;
+
+            // Log the raw error safely for developer visibility
+            console.error(`[API Error] ${method} ${url}:`, data);
+
             // Handle FastAPI 'detail' field
-            const message = typeof data.detail === 'string'
-                ? data.detail
-                : (Array.isArray(data.detail) ? 'Validation Error' : (data.message || 'An error occurred'));
+            let message = 'An error occurred';
+
+            if (typeof data.detail === 'string') {
+                message = data.detail;
+            } else if (Array.isArray(data.detail)) {
+                message = 'Validation Error';
+            } else if (typeof data.detail === 'object' && data.detail !== null) {
+                message = (data.detail as any).message || JSON.stringify(data.detail);
+            } else if (data.message) {
+                message = data.message;
+            } else if (typeof data === 'string') {
+                message = data;
+            }
 
             return {
                 message: message,
@@ -92,6 +117,9 @@ class ApiClient {
                 details: data.detail,
             };
         }
+
+        console.error(`[Network Error] ${method} ${url}:`, error.message);
+
         return {
             message: error.message || 'Network error',
             code: 'NETWORK_ERROR',

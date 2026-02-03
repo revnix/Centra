@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.api.db.base import Base
@@ -18,7 +19,7 @@ class CandidateProfile(Base):
     linkedin_url = Column(String, nullable=True)
     portfolio_url = Column(String, nullable=True)
     
-    skills = Column(JSON, default=list, nullable=False)
+    skills = Column(ARRAY(String), default=list, nullable=False)
     experience_years = Column(Integer, default=0)
     bio = Column(Text, nullable=True)
     
@@ -26,4 +27,7 @@ class CandidateProfile(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    user = relationship("User", backref="candidate_profile")
+    # Relationships
+    user = relationship("User", backref="candidate_profiles") # Changing backref to candidate_profiles (plural) or using uselist=False
+    # Actually, better to configure it explicitly on User or here with uselist=False
+    user = relationship("User", back_populates="candidate_profile")

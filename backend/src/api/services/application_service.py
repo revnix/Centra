@@ -54,3 +54,17 @@ class ApplicationService:
             .where(Application.id == application_id)
         )
         return result.scalars().first()
+
+    async def list_applications(self, skip: int = 0, limit: int = 100) -> list[Application]:
+        """List all applications with related data."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                selectinload(Application.candidate).selectinload(User.candidate_profile),
+                selectinload(Application.job)
+            )
+            .offset(skip)
+            .limit(limit)
+            .order_by(Application.created_at.desc())
+        )
+        return result.scalars().all()

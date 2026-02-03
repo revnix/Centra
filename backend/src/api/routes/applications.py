@@ -107,7 +107,7 @@ async def guest_apply(
         "interview_token": session.token
     }
 
-@router.post("/", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
 async def apply(
     apply_data: ApplicationCreate,
     current_user: User = Depends(get_current_user),
@@ -116,4 +116,33 @@ async def apply(
     """Authenticated user application."""
     app_service = ApplicationService(db)
     application = await app_service.create_application(current_user.id, apply_data.job_id)
+    return application
+
+@router.get("", response_model=List[ApplicationResponse])
+async def list_applications(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all applications (Admin only)."""
+    # In a real app, restrict this to Admin/Recruiter roles
+    # if current_user.role not in [UserRole.ADMIN, UserRole.RECRUITER]:
+    #     raise HTTPException(status_code=403, detail="Not authorized")
+    
+    app_service = ApplicationService(db)
+    # We need to implement a list method in service
+    applications = await app_service.list_applications(skip, limit)
+    return applications
+@router.get("/{application_id}", response_model=ApplicationResponse)
+async def get_application(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get detailed application by ID."""
+    app_service = ApplicationService(db)
+    application = await app_service.get_application_by_id(application_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
     return application

@@ -345,8 +345,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                         const jobUrl = `${window.location.origin}/jobs/${job.id}/apply`;
 
                                         if (account?.platform === 'linkedin') {
-                                            const publishText = `${job.description}\n\nApply Now: ${jobUrl}`;
-                                            return integrationsApi.linkedin.publish(publishText);
+                                            return integrationsApi.linkedin.publish(job.description, jobUrl);
                                         } else if (account?.platform === 'indeed') {
                                             return integrationsApi.indeed.postJob({
                                                 title: job.title,

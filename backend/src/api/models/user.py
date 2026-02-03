@@ -37,3 +37,5 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="select"
     )
+
+    candidate_profile = relationship("CandidateProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")

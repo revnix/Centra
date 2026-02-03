@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { MOCK_APPLICATIONS, MOCK_JOBS } from "@/lib/mock-data";
+import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import {
@@ -15,22 +15,55 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, Filter } from "lucide-react";
+import { Eye, Search, Filter, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 
 export default function ApplicationsPage() {
     const [searchTerm, setSearchTerm] = useState("");
+    const [applications, setApplications] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const getJobTitle = (id: number) => MOCK_JOBS.find(j => j.id === id)?.title || "Unknown Job";
+    useEffect(() => {
+        const fetchApplications = async () => {
+            try {
+                const res = await api.applications.list();
+                setApplications(res);
+            } catch (error: any) {
+                console.error("Failed to fetch applications:", error);
+                toast.error(`Error loading applications: ${error.message || 'Please try again'}`);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchApplications();
+    }, []);
 
-    const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+    const getInitials = (name: string) => name ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "??";
 
-    const filteredApps = MOCK_APPLICATIONS.filter(app =>
-        app.candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getJobTitle(app.jobId).toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredApps = Array.isArray(applications) ? applications.filter(app => {
+        const candidateName = app?.candidate?.full_name || "Unknown Candidate";
+        const jobTitle = app?.job?.title || "Unknown Job";
+        const email = app?.candidate?.email || "";
+        const term = searchTerm.toLowerCase();
+
+        return (
+            candidateName.toLowerCase().includes(term) ||
+            jobTitle.toLowerCase().includes(term) ||
+            email.toLowerCase().includes(term)
+        );
+    }) : [];
+
+    if (isLoading) {
+        return (
+            <div className="flex min-h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">
@@ -80,27 +113,27 @@ export default function ApplicationsPage() {
                                             <div className="flex items-center gap-3">
                                                 <Avatar className="h-9 w-9 border border-border">
                                                     <AvatarFallback className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-                                                        {getInitials(app.candidateName)}
+                                                        {getInitials(app.candidate?.full_name || "Unknown Candidate")}
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="flex flex-col">
-                                                    <span>{app.candidateName}</span>
-                                                    <span className="text-xs text-muted-foreground font-normal">{app.candidateEmail}</span>
+                                                    <span>{app.candidate?.full_name || "Unknown"}</span>
+                                                    <span className="text-xs text-muted-foreground font-normal">{app.candidate?.email || "No email"}</span>
                                                 </div>
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            {getJobTitle(app.jobId)}
+                                            {app.job?.title || "Unknown Job"}
                                         </TableCell>
                                         <TableCell className="text-muted-foreground">
-                                            {app.appliedAt}
+                                            {app.created_at ? formatDistanceToNow(new Date(app.created_at), { addSuffix: true }) : "N/A"}
                                         </TableCell>
                                         <TableCell>
-                                            <StatusBadge status={app.status} />
+                                            <StatusBadge status={app.status || "APPLIED"} />
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex justify-center">
-                                                <ScoreRing score={app.aiScore} size="sm" animate={false} />
+                                                <ScoreRing score={app.match_score || app.ai_score || 0} size="sm" animate={false} />
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right pr-6">

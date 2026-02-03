@@ -22,6 +22,9 @@ class GuestApplicationCreate(BaseModel):
     skills: list[str] = []
     experience_years: int = 0
 
+from src.api.schemas.user import UserResponse
+from src.api.schemas.job import JobResponse
+
 class ApplicationResponse(ApplicationBase):
     id: int
     candidate_id: int
@@ -29,5 +32,9 @@ class ApplicationResponse(ApplicationBase):
     match_score: Optional[float] = None
     created_at: datetime
     
+    candidate: Optional[UserResponse] = None
+    job: Optional[JobResponse] = None
+    
     class Config:
         from_attributes = True
+        use_enum_values = True

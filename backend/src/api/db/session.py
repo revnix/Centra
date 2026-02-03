@@ -9,18 +9,18 @@ if database_url.startswith("sqlite:///"):
     database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
 
 # Asyncpg + Neon SSL handling
+connect_args = {}
 if "asyncpg" in database_url:
     # Strip all query parameters for asyncpg as it handles them via connect_args
     if "?" in database_url:
         database_url = database_url.split("?")[0]
     
-    # Neon requires SSL
-    if "neon.tech" in settings.DATABASE_URL:
-        connect_args = {"ssl": "require"}
-    else:
-        connect_args = {}
-else:
-    connect_args = {}
+if "neon.tech" in settings.DATABASE_URL:
+    connect_args["ssl"] = "require"
+    # Allow a bit more time for Neon cold starts
+    connect_args["command_timeout"] = 15 
+
+print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
 engine = create_async_engine(
     database_url,
@@ -29,6 +29,8 @@ engine = create_async_engine(
     connect_args=connect_args,
     pool_pre_ping=True,
     pool_recycle=1800,
+    pool_size=5,
+    max_overflow=10,
 )
 
 # Enable WAL mode for SQLite to improve concurrency and prevent locking

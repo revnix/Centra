@@ -31,5 +31,7 @@ export const api = {
     },
     applications: {
         guestApply: (data: any) => applicationsApi.guestApply(data),
+        list: () => applicationsApi.list(),
+        get: (id: string) => applicationsApi.get(id),
     },
 };

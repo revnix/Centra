@@ -58,27 +58,37 @@ async def get_linkedin_status(
     db: AsyncSession = Depends(get_db)
 ):
     """Check if LinkedIn is connected for the current user."""
-    from sqlalchemy.future import select
-    from src.api.models.integration import UserIntegration
-    
-    user = current_user
-    result = await db.execute(
-        select(UserIntegration).where(
-            UserIntegration.user_id == user.id,
-            UserIntegration.platform == "linkedin"
-        )
-    )
-    integration = result.scalars().first()
-    
-    if not integration:
-        return {"connected": False}
+    try:
+        from sqlalchemy.future import select
+        from src.api.models.integration import UserIntegration
         
-    return {
-        "connected": True,
-        "platform_user_id": integration.platform_user_id,
-        "created_at": integration.created_at,
-        "expires_at": integration.expires_at
-    }
+        user = current_user
+        print(f"DEBUG: Checking LinkedIn status for user_id={user.id}")
+        
+        result = await db.execute(
+            select(UserIntegration).where(
+                UserIntegration.user_id == user.id,
+                UserIntegration.platform == "linkedin"
+            )
+        )
+        integration = result.scalars().first()
+        
+        if not integration:
+            print(f"DEBUG: No LinkedIn integration found for user_id={user.id}")
+            return {"connected": False}
+            
+        print(f"DEBUG: LinkedIn connected for user_id={user.id}")
+        return {
+            "connected": True,
+            "platform_user_id": integration.platform_user_id,
+            "created_at": integration.created_at,
+            "expires_at": integration.expires_at
+        }
+    except Exception as e:
+        print(f"ERROR in get_linkedin_status: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/disconnect")
 async def disconnect_linkedin(

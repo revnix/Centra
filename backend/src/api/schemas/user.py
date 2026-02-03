@@ -15,11 +15,14 @@ class UserLogin(BaseModel): # Modified to not inherit from UserBase if email is 
     email: EmailStr
     password: str
 
+from src.api.schemas.candidate import CandidateProfileResponse
+
 class UserResponse(UserBase):
     id: int
     username: str
     role: UserRole
     is_active: bool
+    candidate_profile: Optional[CandidateProfileResponse] = None
 
     class Config:
         from_attributes = True

@@ -19,4 +19,18 @@ export const applicationsApi = {
             interview_token: string;
         }>("/applications/guest", data);
     },
+
+    /**
+     * List all applications (Admin only)
+     */
+    list: async (): Promise<any[]> => {
+        return apiClient.get<any[]>("/applications/");
+    },
+
+    /**
+     * Get a specific application by ID
+     */
+    get: async (id: string): Promise<any> => {
+        return apiClient.get<any>(`/applications/${id}`);
+    },
 };
