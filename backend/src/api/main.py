@@ -1,7 +1,11 @@
 # src/api/main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Depends
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+import os
 from src.api.core.config import settings
 from src.api.routes import (
     auth,
@@ -22,7 +26,7 @@ from src.api.routes.admin.integrations import (
     indeed as indeed_integration,
 )
 
-from src.api.db.session import engine
+from src.api.db.session import engine, get_db
 from src.api.db.base import Base
 from contextlib import asynccontextmanager
 import uvicorn
@@ -31,8 +35,9 @@ import uvicorn
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create tables (simplistic approach for MVP without Alembic)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.create_all)
+    print("DEBUG: Application lifespan started (skipping table creation)")
     yield
     # Shutdown
 
@@ -43,17 +48,28 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Global Exception Handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    print(f"GLOBAL ERROR CAUGHT: {str(exc)}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"}
+    )
+
+# Ensure upload directory exists
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
+
+# Mount static files for uploads
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://172.23.208.1:3000",
-        "https://localhost:3000",
-        "https://127.0.0.1:3000",
-        "https://172.23.208.1:3000",
-    ],
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,6 +92,15 @@ app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidat
 app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applications", tags=["applications"])
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 
+
+@app.get("/health")
+async def health_check(db: AsyncSession = Depends(get_db)):
+    try:
+        from sqlalchemy import text
+        await db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "database_error": str(e)}
 
 @app.get("/")
 def root():

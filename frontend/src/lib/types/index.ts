@@ -10,7 +10,7 @@ export * from './langgraph';
 // USER & AUTH TYPES
 // ============================================================================
 
-export type UserRole = 'admin' | 'reviewer' | 'candidate';
+export type UserRole = 'ADMIN' | 'REVIEWER' | 'CANDIDATE';
 
 export interface User {
   id: string;
@@ -55,7 +55,7 @@ export interface AuthSession {
 // JOB TYPES
 // ============================================================================
 
-export type JobStatus = 'draft' | 'pending' | 'published' | 'closed' | 'archived';
+export type JobStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
 
 export interface Job {
   id: string;
@@ -91,6 +91,9 @@ export interface Job {
   published_at?: string;
   closedAt?: string;
   expires_at?: string;
+  tags?: string[];
+  company_size?: string;
+  company_website?: string;
 }
 
 export interface JobIntent {
@@ -114,13 +117,14 @@ export interface AIJobDraft {
 // ============================================================================
 
 export type CandidateStage =
-  | 'applied'
-  | 'screening'
-  | 'interview'
-  | 'coding'
-  | 'decision'
-  | 'rejected'
-  | 'accepted';
+  | 'APPLIED'
+  | 'SCREENING'
+  | 'INTERVIEW_PENDING'
+  | 'INTERVIEW_IN_PROGRESS'
+  | 'INTERVIEW_COMPLETED'
+  | 'OFFER'
+  | 'REJECTED'
+  | 'WITHDRAWN';
 
 export interface Candidate {
   id: string;

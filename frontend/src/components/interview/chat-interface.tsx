@@ -1,8 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Bot, User as UserIcon, Loader2 } from "lucide-react";
+import { Send, Bot, User as UserIcon, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -19,9 +20,12 @@ interface ChatInterfaceProps {
     jobTitle?: string;
     token: string;
     initialMessages?: any[];
+    initialStatus?: string;
 }
 
-export function ChatInterface({ jobTitle = "Software Engineer", token, initialMessages = [] }: ChatInterfaceProps) {
+export function ChatInterface({ jobTitle = "Software Engineer", token, initialMessages = [], initialStatus }: ChatInterfaceProps) {
+    const router = useRouter();
+    const [isCompleted, setIsCompleted] = useState(initialStatus === "CODING" || initialStatus === "COMPLETED");
     const [messages, setMessages] = useState<Message[]>(
         initialMessages.length > 0 ? initialMessages : [
             {
@@ -69,6 +73,10 @@ export function ChatInterface({ jobTitle = "Software Engineer", token, initialMe
                 timestamp: new Date().toISOString()
             };
             setMessages(prev => [...prev, aiMsg]);
+
+            if (response.status === "CODING" || response.status === "COMPLETED") {
+                setIsCompleted(true);
+            }
         } catch (error) {
             console.error("Failed to send message", error);
             // Revert or show error
@@ -162,29 +170,47 @@ export function ChatInterface({ jobTitle = "Software Engineer", token, initialMe
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {/* Input or Next Phase Actions */}
             <div className="p-4 border-t border-border bg-white dark:bg-slate-900">
-                <div className="relative flex items-center gap-2 max-w-4xl mx-auto">
-                    <Input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Type your answer..."
-                        className="pr-12 py-6 text-base rounded-full shadow-sm bg-slate-50 dark:bg-slate-950 border-input focus-visible:ring-indigo-500"
-                        disabled={isTyping}
-                    />
-                    <Button
-                        size="icon"
-                        onClick={handleSend}
-                        disabled={!input.trim() || isTyping}
-                        className="absolute right-2 w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 transition-all disabled:opacity-50"
-                    >
-                        {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-white" />}
-                    </Button>
-                </div>
-                <p className="text-center text-xs text-muted-foreground mt-2">
-                    AI can make mistakes. Please verify important information.
-                </p>
+                {isCompleted ? (
+                    <div className="max-w-4xl mx-auto flex flex-col items-center gap-4 py-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="text-center space-y-2">
+                            <h3 className="font-semibold text-lg text-emerald-600 dark:text-emerald-400">Interview Phase Completed!</h3>
+                            <p className="text-muted-foreground">Thank you for chatting with me. Please proceed to the coding challenge.</p>
+                        </div>
+                        <Button
+                            size="lg"
+                            className="gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all"
+                            onClick={() => router.push(`/portal/interview/${token}/coding`)}
+                        >
+                            Next Phase <ArrowRight className="w-4 h-4" />
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="relative flex items-center gap-2 max-w-4xl mx-auto">
+                        <Input
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                            placeholder="Type your answer..."
+                            className="pr-12 py-6 text-base rounded-full shadow-sm bg-slate-50 dark:bg-slate-950 border-input focus-visible:ring-indigo-500"
+                            disabled={isTyping}
+                        />
+                        <Button
+                            size="icon"
+                            onClick={handleSend}
+                            disabled={!input.trim() || isTyping}
+                            className="absolute right-2 w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                        >
+                            {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-white" />}
+                        </Button>
+                    </div>
+                )}
+                {!isCompleted && (
+                    <p className="text-center text-xs text-muted-foreground mt-2">
+                        AI can make mistakes. Please verify important information.
+                    </p>
+                )}
             </div>
 
         </div>

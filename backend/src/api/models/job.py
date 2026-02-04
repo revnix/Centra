@@ -5,35 +5,36 @@ from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
 import enum
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 
 class JobType(str, enum.Enum):
     """Job type enumeration"""
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    CONTRACT = "contract"
-    TEMPORARY = "temporary"
-    INTERNSHIP = "internship"
-    VOLUNTEER = "volunteer"
-    FREELANCE = "freelance"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    CONTRACT = "CONTRACT"
+    TEMPORARY = "TEMPORARY"
+    INTERNSHIP = "INTERNSHIP"
+    VOLUNTEER = "VOLUNTEER"
+    FREELANCE = "FREELANCE"
 
 
 class JobStatus(str, enum.Enum):
     """Job status enumeration"""
-    DRAFT = "draft"
-    PENDING = "pending"
-    PUBLISHED = "published"
-    CLOSED = "closed"
-    ARCHIVED = "archived"
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    PUBLISHED = "PUBLISHED"
+    CLOSED = "CLOSED"
+    ARCHIVED = "ARCHIVED"
 
 
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
-    ENTRY_LEVEL = "entry_level"
-    ASSOCIATE = "associate"
-    MID_SENIOR = "mid_senior"
-    DIRECTOR = "director"
-    EXECUTIVE = "executive"
+    ENTRY_LEVEL = "ENTRY_LEVEL"
+    ASSOCIATE = "ASSOCIATE"
+    MID_SENIOR = "MID_SENIOR"
+    DIRECTOR = "DIRECTOR"
+    EXECUTIVE = "EXECUTIVE"
 
 
 class Posts(Base):
@@ -50,7 +51,7 @@ class Posts(Base):
     # Basic Job Information
     title = Column(String(500), nullable=False, index=True, comment="Job title")
     description = Column(Text, nullable=False, comment="Full job description")
-    short_description = Column(String(500), nullable=True, comment="Short summary for social media")
+    short_description = Column(Text, nullable=True, comment="Short summary for social media")
     
     # Location
     location = Column(String(500), nullable=True, comment="Job location (city, state, country)")
@@ -75,9 +76,9 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-    required_skills = Column(JSON, nullable=True, comment="Required skills")
-    preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
-    benefits = Column(JSON, nullable=True, comment="Job benefits")
+    required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
+    preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
+    benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
     
     # Status and Publishing
     status = Column(SQLEnum(JobStatus), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
@@ -93,7 +94,7 @@ class Posts(Base):
     slug = Column(String(500), nullable=True, unique=True, index=True, comment="URL-friendly slug")
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
-    tags = Column(JSON, nullable=True, comment="Tags for categorization")
+    tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
     
     # Additional Data
     metadata_json = Column(JSON, nullable=True, comment="Additional metadata including publications history")
@@ -116,7 +117,7 @@ class Posts(Base):
     def to_dict(self):
         """Convert model to dictionary"""
         return {
-            "id": self.id,  # FIXED: No longer converting to string
+            "id": self.id,
             "title": self.title,
             "description": self.description,
             "short_description": self.short_description,
@@ -150,7 +151,7 @@ class Posts(Base):
             "metadata_json": self.metadata_json,
             "view_count": self.view_count,
             "application_count": self.application_count,
-            "created_by": self.created_by,  # FIXED: No longer converting to string
+            "created_by": self.created_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "deleted_at": self.deleted_at.isoformat() if self.deleted_at else None,

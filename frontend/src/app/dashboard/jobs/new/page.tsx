@@ -69,6 +69,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useJobGeneration } from "@/lib/hooks/useJobGeneration";
 import { integrationsApi } from "@/lib/api/integrations";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/api/client";
 
 // --- Schemas ---
 
@@ -786,31 +787,109 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                         {!showFeedbackInput ? (
                                             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                                                 <div className="text-center md:text-left">
-                                                    <h3 className="font-extrabold text-2xl text-slate-900 tracking-tight">Does this look perfect?</h3>
-                                                    <p className="text-slate-500 font-medium text-base mt-1">Approve to launch immediately or collaborative with AI for refinements.</p>
+                                                    <h3 className="font-extrabold text-2xl text-slate-900 tracking-tight">Ready to save this job?</h3>
+                                                    <p className="text-slate-500 font-medium text-base mt-1">Save this job to your database. You can publish it later from Generated Jobs.</p>
                                                 </div>
                                                 <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="lg"
-                                                        className="border-slate-200 hover:bg-slate-50 hover:text-slate-900 px-8 py-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
-                                                        onClick={() => setShowFeedbackInput(true)}
-                                                        disabled={jobGeneration.isLoading}
-                                                    >
-                                                        <MessageSquare className="mr-2 h-5 w-5" />
-                                                        Suggest Improvements
-                                                    </Button>
                                                     <Button
                                                         size="lg"
                                                         className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 px-10 py-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 group"
                                                         onClick={async () => {
-                                                            await jobGeneration.approveJob();
-                                                            setShowPublishDialog(true);
+                                                            setIsLoading(true);
+                                                            try {
+                                                                const jobPost = jobGeneration.generatedPost;
+                                                                if (!jobPost) {
+                                                                    toast.error("No job post to save");
+                                                                    return;
+                                                                }
+
+                                                                // Map job type to enum format
+                                                                const jobTypeMap: Record<string, string> = {
+                                                                    'full-time': 'FULL_TIME',
+                                                                    'part-time': 'PART_TIME',
+                                                                    'contract': 'CONTRACT',
+                                                                    'internship': 'INTERNSHIP',
+                                                                };
+
+                                                                // Map experience level to enum format
+                                                                const experienceLevelMap: Record<string, string> = {
+                                                                    'junior': 'ENTRY_LEVEL',
+                                                                    'mid': 'MID_SENIOR',
+                                                                    'senior': 'MID_SENIOR',
+                                                                    'lead': 'DIRECTOR',
+                                                                };
+
+                                                                // Prepare the job data
+                                                                const jobData = {
+                                                                    title: jobPost.job_title || formData.title,
+                                                                    description: jobPost.summary || formData.description,
+                                                                    short_description: jobPost.summary,
+                                                                    location: jobPost.location || formData.location,
+                                                                    job_type: jobTypeMap[formData.type || 'full-time'] || 'FULL_TIME',
+                                                                    experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'MID_SENIOR',
+                                                                    department: formData.department,
+                                                                    required_skills: (jobPost.skills || []).map((s: any) => String(s)),
+                                                                    preferred_skills: (jobPost.preferred_qualifications || []).map((s: any) => String(s)),
+                                                                    benefits: (jobPost.benefits || []).map((s: any) => String(s)),
+                                                                    company_name: formData.department,
+                                                                };
+
+                                                                console.log('DEBUG: Sending job data to backend:', JSON.stringify(jobData, null, 2));
+
+                                                                // Create job in database using apiClient
+                                                                await apiClient.post('/jobs/', jobData);
+
+                                                                toast.success("Job saved successfully!");
+                                                                router.push("/dashboard/generated-jobs");
+                                                            } catch (error: any) {
+                                                                console.error('Save job failed:', error);
+                                                                console.error('Error object:', JSON.stringify(error, null, 2));
+
+                                                                // Enhanced error extraction
+                                                                let errorMessage = 'Unknown error';
+                                                                let errorDetails = '';
+
+                                                                if (error.message) {
+                                                                    errorMessage = error.message;
+                                                                }
+
+                                                                if (error.details) {
+                                                                    if (typeof error.details === 'string') {
+                                                                        errorDetails = error.details;
+                                                                    } else if (Array.isArray(error.details)) {
+                                                                        // Handle Pydantic validation errors
+                                                                        errorDetails = error.details.map((err: any) =>
+                                                                            `${err.loc?.join('.') || 'field'}: ${err.msg || err.message || err}`
+                                                                        ).join(', ');
+                                                                    } else if (typeof error.details === 'object') {
+                                                                        errorDetails = JSON.stringify(error.details);
+                                                                    }
+                                                                }
+
+                                                                const fullMessage = errorDetails
+                                                                    ? `${errorMessage}: ${errorDetails}`
+                                                                    : errorMessage;
+
+                                                                toast.error(`Failed to save job: ${fullMessage}`, {
+                                                                    duration: 10000,
+                                                                });
+                                                            } finally {
+                                                                setIsLoading(false);
+                                                            }
                                                         }}
-                                                        disabled={jobGeneration.isLoading}
+                                                        disabled={isLoading || jobGeneration.isLoading}
                                                     >
-                                                        <Rocket className="mr-2 h-5 w-5 group-hover:animate-bounce" />
-                                                        Launch Job Post
+                                                        {isLoading ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                                                Saving...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Check className="mr-2 h-5 w-5" />
+                                                                Save to DB
+                                                            </>
+                                                        )}
                                                     </Button>
                                                 </div>
                                             </div>

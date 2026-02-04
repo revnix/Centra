@@ -31,6 +31,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
     const [formData, setFormData] = useState({
         full_name: "",
         email: "",
+        phone_number: "",
         linkedin_url: "",
         resume_url: "",
     });
@@ -158,6 +159,16 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                                                 required
                                                 value={formData.email}
                                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="phone">Phone Number</Label>
+                                            <Input
+                                                id="phone"
+                                                required
+                                                placeholder="+1 (555) 000-0000"
+                                                value={formData.phone_number}
+                                                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                                             />
                                         </div>
                                         <div className="grid gap-2">

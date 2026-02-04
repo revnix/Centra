@@ -27,6 +27,7 @@ class LinkedInCallbackRequest(BaseModel):
 
 class LinkedInPublishRequest(BaseModel):
     text: str
+    article_url: Optional[str] = None  # Optional URL to share as an article with link preview
 
 # Indeed Integration Schemas
 class IndeedAuthURLResponse(BaseModel):

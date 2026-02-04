@@ -34,7 +34,7 @@ async def indeed_login(
 @router.post("/callback", response_model=IntegrationResponse)
 async def indeed_callback(
     request_data: IndeedCallbackRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -46,7 +46,7 @@ async def indeed_callback(
     """
     indeed_service = IndeedService(db)
     try:
-        user = current_user["user"]
+        user = current_user
         # Exchange code for access token
         token_data = await indeed_service.exchange_code_for_token(request_data.code)
         access_token = token_data.get("access_token")
@@ -66,39 +66,45 @@ async def indeed_callback(
 
 @router.get("/status")
 async def get_indeed_status(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Check if Indeed is connected for the current user.
-    
-    Returns connection status and integration details if connected.
-    """
-    from sqlalchemy.future import select
-    from src.api.models.integration import UserIntegration
-    
-    user = current_user["user"]
-    result = await db.execute(
-        select(UserIntegration).where(
-            UserIntegration.user_id == user.id,
-            UserIntegration.platform == "indeed"
-        )
-    )
-    integration = result.scalars().first()
-    
-    if not integration:
-        return {"connected": False}
+    """Check if Indeed is connected for the current user."""
+    try:
+        from sqlalchemy.future import select
+        from src.api.models.integration import UserIntegration
         
-    return {
-        "connected": True,
-        "platform_user_id": integration.platform_user_id,
-        "created_at": integration.created_at,
-        "expires_at": integration.expires_at
-    }
+        user = current_user
+        print(f"DEBUG: Checking Indeed status for user_id={user.id}")
+        
+        result = await db.execute(
+            select(UserIntegration).where(
+                UserIntegration.user_id == user.id,
+                UserIntegration.platform == "indeed"
+            )
+        )
+        integration = result.scalars().first()
+        
+        if not integration:
+            print(f"DEBUG: No Indeed integration found for user_id={user.id}")
+            return {"connected": False}
+            
+        print(f"DEBUG: Indeed connected for user_id={user.id}")
+        return {
+            "connected": True,
+            "platform_user_id": integration.platform_user_id,
+            "created_at": integration.created_at,
+            "expires_at": integration.expires_at
+        }
+    except Exception as e:
+        print(f"ERROR in get_indeed_status: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/disconnect")
 async def disconnect_indeed(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -109,7 +115,7 @@ async def disconnect_indeed(
     from sqlalchemy import delete
     from src.api.models.integration import UserIntegration
     
-    user = current_user["user"]
+    user = current_user
     await db.execute(
         delete(UserIntegration).where(
             UserIntegration.user_id == user.id,
@@ -122,7 +128,7 @@ async def disconnect_indeed(
 @router.post("/post-job")
 async def indeed_post_job(
     job_data: IndeedJobPostRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -131,7 +137,7 @@ async def indeed_post_job(
     Publishes a job posting to Indeed using the stored integration credentials.
     """
     indeed_service = IndeedService(db)
-    user = current_user["user"]
+    user = current_user
     try:
         result = await indeed_service.post_job_to_indeed(
             user_id=user.id,
@@ -143,3 +149,31 @@ async def indeed_post_job(
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/token")
+async def get_indeed_token(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a valid access token for Indeed API.
+    Used for client-side API calls to bypass WAF blocking.
+    """
+    from src.api.core.config import settings
+    indeed_service = IndeedService(db)
+    
+    # Get user integration
+    integration = await indeed_service.get_integration(current_user.id)
+    if not integration:
+        raise HTTPException(status_code=404, detail="Indeed integration not found")
+        
+    try:
+        # Get valid token (refreshes if needed)
+        token = await indeed_service.get_valid_token(integration)
+        
+        return {
+            "access_token": token,
+            "employer_id": settings.INDEED_EMPLOYER_ID
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to get token: {str(e)}")

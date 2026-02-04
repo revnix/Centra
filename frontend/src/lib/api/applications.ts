@@ -8,15 +8,7 @@ export const applicationsApi = {
     /**
      * Submit a guest application (for anonymous candidates)
      */
-    guestApply: async (data: {
-        job_id: number;
-        email: string;
-        full_name: string;
-        resume_url?: string;
-        linkedin_url?: string;
-        skills?: string[];
-        experience_years?: number;
-    }): Promise<{
+    guestApply: async (data: any): Promise<{
         message: string;
         redirect_url: string;
         interview_token: string;
@@ -26,5 +18,19 @@ export const applicationsApi = {
             redirect_url: string;
             interview_token: string;
         }>("/applications/guest", data);
+    },
+
+    /**
+     * List all applications (Admin only)
+     */
+    list: async (): Promise<any[]> => {
+        return apiClient.get<any[]>("/applications/");
+    },
+
+    /**
+     * Get a specific application by ID
+     */
+    get: async (id: string): Promise<any> => {
+        return apiClient.get<any>(`/applications/${id}`);
     },
 };

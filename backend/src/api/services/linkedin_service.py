@@ -96,8 +96,14 @@ class LinkedInService:
         await self.db.refresh(integration)
         return integration
 
-    async def post_to_linkedin(self, user_id: int, text: str) -> Dict[str, Any]:
-        """Post a message to LinkedIn."""
+    async def post_to_linkedin(self, user_id: int, text: str, article_url: Optional[str] = None) -> Dict[str, Any]:
+        """Post a message to LinkedIn with optional article link.
+        
+        Args:
+            user_id: The user's ID
+            text: The post text/commentary
+            article_url: Optional URL to share as an article (creates a link preview card)
+        """
         result = await self.db.execute(
             select(UserIntegration).where(
                 UserIntegration.user_id == user_id,
@@ -119,16 +125,38 @@ class LinkedInService:
         # For member social, it's usually urn:li:person:<id>
         author = f"urn:li:person:{integration.platform_user_id}"
         
+        # Prepare share content
+        share_content = {
+            "shareCommentary": {
+                "text": text
+            },
+            "shareMediaCategory": "NONE"
+        }
+        
+        # If an article URL is provided, create a rich share card (ARTICLE)
+        if article_url:
+            if not article_url.startswith('http'):
+                article_url = f"https://{article_url}"
+            
+            share_content["shareMediaCategory"] = "ARTICLE"
+            share_content["media"] = [
+                {
+                    "status": "READY",
+                    "description": {
+                        "text": "Submit your application for this position."
+                    },
+                    "originalUrl": article_url,
+                    "title": {
+                        "text": "View Job Details & Apply"
+                    }
+                }
+            ]
+        
         payload = {
             "author": author,
             "lifecycleState": "PUBLISHED",
             "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": {
-                        "text": text
-                    },
-                    "shareMediaCategory": "NONE"
-                }
+                "com.linkedin.ugc.ShareContent": share_content
             },
             "visibility": {
                 "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
@@ -139,3 +167,4 @@ class LinkedInService:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
             return response.json()
+

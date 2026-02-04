@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { authApi } from "@/lib/api";
+import { apiClient } from "@/lib/api/client";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -22,14 +23,27 @@ export default function LoginPage() {
         setIsLoading(true);
 
         try {
-            const { apiClient } = await import("@/lib/api/client");
             const response = await apiClient.post<any>("/auth/login", {
                 email,
                 password,
             });
 
+            console.log("Login successful, response:", response);
+
             const { access_token, user } = response;
+
+            if (!user) {
+                console.error("Login response missing user object:", response);
+                throw new Error("Invalid server response: missing user data");
+            }
+
+            if (!access_token) {
+                console.error("Login response missing access_token:", response);
+                throw new Error("Invalid server response: missing access token");
+            }
+
             const role = user.role;
+            console.log("User role:", role);
 
             localStorage.setItem("userRole", role);
             localStorage.setItem("userEmail", email);
@@ -39,14 +53,30 @@ export default function LoginPage() {
             document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
 
             // Redirect based on role
-            if (user.role === "admin" || user.role === "reviewer") {
+            // Use safe navigation
+            if (role === "admin" || role === "reviewer") {
                 window.location.href = "/dashboard/jobs";
             } else {
                 window.location.href = "/portal/status";
             }
         } catch (err: any) {
-            console.error("Login error:", err);
-            setError(err.message || "Failed to sign in. Please check your credentials.");
+            console.error("Login error object:", err);
+            // Handle different error shapes
+            let errorMessage = "Failed to sign in. Please check your credentials.";
+
+            if (err?.message) {
+                errorMessage = err.message;
+            } else if (err?.detail) {
+                errorMessage = err.detail;
+            } else if (typeof err === "string") {
+                errorMessage = err;
+            } else if (err && typeof err === "object" && Object.keys(err).length === 0) {
+                // Empty object usually means it might be a JSON.stringify issue or just empty
+                errorMessage = "An unknown error occurred. (Empty error object)";
+            }
+
+            console.error("Resolved error message:", errorMessage);
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }

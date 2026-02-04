@@ -9,7 +9,13 @@ class ApplicationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_application(self, user_id: int, job_id: int) -> Application:
+    async def create_application(
+        self, 
+        user_id: int, 
+        job_id: int, 
+        cover_letter: str = None, 
+        phone_number: str = None
+    ) -> Application:
         """Create a new application for a candidate."""
         # Check if already applied
         existing = await self.get_application_by_user_and_job(user_id, job_id)
@@ -19,7 +25,9 @@ class ApplicationService:
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
-            status=ApplicationStatus.APPLIED
+            status=ApplicationStatus.APPLIED,
+            cover_letter=cover_letter,
+            phone_number=phone_number
         )
         self.db.add(application)
         await self.db.commit()
@@ -46,3 +54,17 @@ class ApplicationService:
             .where(Application.id == application_id)
         )
         return result.scalars().first()
+
+    async def list_applications(self, skip: int = 0, limit: int = 100) -> list[Application]:
+        """List all applications with related data."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                selectinload(Application.candidate).selectinload(User.candidate_profile),
+                selectinload(Application.job)
+            )
+            .offset(skip)
+            .limit(limit)
+            .order_by(Application.created_at.desc())
+        )
+        return result.scalars().all()

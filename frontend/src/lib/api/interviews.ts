@@ -19,6 +19,13 @@ export const interviewsApi = {
     },
 
     /**
+     * Create interview session
+     */
+    create: async (applicationId: number): Promise<any> => {
+        return apiClient.post<any>('/interviews/', { application_id: applicationId });
+    },
+
+    /**
      * Get interview transcript (Q&A)
      */
     getTranscript: async (interviewId: string): Promise<QuestionAnswer[]> => {
@@ -80,9 +87,30 @@ export const interviewsApi = {
     /**
      * Send message to AI interviewer
      */
-    sendMessage: async (token: string, message: string): Promise<{ reply: string; transcript: any[] }> => {
-        return apiClient.post<{ reply: string; transcript: any[] }>(`/interviews/${token}/chat`, {
+    sendMessage: async (token: string, message: string): Promise<{ reply: string; transcript: any[]; status?: string }> => {
+        return apiClient.post<{ reply: string; transcript: any[]; status?: string }>(`/interviews/${token}/chat`, {
             message
         });
+    },
+
+    /**
+     * Start/Initialize interview
+     */
+    startInterview: async (token: string): Promise<{ reply: string; transcript: any[] }> => {
+        return apiClient.post<{ reply: string; transcript: any[] }>(`/interviews/${token}/start`);
+    },
+
+    /**
+     * Get coding challenge question
+     */
+    getCodingQuestion: async (token: string): Promise<{ question: string }> => {
+        return apiClient.post<{ question: string }>(`/interviews/${token}/coding-question`);
+    },
+
+    /**
+     * Submit coding challenge
+     */
+    submitCoding: async (token: string, code: string): Promise<{ message: string }> => {
+        return apiClient.post<{ message: string }>(`/interviews/${token}/submit-coding`, { code });
     },
 };

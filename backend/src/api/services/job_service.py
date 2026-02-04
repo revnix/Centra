@@ -14,7 +14,8 @@ class JobService:
         
         if status:
             # Case-insensitive match just in case
-            query = query.where(func.lower(Posts.status) == status.lower())
+            # query = query.where(func.lower(Posts.status) == status.lower())
+            query = query.where(Posts.status == status)
             
         query = query.offset(skip).limit(limit)
         
@@ -26,7 +27,7 @@ class JobService:
         query = select(Posts).where(Posts.created_by == user_id)
         
         if status:
-            query = query.where(func.lower(Posts.status) == status.lower())
+            query = query.where(Posts.status == status)
             
         query = query.offset(skip).limit(limit)
         

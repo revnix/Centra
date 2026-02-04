@@ -20,7 +20,7 @@ export const integrationsApi = {
      * Get list of all integrations for current user
      */
     list: async (): Promise<IntegrationResponse[]> => {
-        return apiClient.get<IntegrationResponse[]>('/integrations/');
+        return apiClient.get<IntegrationResponse[]>('/integrations');
     },
 
     /**
@@ -59,10 +59,13 @@ export const integrationsApi = {
         },
 
         /**
-         * Publish to LinkedIn
+         * Publish to LinkedIn with optional article link
          */
-        publish: async (text: string): Promise<any> => {
-            return apiClient.post<any>('/admin/integrations/linkedin/publish', { text });
+        publish: async (text: string, article_url?: string): Promise<any> => {
+            return apiClient.post<any>('/admin/integrations/linkedin/publish', {
+                text,
+                article_url
+            });
         }
     },
 
@@ -99,6 +102,13 @@ export const integrationsApi = {
          */
         disconnect: async (): Promise<{ message: string }> => {
             return apiClient.delete<{ message: string }>('/admin/integrations/indeed/disconnect');
+        },
+
+        /**
+         * Get Indeed Access Token for client-side use
+         */
+        getToken: async (): Promise<{ access_token: string; employer_id: string }> => {
+            return apiClient.get<{ access_token: string; employer_id: string }>('/admin/integrations/indeed/token');
         },
 
         /**

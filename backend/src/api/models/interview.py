@@ -5,10 +5,12 @@ from src.api.db.base import Base
 import enum
 
 class InterviewStatus(str, enum.Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    EXPIRED = "expired"
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    CODING = "CODING"
+    SUBMITTED = "SUBMITTED"
+    COMPLETED = "COMPLETED"
+    EXPIRED = "EXPIRED"
 
 class InterviewSession(Base):
     """
@@ -30,6 +32,7 @@ class InterviewSession(Base):
     
     # Data
     transcript = Column(JSON, default=list, nullable=False, comment="Full chat history")
+    state = Column(JSON, default=dict, nullable=False, comment="Internal AI state (current skill, stage, etc)")
     code_submission = Column(Text, nullable=True, comment="Final code submission if applicable")
     
     # Scoring

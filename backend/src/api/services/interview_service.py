@@ -3,6 +3,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from src.api.models.interview import InterviewSession, InterviewStatus
 from src.api.models.application import Application
+from src.api.models.user import User
 import secrets
 import string
 from datetime import datetime, timezone
@@ -45,7 +46,7 @@ class InterviewService:
             select(InterviewSession)
             .options(
                 selectinload(InterviewSession.application).selectinload(Application.job),
-                selectinload(InterviewSession.application).selectinload(Application.candidate)
+                selectinload(InterviewSession.application).selectinload(Application.candidate).selectinload(User.candidate_profile)
             )
             .where(InterviewSession.token == token)
         )

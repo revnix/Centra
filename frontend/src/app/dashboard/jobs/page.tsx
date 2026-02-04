@@ -18,7 +18,7 @@ export default function JobsPage() {
             id: '1',
             title: 'Senior Frontend Engineer',
             department: 'Engineering',
-            status: 'interviewing' as const,
+            status: 'PUBLISHED' as const, // Match DB
             candidateCount: 12,
             pendingActionCount: 3,
         },
@@ -26,7 +26,7 @@ export default function JobsPage() {
             id: '2',
             title: 'Product Manager',
             department: 'Product',
-            status: 'posted' as const,
+            status: 'PUBLISHED' as const, // Match DB
             candidateCount: 8,
             pendingActionCount: 1,
         },
@@ -34,36 +34,36 @@ export default function JobsPage() {
             id: '3',
             title: 'UX Designer',
             department: 'Design',
-            status: 'draft' as const,
+            status: 'DRAFT' as const,
             candidateCount: 0,
             pendingActionCount: 1,
         },
     ];
 
     const getStatusConfig = (status: string) => {
-        const configs = {
-            draft: {
+        const configs: Record<string, any> = {
+            DRAFT: {
                 bg: 'bg-slate-100',
                 text: 'text-slate-700',
                 border: 'border-slate-200'
             },
-            posted: {
+            PUBLISHED: {
                 bg: 'bg-gradient-to-r from-blue-100 to-indigo-100',
                 text: 'text-indigo-700',
                 border: 'border-indigo-200'
             },
-            interviewing: {
+            INTERVIEWING: { // Keep for mock if needed, but not in DB yet
                 bg: 'bg-gradient-to-r from-amber-100 to-orange-100',
                 text: 'text-amber-700',
                 border: 'border-amber-200'
             },
-            closed: {
-                bg: 'bg-gradient-to-r from-emerald-100 to-green-100',
-                text: 'text-green-700',
-                border: 'border-green-200'
-            },
+            CLOSED: {
+                bg: 'bg-red-100',
+                text: 'text-red-700',
+                border: 'border-red-200'
+            }
         };
-        return configs[status as keyof typeof configs] || configs.draft;
+        return configs[status] || configs.DRAFT;
     };
 
     const stats = [
@@ -85,7 +85,7 @@ export default function JobsPage() {
         },
         {
             title: 'Active Interviews',
-            value: mockJobs.filter((j) => j.status === 'interviewing').length,
+            value: mockJobs.filter((j) => j.status === 'PUBLISHED').length,
             icon: TrendingUp,
             gradient: 'from-blue-500 to-cyan-600',
             iconBg: 'bg-blue-100',

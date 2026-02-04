@@ -9,11 +9,21 @@ class AuthService:
         self.db = db
 
     async def get_user_by_email(self, email: str) -> User | None:
-        result = await self.db.execute(select(User).where(User.email == email))
+        from sqlalchemy.orm import selectinload
+        result = await self.db.execute(
+            select(User)
+            .where(User.email == email)
+            .options(selectinload(User.candidate_profile))
+        )
         return result.scalars().first()
 
     async def get_user_by_username(self, username: str) -> User | None:
-        result = await self.db.execute(select(User).where(User.username == username))
+        from sqlalchemy.orm import selectinload
+        result = await self.db.execute(
+            select(User)
+            .where(User.username == username)
+            .options(selectinload(User.candidate_profile))
+        )
         return result.scalars().first()
 
     async def create_user(self, user_in: UserCreate) -> User:
@@ -21,14 +31,14 @@ class AuthService:
         username = user_in.username or user_in.email.split("@")[0]
         db_user = User(
             email=user_in.email,
-            username=user_in.username,
+            username=username,
             full_name=user_in.full_name,
             hashed_password=hashed_password,
-            username=username,
             role=user_in.role
         )
         self.db.add(db_user)
         await self.db.commit()
+        # Explicitly reload without triggering lazy loads of relationships
         await self.db.refresh(db_user)
         return db_user
 
