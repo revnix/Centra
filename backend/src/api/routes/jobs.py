@@ -25,6 +25,8 @@ async def get_jobs_stats(
     count = await job_service.get_total_jobs_count()
     return {"total_jobs": count}
 
+from src.api.models.job import JobStatus
+
 @router.get("/public", response_model=List[JobResponse])
 async def read_public_jobs(
     skip: int = 0,
@@ -33,7 +35,7 @@ async def read_public_jobs(
 ):
     """Public endpoint for fetching published jobs (no authentication required)"""
     job_service = JobService(db)
-    return await job_service.get_jobs(skip=skip, limit=limit, status="published")
+    return await job_service.get_jobs(skip=skip, limit=limit, status=JobStatus.PUBLISHED.value)
 @router.get("", response_model=List[JobResponse])
 async def read_jobs(
     skip: int = 0,

@@ -121,6 +121,7 @@ export default function InterviewPage({ params }: { params: Promise<{ token: str
                         jobTitle={job?.title}
                         token={token}
                         initialMessages={session.transcript || []}
+                        initialStatus={session.status}
                     />
                 </main>
 

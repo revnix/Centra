@@ -51,3 +51,11 @@ Return the result in JSON format:
   "justification": "string"
 }}
 """
+
+CODING_CHALLENGE_PROMPT = """
+You are a technical interviewer. Generate a single, short coding challenge or technical problem for a candidate with the following skills: {skills}.
+The challenge should be solvable in approximately 2 minutes. It can be a code snippet debugging, a small algorithm, or a specific API question.
+Do NOT solve it. Just state the problem clearly.
+Return only the question text.
+"""
+

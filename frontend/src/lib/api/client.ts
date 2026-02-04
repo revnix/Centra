@@ -67,7 +67,9 @@ class ApiClient {
                         document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
 
                         // Redirect to login if not already there
-                        if (!window.location.pathname.startsWith('/login')) {
+                        // Redirect to login if not already there, and not on a public interview page
+                        const isPublicRoute = window.location.pathname.startsWith('/interview') || window.location.pathname.startsWith('/public');
+                        if (!window.location.pathname.startsWith('/login') && !isPublicRoute) {
                             window.location.href = '/login?no_redirect=true';
                         }
                     }

@@ -7,6 +7,8 @@ import enum
 class InterviewStatus(str, enum.Enum):
     PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
+    CODING = "CODING"
+    SUBMITTED = "SUBMITTED"
     COMPLETED = "COMPLETED"
     EXPIRED = "EXPIRED"
 
