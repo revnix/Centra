@@ -13,7 +13,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { integrationsApi } from "@/lib/api/integrations";
+import { jobsApi } from "@/lib/api/jobs";
 import { toast } from "sonner";
+
 
 interface ConnectedAccount {
     id: string;
@@ -100,6 +102,23 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                     Suggest Improvements
                                 </Button>
                                 <Button
+                                    variant="outline"
+                                    onClick={async () => {
+                                        try {
+                                            const loadingToast = toast.loading("Sending to Operation Manager...");
+                                            await jobsApi.sendToManager(job.id);
+                                            toast.dismiss(loadingToast);
+                                            toast.success("Job details sent to Operation Manager!");
+                                        } catch (error: any) {
+                                            toast.error(`Failed to send: ${error.message || "Unknown error"}`);
+                                        }
+                                    }}
+                                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                >
+                                    <Globe className="w-4 h-4 mr-2" />
+                                    Send to Manager
+                                </Button>
+                                <Button
                                     onClick={async () => {
                                         try {
                                             const integrations = await integrationsApi.list();
@@ -139,6 +158,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                     <Rocket className="w-4 h-4 mr-2" />
                                     Launch Job Post
                                 </Button>
+
                             </>
                         )}
                         {isActive && (

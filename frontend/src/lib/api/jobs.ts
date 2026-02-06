@@ -166,4 +166,12 @@ export const jobsApi = {
     close: async (jobId: string): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/close`);
     },
+
+    /**
+     * Send job details to Operation Manager
+     */
+    sendToManager: async (jobId: string): Promise<{ message: string }> => {
+        return apiClient.post<{ message: string }>(`/jobs/${jobId}/send-to-manager`);
+    },
 };
+

@@ -90,33 +90,46 @@ class ApiClient {
         // Defensive checks for config properties
         const config = error.config;
         const method = config?.method?.toUpperCase() || 'UNKNOWN';
-        const url = config?.url || 'URL';
+        const url = (config?.baseURL || '') + (config?.url || 'URL');
 
-        if (error.response?.data) {
+        if (error.response) {
             const data = error.response.data as any;
+            const status = error.response.status;
 
             // Log the raw error safely for developer visibility
-            console.error(`[API Error] ${method} ${url}:`, data);
+            console.error(`[API Error] ${method} ${url} (${status}):`, data);
 
             // Handle FastAPI 'detail' field
             let message = 'An error occurred';
 
-            if (typeof data.detail === 'string') {
+            if (data && typeof data.detail === 'string') {
                 message = data.detail;
-            } else if (Array.isArray(data.detail)) {
-                message = 'Validation Error';
-            } else if (typeof data.detail === 'object' && data.detail !== null) {
+            } else if (data && Array.isArray(data.detail)) {
+                message = 'Validation Error: ' + JSON.stringify(data.detail);
+            } else if (data && typeof data.detail === 'object' && data.detail !== null) {
                 message = (data.detail as any).message || JSON.stringify(data.detail);
-            } else if (data.message) {
+            } else if (data && data.message) {
                 message = data.message;
-            } else if (typeof data === 'string') {
+            } else if (typeof data === 'string' && data.length > 0) {
                 message = data;
+            } else if (status === 500) {
+                message = 'Internal Server Error (Backend crashed or returned no details)';
+            } else if (status === 404) {
+                message = 'Resource not found';
             }
 
             return {
                 message: message,
-                code: data.code || `HTTP_${error.response.status}`,
-                details: data.detail,
+                code: data?.code || `HTTP_${status}`,
+                details: data?.detail || null,
+            };
+        }
+
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            console.error(`[Network Timeout] ${method} ${url}:`, error.message);
+            return {
+                message: 'Request timed out. The server is taking too long to respond.',
+                code: 'TIMEOUT',
             };
         }
 

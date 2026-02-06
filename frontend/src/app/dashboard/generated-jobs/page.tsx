@@ -19,7 +19,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { integrationsApi } from "@/lib/api/integrations";
+import { jobsApi } from "@/lib/api/jobs";
 import { toast } from "sonner";
+
 
 interface ConnectedAccount {
     id: string;
@@ -240,6 +242,23 @@ export default function GeneratedJobsPage() {
                                         Review Details
                                     </Button>
                                     <Button
+                                        variant="outline"
+                                        onClick={async () => {
+                                            try {
+                                                const loadingToast = toast.loading("Sending to Operation Manager...");
+                                                await jobsApi.sendToManager(job.id);
+                                                toast.dismiss(loadingToast);
+                                                toast.success("Job details sent to Operation Manager!");
+                                            } catch (error: any) {
+                                                toast.error(`Failed to send: ${error.message || "Unknown error"}`);
+                                            }
+                                        }}
+                                        className="whitespace-nowrap flex gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                    >
+                                        <Share2 className="h-4 w-4" />
+                                        Send to Manager
+                                    </Button>
+                                    <Button
                                         onClick={() => handleOpenPublishDialog(job)}
                                         className="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
                                     >
@@ -247,6 +266,7 @@ export default function GeneratedJobsPage() {
                                         Publish Now
                                     </Button>
                                 </div>
+
                             </div>
                         </Card>
                     ))}
