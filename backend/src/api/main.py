@@ -49,14 +49,31 @@ app = FastAPI(
 )
 
 # Global Exception Handler
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "code": getattr(exc, "code", None)}
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
-    print(f"GLOBAL ERROR CAUGHT: {str(exc)}")
+    print(f"GLOBAL ERROR CAUGHT: {type(exc).__name__}: {str(exc)}")
     traceback.print_exc()
+    
+    # Extract as much info as possible
+    message = str(exc) or "An unexpected error occurred"
+    
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}"}
+        content={
+            "detail": f"Internal Server Error: {message}",
+            "type": type(exc).__name__
+        }
     )
 
 # Ensure upload directory exists
