@@ -56,8 +56,7 @@ export default function InterviewPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
-    const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
-    const [isSharingScreen, setIsSharingScreen] = useState(false);
+    const [landingStep, setLandingStep] = useState<'welcome' | 'rules' | 'ready'>('welcome');
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -371,58 +370,8 @@ export default function InterviewPage() {
         );
     }
 
-    // Interview Already Completed Screen
-    if (session.status === 'COMPLETED') {
-        return (
-            <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 items-center justify-center p-6">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white p-10 rounded-[48px] shadow-2xl border border-indigo-50 text-center space-y-6 max-w-md"
-                >
-                    <div className="w-20 h-20 bg-emerald-50 rounded-[24px] flex items-center justify-center mx-auto text-emerald-600">
-                        <CheckCircle2 className="w-10 h-10" />
-                    </div>
-                    <div className="space-y-2">
-                        <h1 className="text-3xl font-bold text-slate-900">Interview Completed</h1>
-                        <p className="text-slate-500 font-medium">You have already submitted your interview for this position. Our team will review your application and get back to you shortly.</p>
-                    </div>
-                    <Button
-                        onClick={() => router.push("/portal/jobs")}
-                        className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 font-bold"
-                    >
-                        Back to Jobs
-                    </Button>
-                </motion.div>
-            </div>
-        );
-    }
-
-    // New Session Landing Onboarding Flow
-    if (session.status === 'PENDING' && messages.length === 0 && landingStep !== 'in_progress') {
-        const handleStartScreenShare = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: false
-                });
-
-                // Track if user stops sharing
-                stream.getVideoTracks()[0].onended = () => {
-                    setIsSharingScreen(false);
-                    setLandingStep('screen-share');
-                    toast.error("Screen sharing stopped. It is mandatory for this interview.");
-                };
-
-                screenStreamRef.current = stream;
-                setIsSharingScreen(true);
-                setLandingStep('welcome');
-                toast.success("Screen sharing enabled successfully");
-            } catch (error) {
-                console.error("Screen share error:", error);
-                toast.error("Screen sharing is required to proceed with the interview.");
-            }
-        };
+    // New Session Landing
+    if (session.status === 'PENDING' && messages.length === 0) {
 
         const handleStartRulesBriefing = () => {
             setLandingStep('rules');
@@ -871,6 +820,49 @@ export default function InterviewPage() {
                     )}
                 </div>
             </footer>
+            {/* Mandatory Screen Share Overlay (If interrupted during interview) */}
+            <AnimatePresence>
+                {session?.status === 'IN_PROGRESS' && !isSharingScreen && !isCompleted && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6"
+                    >
+                        <div className="max-w-md w-full bg-white p-10 rounded-[48px] shadow-2xl text-center space-y-8">
+                            <div className="w-20 h-20 bg-red-50 rounded-[28px] flex items-center justify-center mx-auto border border-red-100">
+                                <Monitor className="h-10 w-10 text-red-500" />
+                            </div>
+                            <div className="space-y-3">
+                                <h2 className="text-2xl font-bold text-slate-900">Screen Sharing Required</h2>
+                                <p className="text-slate-500 font-medium">
+                                    Your interview has been paused because screen sharing was stopped. Please re-enable it to continue.
+                                </p>
+                            </div>
+                            <Button
+                                size="lg"
+                                className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 rounded-[24px] font-bold"
+                                onClick={async () => {
+                                    try {
+                                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+                                        stream.getVideoTracks()[0].onended = () => {
+                                            setIsSharingScreen(false);
+                                            toast.error("Screen sharing stopped.");
+                                        };
+                                        screenStreamRef.current = stream;
+                                        setIsSharingScreen(true);
+                                        toast.success("Sharing resumed");
+                                    } catch (e) {
+                                        toast.error("Failed to re-enable sharing");
+                                    }
+                                }}
+                            >
+                                Resume Screen Sharing
+                            </Button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

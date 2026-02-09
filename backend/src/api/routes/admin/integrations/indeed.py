@@ -11,9 +11,20 @@ from src.api.schemas.integration import (
     IntegrationResponse,
     IndeedJobPostRequest
 )
+from src.api.models.integration import UserIntegration
+from sqlalchemy.future import select
+from pydantic import BaseModel
 import secrets
+from typing import Optional
+from datetime import datetime
 
 router = APIRouter()
+
+class IntegrationStatusResponse(BaseModel):
+    connected: bool
+    platform_user_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
 
 @router.get("/login", response_model=IndeedAuthURLResponse)
 async def indeed_login(
@@ -64,18 +75,14 @@ async def indeed_callback(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/status")
+@router.get("/status", response_model=IntegrationStatusResponse)
 async def get_indeed_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Check if Indeed is connected for the current user."""
     try:
-        from sqlalchemy.future import select
-        from src.api.models.integration import UserIntegration
-        
         user = current_user
-        print(f"DEBUG: Checking Indeed status for user_id={user.id}")
         
         result = await db.execute(
             select(UserIntegration).where(
@@ -86,10 +93,8 @@ async def get_indeed_status(
         integration = result.scalars().first()
         
         if not integration:
-            print(f"DEBUG: No Indeed integration found for user_id={user.id}")
             return {"connected": False}
             
-        print(f"DEBUG: Indeed connected for user_id={user.id}")
         return {
             "connected": True,
             "platform_user_id": integration.platform_user_id,
@@ -98,8 +103,6 @@ async def get_indeed_status(
         }
     except Exception as e:
         print(f"ERROR in get_indeed_status: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/disconnect")
