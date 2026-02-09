@@ -56,7 +56,8 @@ export default function InterviewPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
-    const [landingStep, setLandingStep] = useState<'welcome' | 'rules' | 'ready'>('welcome');
+    const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
+    const [isSharingScreen, setIsSharingScreen] = useState(false);
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
