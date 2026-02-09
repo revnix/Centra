@@ -59,3 +59,30 @@ Do NOT solve it. Just state the problem clearly.
 Return only the question text.
 """
 
+
+EVALUATION_PROMPT = """
+You are an expert technical recruiter and software architect. Evaluate the following interview session comprehensively.
+
+### CONVERSATION TRANSCRIPT:
+{transcript}
+
+### CODING CHALLENGE DESCRIPTION:
+{coding_question}
+
+### CANDIDATE'S CODE SUBMISSION:
+{code_submission}
+
+### TASK:
+1. **Voice Interview Analysis**: Review the conversational transcript for technical depth, problem-solving approach, communication skills, and clarity.
+2. **Coding Phase Analysis**: Review the code submission for logical correctness, efficiency, cleanliness, and adherence to the challenge provided.
+3. **Scoring**: Assign an overall score out of 100, plus specific technical and communication breakdowns.
+4. **Recruiter Feedback**: Provide a concise, professional summary highlighting the candidate's strengths and areas for improvement.
+
+### RETURN FORMAT (MANDATORY JSON ONLY):
+{{
+  "overall_score": int,
+  "technical_score": int,
+  "communication_score": int,
+  "feedback": "string"
+}}
+"""

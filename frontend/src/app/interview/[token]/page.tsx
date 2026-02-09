@@ -56,7 +56,7 @@ export default function InterviewPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
-    const [landingStep, setLandingStep] = useState<'welcome' | 'rules' | 'ready'>('welcome');
+    const [landingStep, setLandingStep] = useState<'welcome' | 'in_progress'>('welcome');
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -229,6 +229,11 @@ export default function InterviewPage() {
             try {
                 const data = await api.interviews.getSession(token);
                 setSession(data);
+                if (data.status === 'CODING') {
+                    router.push(`/interview/${token}/coding`);
+                    return;
+                }
+
                 if (data.transcript && data.transcript.length > 0) {
                     setMessages(data.transcript);
                     // Don't re-speak entire history on reload, only new messages
@@ -255,7 +260,7 @@ export default function InterviewPage() {
 
     const handleSend = async (contentOverride?: string) => {
         const messageContent = contentOverride || input;
-        if (!messageContent.trim() || isSending) return;
+        if (!messageContent.trim() || isSending || isCompleted) return;
 
         const userMsg = messageContent.trim();
         setInput("");
@@ -363,32 +368,35 @@ export default function InterviewPage() {
         );
     }
 
+    // Interview Already Completed Screen
+    if (session.status === 'COMPLETED') {
+        return (
+            <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 items-center justify-center p-6">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white p-10 rounded-[48px] shadow-2xl border border-indigo-50 text-center space-y-6 max-w-md"
+                >
+                    <div className="w-20 h-20 bg-emerald-50 rounded-[24px] flex items-center justify-center mx-auto text-emerald-600">
+                        <CheckCircle2 className="w-10 h-10" />
+                    </div>
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-bold text-slate-900">Interview Completed</h1>
+                        <p className="text-slate-500 font-medium">You have already submitted your interview for this position. Our team will review your application and get back to you shortly.</p>
+                    </div>
+                    <Button
+                        onClick={() => router.push("/portal/jobs")}
+                        className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 font-bold"
+                    >
+                        Back to Jobs
+                    </Button>
+                </motion.div>
+            </div>
+        );
+    }
+
     // New Session Landing
-    if (session.status === 'PENDING' && messages.length === 0) {
-
-        const handleStartRulesBriefing = () => {
-            setLandingStep('rules');
-            // Speak the rules
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-                const text = "Welcome to your interview. Before we begin, please note the following rules: First, no cheating is allowed. Second, the use of external AI tools is strictly prohibited. Third, screen sharing is mandatory for the entire session. If you understand, click the start button that appears shortly.";
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 1.0;
-                utterance.onstart = () => setIsSpeaking(true);
-                utterance.onend = () => {
-                    setIsSpeaking(false);
-                    setLandingStep('ready');
-                };
-                utterance.onerror = () => {
-                    setIsSpeaking(false);
-                    setLandingStep('ready');
-                };
-                window.speechSynthesis.speak(utterance);
-            } else {
-                setLandingStep('ready');
-            }
-        };
-
+    if (session.status === 'PENDING' && landingStep === 'welcome') {
         return (
             <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 overflow-hidden font-sans">
                 {/* Branding */}
@@ -399,100 +407,45 @@ export default function InterviewPage() {
                 </div>
 
                 <main className="flex-1 flex items-center justify-center p-6 relative">
-                    {/* Multi-stage Landing Rendering */}
                     <AnimatePresence mode="wait">
-                        {landingStep === 'welcome' && (
-                            <motion.div
-                                key="welcome"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="max-w-md w-full"
-                            >
-                                <div className="bg-white/80 backdrop-blur-2xl p-10 rounded-[48px] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-white space-y-8">
-                                    <div className="space-y-3">
-                                        <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Preparation</span>
-                                        <h1 className="text-3xl font-bold text-slate-900">Before starting,</h1>
-                                    </div>
-
-                                    <ul className="space-y-6">
-                                        {[
-                                            { id: 1, text: "The recording of your AI interview will be saved and reviewed by hiring managers." },
-                                            { id: 2, text: "Please remain on this tab and avoid using external tools during the session." },
-                                            { id: 3, text: "Screen sharing must be active throughout the session for security." },
-                                            { id: 4, text: "Feel free to ask clarifying questions out loud at any time." },
-                                            { id: 5, text: "A long pause will indicate to Evalyn that you've finished your answer." }
-                                        ].map((item) => (
-                                            <li key={item.id} className="flex gap-4">
-                                                <span className="text-slate-300 font-bold tabular-nums pt-0.5">{item.id}.</span>
-                                                <p className="text-sm text-slate-600 leading-relaxed font-medium">{item.text}</p>
-                                            </li>
-                                        ))}
-                                    </ul>
-
-                                    <Button
-                                        size="lg"
-                                        className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-2 font-bold"
-                                        onClick={handleStartRulesBriefing}
-                                    >
-                                        I understand, explain rules
-                                    </Button>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {landingStep === 'rules' && (
-                            <motion.div
-                                key="rules"
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 1.1 }}
-                                className="flex flex-col items-center gap-12"
-                            >
-                                <div className="relative">
-                                    <div className={`w-64 h-64 rounded-full bg-white flex items-center justify-center shadow-[0_0_80px_rgba(79,70,229,0.1)] border border-indigo-50 transition-all duration-500 ${isSpeaking ? 'ring-[16px] ring-indigo-50' : ''}`}>
-                                        <div className="text-5xl font-black text-slate-800">
-                                            e<span className="text-indigo-600">.</span>
-                                        </div>
-                                    </div>
-                                    {isSpeaking && (
-                                        <motion.div
-                                            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
-                                            transition={{ duration: 2, repeat: Infinity }}
-                                            className="absolute -inset-8 rounded-full border-4 border-indigo-100"
-                                        />
-                                    )}
-                                </div>
-                                <div className="text-center space-y-2">
-                                    <p className="text-sm font-black uppercase tracking-[0.3em] text-indigo-600 animate-pulse">Evalyn is speaking</p>
-                                    <p className="text-slate-400 font-medium">Listening to the interview protocols...</p>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {landingStep === 'ready' && (
-                            <motion.div
-                                key="ready"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="max-w-md w-full text-center space-y-8"
-                            >
-                                <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mx-auto mb-4 border border-emerald-100">
-                                    <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                                </div>
+                        <motion.div
+                            key="welcome"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="max-w-md w-full"
+                        >
+                            <div className="bg-white/80 backdrop-blur-2xl p-10 rounded-[48px] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-white space-y-8">
                                 <div className="space-y-3">
-                                    <h2 className="text-3xl font-bold text-slate-900">Rules understood?</h2>
-                                    <p className="text-slate-500 font-medium">You are now ready to begin your voice-led interview.</p>
+                                    <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Final Step</span>
+                                    <h1 className="text-3xl font-bold text-slate-900">Ready to begin?</h1>
+                                    <p className="text-slate-500 font-medium">Click the button below to start your interview. You will be prompted to share your screen.</p>
                                 </div>
+
+                                <ul className="space-y-4">
+                                    {[
+                                        { id: 1, text: "Screen sharing is mandatory for the duration of the interview." },
+                                        { id: 2, text: "The agent will brief you on rules before starting the questions." },
+                                        { id: 3, text: "Ensure you are in a quiet environment with a working microphone." }
+                                    ].map((item) => (
+                                        <li key={item.id} className="flex gap-3 items-center">
+                                            <div className="h-5 w-5 bg-indigo-50 rounded-full flex items-center justify-center shrink-0">
+                                                <div className="h-1.5 w-1.5 bg-indigo-600 rounded-full" />
+                                            </div>
+                                            <p className="text-sm text-slate-600 font-medium">{item.text}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+
                                 <Button
                                     size="lg"
-                                    className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-3 font-bold"
+                                    className="w-full h-16 text-xl bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-3 font-bold"
                                     onClick={handleStartInterview}
                                 >
-                                    Start Interview <ArrowRight className="h-5 w-5" />
+                                    Start Interview <ArrowRight className="h-6 w-6" />
                                 </Button>
-                            </motion.div>
-                        )}
+                            </div>
+                        </motion.div>
                     </AnimatePresence>
                 </main>
             </div>

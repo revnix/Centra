@@ -49,7 +49,8 @@ class ApplicationService:
             select(Application)
             .options(
                 selectinload(Application.candidate).selectinload(User.candidate_profile),
-                selectinload(Application.job)
+                selectinload(Application.job),
+                selectinload(Application.interview_session)
             )
             .where(Application.id == application_id)
         )
@@ -61,10 +62,55 @@ class ApplicationService:
             select(Application)
             .options(
                 selectinload(Application.candidate).selectinload(User.candidate_profile),
-                selectinload(Application.job)
+                selectinload(Application.job),
+                selectinload(Application.interview_session)
             )
             .offset(skip)
             .limit(limit)
             .order_by(Application.created_at.desc())
         )
         return result.scalars().all()
+
+    async def reject_application(self, application_id: int) -> Application:
+        """Reject an application."""
+        application = await self.get_application_by_id(application_id)
+        if not application:
+            raise ValueError("Application not found")
+        
+        application.status = ApplicationStatus.REJECTED
+        self.db.add(application)
+        await self.db.commit()
+        await self.db.refresh(application)
+        return application
+
+    async def hire_candidate(self, application_id: int) -> Application:
+        """Hire a candidate and send offer letter."""
+        application = await self.get_application_by_id(application_id)
+        if not application:
+            raise ValueError("Application not found")
+        
+        application.status = ApplicationStatus.HIRED
+        
+        # Prepare Offer Details
+        candidate = application.candidate
+        job = application.job
+        
+        salary_str = job.get_formatted_salary() or "Negotiable"
+        from datetime import datetime, timedelta
+        joining_date = (datetime.now() + timedelta(days=14)).strftime("%B %d, %Y")
+        
+        # Trigger Email
+        from src.api.services.email_service import EmailService
+        EmailService.send_offer_letter(
+            candidate_email=candidate.email,
+            candidate_name=candidate.full_name,
+            job_title=job.title,
+            company_name=job.company_name or "Evalyn AI",
+            salary=salary_str,
+            joining_date=joining_date
+        )
+        
+        self.db.add(application)
+        await self.db.commit()
+        await self.db.refresh(application)
+        return application

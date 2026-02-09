@@ -4,7 +4,7 @@ import { use, useState, useEffect } from "react";
 import { interviewsApi } from "@/lib/api/interviews";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Card primitive might export specific parts
-import { Loader2, Clock, CheckCircle, AlertCircle, Play } from "lucide-react";
+import { Loader2, Clock, CheckCircle, AlertCircle, Play, Code2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
@@ -31,19 +31,26 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
     const [isTimerActive, setIsTimerActive] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [status, setStatus] = useState<string | null>(null);
+    const [selectedLanguage, setSelectedLanguage] = useState("python");
 
     // Fetch Question
     useEffect(() => {
         const fetchQuestion = async () => {
             try {
+                // Fetch session first to check status
+                const sessionRes = await interviewsApi.getSession(token);
+                if (sessionRes.status === 'COMPLETED') {
+                    setIsSubmitted(true);
+                    return;
+                }
+                setStatus(sessionRes.status);
+
                 const res = await interviewsApi.getCodingQuestion(token);
                 setQuestion(res.question);
                 setIsTimerActive(true);
             } catch (error) {
-                console.error("Failed to load question", error);
-                // Fallback for demo if API fails locally
-                // setQuestion("Write a function to reverse a string in Python.");
-                // setIsTimerActive(true);
+                console.error("Failed to load assessment", error);
             } finally {
                 setIsLoading(false);
             }
@@ -85,10 +92,21 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
+    // Language configurations
+    const languages = [
+        { value: "python", label: "Python", extension: "py", placeholder: "# Write your solution here..." },
+        { value: "javascript", label: "JavaScript", extension: "js", placeholder: "// Write your solution here..." },
+        { value: "typescript", label: "TypeScript", extension: "ts", placeholder: "// Write your solution here..." },
+        { value: "java", label: "Java", extension: "java", placeholder: "// Write your solution here..." },
+        { value: "cpp", label: "C++", extension: "cpp", placeholder: "// Write your solution here..." },
+    ];
+
+    const currentLanguage = languages.find(lang => lang.value === selectedLanguage) || languages[0];
+
     const handleSubmit = async () => {
         setIsSubmitting(true);
         try {
-            await interviewsApi.submitCoding(token, code);
+            await interviewsApi.submitCoding(token, code, selectedLanguage);
             localStorage.removeItem(`interview_timer_${token}`);
             setIsSubmitted(true);
             setTimeout(() => {
@@ -177,7 +195,21 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
                 <Card className="flex flex-col h-full overflow-hidden border-border/60 shadow-md bg-[#1e1e1e] text-white border-0 ring-1 ring-border/50">
                     <div className="flex items-center justify-between px-4 py-3 bg-[#252526] border-b border-[#333]">
                         <div className="flex items-center gap-4">
-                            <span className="text-xs font-mono text-slate-400">solution.py</span>
+                            <div className="flex items-center gap-2">
+                                <Code2 className="w-3.5 h-3.5 text-slate-500" />
+                                <span className="text-xs font-mono text-slate-400">solution.{currentLanguage.extension}</span>
+                            </div>
+                            <div className="h-4 w-px bg-slate-600" />
+                            <select
+                                value={selectedLanguage}
+                                onChange={(e) => setSelectedLanguage(e.target.value)}
+                                className="bg-[#1e1e1e] text-slate-300 text-xs font-medium px-2 py-1 rounded border border-slate-600 hover:border-slate-500 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
+                                disabled={timeLeft === 0 && !isSubmitted}
+                            >
+                                {languages.map(lang => (
+                                    <option key={lang.value} value={lang.value}>{lang.label}</option>
+                                ))}
+                            </select>
                             <Button
                                 onClick={handleSubmit}
                                 size="sm"
@@ -199,7 +231,7 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
                             className="w-full h-full bg-[#1e1e1e] text-slate-300 p-4 font-mono text-sm resize-none focus:outline-none focus:ring-0 leading-relaxed selection:bg-indigo-500/30"
                             value={code}
                             onChange={(e) => setCode(e.target.value)}
-                            placeholder="# Write your solution here..."
+                            placeholder={currentLanguage.placeholder}
                             spellCheck={false}
                             disabled={timeLeft === 0 && !isSubmitted}
                         />

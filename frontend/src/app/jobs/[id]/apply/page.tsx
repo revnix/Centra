@@ -41,6 +41,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [resumeFile, setResumeFile] = useState<File | null>(null);
+    const [interviewToken, setInterviewToken] = useState<string | null>(null);
 
     const form = useForm<ApplicationFormValues>({
         resolver: zodResolver(applicationSchema),
@@ -74,11 +75,11 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('skills', JSON.stringify([]));
             formData.append('experience_years', '0');
 
-            await api.applications.guestApply(formData);
+            const response = await api.applications.guestApply(formData);
 
             toast.success("Application submitted successfully!");
-            // Redirect back to job details as requested
-            router.push(`/jobs/${id}`);
+            setInterviewToken(response.interview_token);
+            setIsSuccess(true);
         } catch (error: any) {
             console.error("Application error:", error);
             let errorMessage = error.message || "Failed to submit application. Please try again.";
@@ -130,14 +131,24 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                             Thanks for applying to <strong>{job.title}</strong> at {job.company_name}.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <p className="text-sm text-slate-600">
-                            We have sent a confirmation email to <strong>{form.getValues().email}</strong>.
-                            Our team will review your application and get back to you shortly.
-                        </p>
-                        <Link href={`/jobs/${id}`}>
-                            <Button className="w-full">Return to Job Posting</Button>
-                        </Link>
+                    <CardContent className="space-y-6">
+                        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                                Your application has been processed. To proceed with your candidacy, you are required to complete an AI-led interview.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <Link href={`/interview/${interviewToken}`} className="w-full">
+                                <Button size="lg" className="w-full h-14 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 dark:shadow-none font-bold gap-2">
+                                    Start Interview <ArrowLeft className="h-5 w-5 rotate-180" />
+                                </Button>
+                            </Link>
+
+                            <Link href={`/jobs/${id}`} className="w-full">
+                                <Button variant="ghost" className="w-full">Return to Job Posting</Button>
+                            </Link>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
