@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Loader2, Bot, User, Clock, CheckCircle2, ArrowRight, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { Send, Loader2, Bot, User, Clock, CheckCircle2, ArrowRight, Mic, MicOff, Volume2, VolumeX, Monitor } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
@@ -56,7 +56,9 @@ export default function InterviewPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
-    const [landingStep, setLandingStep] = useState<'welcome' | 'rules' | 'ready'>('welcome');
+    const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready'>('screen-share');
+    const [isSharingScreen, setIsSharingScreen] = useState(false);
+    const screenStreamRef = useRef<MediaStream | null>(null);
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -320,6 +322,30 @@ export default function InterviewPage() {
     // New Session Landing
     if (session.status === 'PENDING' && messages.length === 0) {
 
+        const handleStartScreenShare = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: false
+                });
+
+                // Track if user stops sharing
+                stream.getVideoTracks()[0].onended = () => {
+                    setIsSharingScreen(false);
+                    setLandingStep('screen-share');
+                    toast.error("Screen sharing stopped. It is mandatory for this interview.");
+                };
+
+                screenStreamRef.current = stream;
+                setIsSharingScreen(true);
+                setLandingStep('welcome');
+                toast.success("Screen sharing enabled successfully");
+            } catch (error) {
+                console.error("Screen share error:", error);
+                toast.error("Screen sharing is required to proceed with the interview.");
+            }
+        };
+
         const handleStartRulesBriefing = () => {
             setLandingStep('rules');
             // Speak the rules
@@ -355,6 +381,36 @@ export default function InterviewPage() {
                 <main className="flex-1 flex items-center justify-center p-6 relative">
                     {/* Multi-stage Landing Rendering */}
                     <AnimatePresence mode="wait">
+                        {landingStep === 'screen-share' && (
+                            <motion.div
+                                key="screen-share"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className="max-w-md w-full"
+                            >
+                                <div className="bg-white/80 backdrop-blur-2xl p-10 rounded-[48px] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-white space-y-8 text-center">
+                                    <div className="w-24 h-24 bg-indigo-50 rounded-[32px] flex items-center justify-center mx-auto mb-6 border border-indigo-100">
+                                        <Monitor className="h-10 w-10 text-indigo-600" />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <h1 className="text-3xl font-bold text-slate-900">Enable Screen Share</h1>
+                                        <p className="text-slate-500 font-medium leading-relaxed">
+                                            To ensure the integrity of your interview, screen sharing is mandatory. Please share your entire screen to continue.
+                                        </p>
+                                    </div>
+
+                                    <Button
+                                        size="lg"
+                                        className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-3 font-bold"
+                                        onClick={handleStartScreenShare}
+                                    >
+                                        Start Screen Sharing <ArrowRight className="h-5 w-5" />
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        )}
+
                         {landingStep === 'welcome' && (
                             <motion.div
                                 key="welcome"
@@ -668,6 +724,49 @@ export default function InterviewPage() {
                     )}
                 </div>
             </footer>
+            {/* Mandatory Screen Share Overlay (If interrupted during interview) */}
+            <AnimatePresence>
+                {session?.status === 'IN_PROGRESS' && !isSharingScreen && !isCompleted && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6"
+                    >
+                        <div className="max-w-md w-full bg-white p-10 rounded-[48px] shadow-2xl text-center space-y-8">
+                            <div className="w-20 h-20 bg-red-50 rounded-[28px] flex items-center justify-center mx-auto border border-red-100">
+                                <Monitor className="h-10 w-10 text-red-500" />
+                            </div>
+                            <div className="space-y-3">
+                                <h2 className="text-2xl font-bold text-slate-900">Screen Sharing Required</h2>
+                                <p className="text-slate-500 font-medium">
+                                    Your interview has been paused because screen sharing was stopped. Please re-enable it to continue.
+                                </p>
+                            </div>
+                            <Button
+                                size="lg"
+                                className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 rounded-[24px] font-bold"
+                                onClick={async () => {
+                                    try {
+                                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+                                        stream.getVideoTracks()[0].onended = () => {
+                                            setIsSharingScreen(false);
+                                            toast.error("Screen sharing stopped.");
+                                        };
+                                        screenStreamRef.current = stream;
+                                        setIsSharingScreen(true);
+                                        toast.success("Sharing resumed");
+                                    } catch (e) {
+                                        toast.error("Failed to re-enable sharing");
+                                    }
+                                }}
+                            >
+                                Resume Screen Sharing
+                            </Button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

@@ -11,9 +11,20 @@ from src.api.schemas.integration import (
     IntegrationResponse,
     LinkedInPublishRequest
 )
+from src.api.models.integration import UserIntegration
+from sqlalchemy.future import select
+from pydantic import BaseModel
 import secrets
+from typing import Optional
+from datetime import datetime
 
 router = APIRouter()
+
+class IntegrationStatusResponse(BaseModel):
+    connected: bool
+    platform_user_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
 
 @router.get("/login", response_model=LinkedInAuthURLResponse)
 async def linkedin_login(
@@ -52,18 +63,14 @@ async def linkedin_callback(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/status")
+@router.get("/status", response_model=IntegrationStatusResponse)
 async def get_linkedin_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Check if LinkedIn is connected for the current user."""
     try:
-        from sqlalchemy.future import select
-        from src.api.models.integration import UserIntegration
-        
         user = current_user
-        print(f"DEBUG: Checking LinkedIn status for user_id={user.id}")
         
         result = await db.execute(
             select(UserIntegration).where(
@@ -74,10 +81,8 @@ async def get_linkedin_status(
         integration = result.scalars().first()
         
         if not integration:
-            print(f"DEBUG: No LinkedIn integration found for user_id={user.id}")
             return {"connected": False}
             
-        print(f"DEBUG: LinkedIn connected for user_id={user.id}")
         return {
             "connected": True,
             "platform_user_id": integration.platform_user_id,
@@ -86,8 +91,6 @@ async def get_linkedin_status(
         }
     except Exception as e:
         print(f"ERROR in get_linkedin_status: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/disconnect")
