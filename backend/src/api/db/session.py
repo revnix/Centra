@@ -17,8 +17,10 @@ if "asyncpg" in database_url:
     
 if "neon.tech" in settings.DATABASE_URL:
     connect_args["ssl"] = "require"
-    # Allow a bit more time for Neon cold starts
-    connect_args["command_timeout"] = 15 
+    # Allow more time for Neon cold starts and PgBouncer queuing
+    connect_args["command_timeout"] = 60 
+    # CRITICAL: Disable prepared statement cache for PgBouncer compatibility
+    connect_args["statement_cache_size"] = 0
 
 print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
@@ -29,7 +31,7 @@ engine = create_async_engine(
     connect_args=connect_args,
     pool_pre_ping=True,
     pool_recycle=1800,
-    pool_size=5,
+    pool_size=20,
     max_overflow=10,
 )
 

@@ -51,22 +51,9 @@ async def _save_job_to_db(job_data: dict, user_id: int, existing_job_id: Optiona
     Async function to save or update job in database.
     Returns the saved job data.
     """
-    # Create a fresh engine/session to avoid event loop issues
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-    from src.api.core.config import settings
+    from src.api.db.session import AsyncSessionLocal
     from sqlalchemy.future import select
 
-    database_url = settings.DATABASE_URL
-    if "asyncpg" in database_url:
-        if "sslmode=" in database_url:
-            database_url = database_url.replace("?sslmode=require", "").replace("&sslmode=require", "")
-        connect_args = {"ssl": "require"} if "neon.tech" in settings.DATABASE_URL else {}
-    else:
-        connect_args = {}
-
-    engine = create_async_engine(database_url, echo=True, future=True, connect_args=connect_args)
-    AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
     async with AsyncSessionLocal() as db:
         try:
             job = None
@@ -126,8 +113,6 @@ async def _save_job_to_db(job_data: dict, user_id: int, existing_job_id: Optiona
         except Exception as e:
             await db.rollback()
             raise e
-        finally:
-            await engine.dispose()
 
 
 async def save_job_post(state: EVALN) -> dict:
