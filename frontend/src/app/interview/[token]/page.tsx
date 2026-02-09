@@ -56,9 +56,8 @@ export default function InterviewPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
-    const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready'>('screen-share');
+    const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
     const [isSharingScreen, setIsSharingScreen] = useState(false);
-    const screenStreamRef = useRef<MediaStream | null>(null);
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -231,6 +230,11 @@ export default function InterviewPage() {
             try {
                 const data = await api.interviews.getSession(token);
                 setSession(data);
+                if (data.status === 'CODING') {
+                    router.push(`/interview/${token}/coding`);
+                    return;
+                }
+
                 if (data.transcript && data.transcript.length > 0) {
                     setMessages(data.transcript);
                     // Don't re-speak entire history on reload, only new messages
@@ -257,7 +261,7 @@ export default function InterviewPage() {
 
     const handleSend = async (contentOverride?: string) => {
         const messageContent = contentOverride || input;
-        if (!messageContent.trim() || isSending) return;
+        if (!messageContent.trim() || isSending || isCompleted) return;
 
         const userMsg = messageContent.trim();
         setInput("");
@@ -297,26 +301,26 @@ export default function InterviewPage() {
             window.speechSynthesis.cancel();
         }
 
-        // Screen sharing requirement
-        try {
-            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                if (screenStreamRef.current) {
-                    screenStreamRef.current.getTracks().forEach(t => t.stop());
-                }
-                screenStreamRef.current = stream;
+        // Screen sharing requirement check
+        if (!screenStreamRef.current) {
+            try {
+                if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    screenStreamRef.current = stream;
 
-                stream.getVideoTracks()[0].onended = () => {
-                    toast.warning("Screen sharing stopped. It is required for the interview.");
-                };
-            } else {
-                toast.error("Screen sharing is not supported by your browser.");
+                    stream.getVideoTracks()[0].onended = () => {
+                        toast.warning("Screen sharing stopped. It is required for the interview.");
+                        setLandingStep('screen-share');
+                    };
+                } else {
+                    toast.error("Screen sharing is not supported by your browser.");
+                    return;
+                }
+            } catch (err) {
+                console.error("Screen share error:", err);
+                toast.error("Screen sharing is required to proceed with the interview.");
                 return;
             }
-        } catch (err) {
-            console.error("Screen share error:", err);
-            toast.error("Screen sharing is required to proceed with the interview.");
-            return;
         }
 
         setIsLoading(true);
@@ -326,7 +330,9 @@ export default function InterviewPage() {
 
             const startRes = await api.interviews.startInterview(token);
             setMessages(startRes.transcript);
-            // Updating session status to IN_PROGRESS locally
+
+            // Transition UI
+            setLandingStep('in_progress');
             if (session) {
                 setSession({ ...session, status: 'IN_PROGRESS' });
             }
@@ -335,7 +341,7 @@ export default function InterviewPage() {
         } finally {
             setIsLoading(false);
         }
-    }
+    };
 
     if (isLoading) {
         return (
@@ -367,30 +373,6 @@ export default function InterviewPage() {
 
     // New Session Landing
     if (session.status === 'PENDING' && messages.length === 0) {
-
-        const handleStartScreenShare = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: false
-                });
-
-                // Track if user stops sharing
-                stream.getVideoTracks()[0].onended = () => {
-                    setIsSharingScreen(false);
-                    setLandingStep('screen-share');
-                    toast.error("Screen sharing stopped. It is mandatory for this interview.");
-                };
-
-                screenStreamRef.current = stream;
-                setIsSharingScreen(true);
-                setLandingStep('welcome');
-                toast.success("Screen sharing enabled successfully");
-            } catch (error) {
-                console.error("Screen share error:", error);
-                toast.error("Screen sharing is required to proceed with the interview.");
-            }
-        };
 
         const handleStartRulesBriefing = () => {
             setLandingStep('rules');
@@ -425,7 +407,6 @@ export default function InterviewPage() {
                 </div>
 
                 <main className="flex-1 flex items-center justify-center p-6 relative">
-                    {/* Multi-stage Landing Rendering */}
                     <AnimatePresence mode="wait">
                         {landingStep === 'screen-share' && (
                             <motion.div
@@ -506,7 +487,7 @@ export default function InterviewPage() {
                                 className="flex flex-col items-center gap-12"
                             >
                                 <div className="relative">
-                                    <div className={`w-64 h-64 rounded-full bg-white flex items-center justify-center shadow-[0_0_80px_rgba(79,70,229,0.1)] border border-indigo-50 transition-all duration-500 ${isSpeaking ? 'ring-[16px] ring-indigo-50' : ''}`}>
+                                    <div className={`w-64 h-64 rounded-full bg-white flex items-center justify-center shadow-[0_0_80px_rgba(79,70,229,0.15)] border border-indigo-50 transition-all duration-500 ${isSpeaking ? 'ring-[16px] ring-indigo-50' : ''}`}>
                                         <div className="text-5xl font-black text-slate-800">
                                             e<span className="text-indigo-600">.</span>
                                         </div>
@@ -537,15 +518,32 @@ export default function InterviewPage() {
                                     <CheckCircle2 className="h-10 w-10 text-emerald-500" />
                                 </div>
                                 <div className="space-y-3">
-                                    <h2 className="text-3xl font-bold text-slate-900">Rules understood?</h2>
-                                    <p className="text-slate-500 font-medium">You are now ready to begin your voice-led interview.</p>
+                                    <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Final Step</span>
+                                    <h1 className="text-3xl font-bold text-slate-900">Ready to begin?</h1>
+                                    <p className="text-slate-500 font-medium">Click the button below to start your interview. You will be prompted to share your screen.</p>
                                 </div>
+
+                                <ul className="space-y-4">
+                                    {[
+                                        { id: 1, text: "Screen sharing is mandatory for the duration of the interview." },
+                                        { id: 2, text: "The agent will brief you on rules before starting the questions." },
+                                        { id: 3, text: "Ensure you are in a quiet environment with a working microphone." }
+                                    ].map((item) => (
+                                        <li key={item.id} className="flex gap-3 items-center">
+                                            <div className="h-5 w-5 bg-indigo-50 rounded-full flex items-center justify-center shrink-0">
+                                                <div className="h-1.5 w-1.5 bg-indigo-600 rounded-full" />
+                                            </div>
+                                            <p className="text-sm text-slate-600 font-medium">{item.text}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+
                                 <Button
                                     size="lg"
-                                    className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-3 font-bold"
+                                    className="w-full h-16 text-xl bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-3 font-bold"
                                     onClick={handleStartInterview}
                                 >
-                                    Start Interview <ArrowRight className="h-5 w-5" />
+                                    Start Interview <ArrowRight className="h-6 w-6" />
                                 </Button>
                             </motion.div>
                         )}
@@ -557,6 +555,53 @@ export default function InterviewPage() {
 
     return (
         <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 overflow-hidden font-sans selection:bg-indigo-100">
+            <AnimatePresence>
+                {!isSharingScreen && session.status === 'IN_PROGRESS' && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="bg-white dark:bg-slate-900 p-10 rounded-[48px] shadow-2xl border border-white/20 text-center space-y-8 max-w-md"
+                        >
+                            <div className="w-24 h-24 bg-red-50 dark:bg-red-900/20 rounded-[32px] flex items-center justify-center mx-auto border border-red-100 dark:border-red-800/30">
+                                <Monitor className="h-10 w-10 text-red-500" />
+                            </div>
+                            <div className="space-y-3">
+                                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Screen Share Required</h1>
+                                <p className="text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                    Screen sharing has been stopped. To continue your interview and ensure integrity, please restart screen sharing.
+                                </p>
+                            </div>
+                            <Button
+                                size="lg"
+                                className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-2 font-bold"
+                                onClick={async () => {
+                                    try {
+                                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                                        screenStreamRef.current = stream;
+                                        setIsSharingScreen(true);
+                                        stream.getVideoTracks()[0].onended = () => {
+                                            setIsSharingScreen(false);
+                                            toast.error("Screen sharing stopped. It is mandatory for this interview.");
+                                        };
+                                        toast.success("Screen sharing resumed");
+                                    } catch (error) {
+                                        toast.error("You must enable screen sharing to continue.");
+                                    }
+                                }}
+                            >
+                                Resume Screen Sharing <ArrowRight className="h-5 w-5" />
+                            </Button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Top Navigation / Progress Tabs */}
             <div className="w-full pt-8 px-12 flex justify-between items-start z-20">
                 <div className="flex flex-col gap-0.5">

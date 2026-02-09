@@ -24,6 +24,7 @@ class GuestApplicationCreate(BaseModel):
 
 from src.api.schemas.user import UserResponse
 from src.api.schemas.job import JobResponse
+from src.api.schemas.interview import InterviewSessionResponse
 
 class ApplicationResponse(ApplicationBase):
     id: int
@@ -34,6 +35,7 @@ class ApplicationResponse(ApplicationBase):
     
     candidate: Optional[UserResponse] = None
     job: Optional[JobResponse] = None
+    interview_session: Optional[InterviewSessionResponse] = None
     
     class Config:
         from_attributes = True

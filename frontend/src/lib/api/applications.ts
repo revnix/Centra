@@ -33,4 +33,18 @@ export const applicationsApi = {
     get: async (id: string): Promise<any> => {
         return apiClient.get<any>(`/applications/${id}`);
     },
+
+    /**
+     * Hire a candidate (Offer Letter)
+     */
+    hire: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/hire`, {});
+    },
+
+    /**
+     * Reject an application
+     */
+    reject: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/reject`, {});
+    },
 };

@@ -4,18 +4,22 @@ import { useState, useEffect, use } from "react";
 import { api } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function ApplicationReviewPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const [app, setApp] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+    const router = useRouter();
 
     useEffect(() => {
         const fetchApplication = async () => {
@@ -31,6 +35,38 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         };
         fetchApplication();
     }, [id]);
+
+    const handleReject = async () => {
+        setIsActionLoading(true);
+        try {
+            await api.applications.reject(id);
+            toast.success("Candidate rejected successfully");
+            // Refresh data
+            const updated = await api.applications.get(id);
+            setApp(updated);
+        } catch (error) {
+            toast.error("Failed to reject candidate");
+            console.error(error);
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handleHire = async () => {
+        setIsActionLoading(true);
+        try {
+            await api.applications.hire(id);
+            toast.success("Candidate hired! Offer letter sent via email.");
+            // Refresh data
+            const updated = await api.applications.get(id);
+            setApp(updated);
+        } catch (error) {
+            toast.error("Failed to hire candidate");
+            console.error(error);
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -75,11 +111,21 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             </Button>
                         </a>
                     )}
-                    <Button variant="destructive">
-                        <ThumbsDown className="w-4 h-4 mr-2" /> Reject
+                    <Button
+                        variant="destructive"
+                        onClick={handleReject}
+                        disabled={isActionLoading || app.status === 'REJECTED' || app.status === 'HIRED'}
+                    >
+                        <ThumbsDown className="w-4 h-4 mr-2" />
+                        {isActionLoading ? 'Processing...' : 'Reject'}
                     </Button>
-                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                        <ThumbsUp className="w-4 h-4 mr-2" /> Hire Candidate
+                    <Button
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={handleHire}
+                        disabled={isActionLoading || app.status === 'REJECTED' || app.status === 'HIRED'}
+                    >
+                        <ThumbsUp className="w-4 h-4 mr-2" />
+                        {isActionLoading ? 'Processing...' : 'Hire Candidate'}
                     </Button>
                 </div>
             </div>
@@ -98,7 +144,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 text-indigo-900 dark:text-indigo-200 leading-relaxed">
-                                {app.ai_feedback || "No AI feedback available yet for this application."}
+                                {app.interview_session?.feedback || app.ai_feedback || "No AI feedback available yet for this application."}
                             </div>
 
                             <div className="grid grid-cols-1 gap-4">
@@ -130,6 +176,62 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             </p>
                         </CardContent>
                     </Card>
+
+                    {/* Interview Conversation Transcript */}
+                    {app.interview_session?.transcript && app.interview_session.transcript.length > 0 && (
+                        <Card className="border-border shadow-sm overflow-hidden">
+                            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b">
+                                <CardTitle className="flex items-center gap-2">
+                                    <BotIcon className="w-5 h-5 text-indigo-500" />
+                                    Interview Conversation
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="max-h-[500px] overflow-y-auto p-6 space-y-6">
+                                    {app.interview_session.transcript.map((msg: any, i: number) => (
+                                        <div key={i} className={`flex gap-4 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
+                                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'ai' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                                {msg.role === 'ai' ? <BotIcon className="w-4 h-4" /> : <UserIcon className="w-4 h-4" />}
+                                            </div>
+                                            <div className={`flex-1 p-4 rounded-2xl text-sm ${msg.role === 'ai' ? 'bg-slate-100 dark:bg-slate-800 rounded-tl-none' : 'bg-indigo-600 text-white rounded-tr-none'}`}>
+                                                <div className="font-bold mb-1 flex justify-between items-center">
+                                                    <span>{msg.role === 'ai' ? 'Evalyn (AI)' : 'Candidate'}</span>
+                                                    <span className="text-[10px] opacity-70 font-normal">
+                                                        {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                    </span>
+                                                </div>
+                                                <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Coding Submission */}
+                    {app.interview_session?.code_submission && (
+                        <Card className="border-border shadow-sm overflow-hidden">
+                            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b">
+                                <CardTitle className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                        <Code2 className="w-5 h-5" />
+                                        Coding Challenge Solution
+                                    </div>
+                                    {app.interview_session?.programming_language && (
+                                        <span className="text-xs font-mono px-2.5 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md border border-slate-300 dark:border-slate-700">
+                                            {app.interview_session.programming_language.charAt(0).toUpperCase() + app.interview_session.programming_language.slice(1)}
+                                        </span>
+                                    )}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <pre className="p-6 bg-slate-950 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed">
+                                    {app.interview_session.code_submission}
+                                </pre>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Right Col: Details */}
@@ -140,9 +242,23 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                 <ScoreRing score={app.match_score || 0} size="lg" />
                             </div>
                             <div>
-                                <div className="text-2xl font-bold">{app.match_score ? `${app.match_score}/100` : "N/A"}</div>
+                                <div className="text-2xl font-bold">{(app.interview_session?.overall_score || app.match_score) ? `${(app.interview_session?.overall_score || app.match_score)}/100` : "N/A"}</div>
                                 <div className="text-sm text-muted-foreground">Overall AI Match Score</div>
                             </div>
+
+                            {app.interview_session?.overall_score && (
+                                <div className="grid grid-cols-2 gap-3 w-full pt-2">
+                                    <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-border">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Technical</div>
+                                        <div className="text-lg font-bold text-indigo-600">{app.interview_session.technical_score || 0}</div>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-border">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Communication</div>
+                                        <div className="text-lg font-bold text-emerald-600">{app.interview_session.communication_score || 0}</div>
+                                    </div>
+                                </div>
+                            )}
+
                             <Separator />
                             <div className="text-left space-y-3 pt-2">
                                 <div className="flex items-center gap-3 text-sm">

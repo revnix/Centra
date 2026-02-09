@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, DateTime, Enum as SqlEnum, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from src.api.db.base import Base
 import enum
@@ -34,6 +34,7 @@ class InterviewSession(Base):
     transcript = Column(JSON, default=list, nullable=False, comment="Full chat history")
     state = Column(JSON, default=dict, nullable=False, comment="Internal AI state (current skill, stage, etc)")
     code_submission = Column(Text, nullable=True, comment="Final code submission if applicable")
+    programming_language = Column(String, nullable=True, default="python", comment="Programming language selected for coding challenge")
     
     # Scoring
     overall_score = Column(Float, nullable=True)
@@ -48,4 +49,4 @@ class InterviewSession(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    application = relationship("Application", backref="interview_session")
+    application = relationship("Application", backref=backref("interview_session", uselist=False))

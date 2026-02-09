@@ -146,3 +146,31 @@ async def get_application(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
     return application
+
+@router.post("/{application_id}/hire", response_model=ApplicationResponse)
+async def hire_application(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Hire a candidate and send offer letter."""
+    app_service = ApplicationService(db)
+    try:
+        application = await app_service.hire_candidate(application_id)
+        return application
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.post("/{application_id}/reject", response_model=ApplicationResponse)
+async def reject_application_route(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Reject an application."""
+    app_service = ApplicationService(db)
+    try:
+        application = await app_service.reject_application(application_id)
+        return application
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

@@ -110,7 +110,7 @@ export const interviewsApi = {
     /**
      * Submit coding challenge
      */
-    submitCoding: async (token: string, code: string): Promise<{ message: string }> => {
-        return apiClient.post<{ message: string }>(`/interviews/${token}/submit-coding`, { code });
+    submitCoding: async (token: string, code: string, language: string = "python"): Promise<{ message: string }> => {
+        return apiClient.post<{ message: string }>(`/interviews/${token}/submit-coding`, { code, language });
     },
 };

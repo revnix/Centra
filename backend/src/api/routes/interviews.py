@@ -11,7 +11,8 @@ from src.flow.interview.graph import build_interview_workflow, build_analyzer_wo
 from langchain_core.messages import HumanMessage, AIMessage
 from src.api.models.interview import InterviewStatus
 from src.flow.model.llm_manager import get_llm
-from src.flow.interview.prompts import CODING_CHALLENGE_PROMPT
+from src.flow.interview.prompts import CODING_CHALLENGE_PROMPT, EVALUATION_PROMPT
+import json
 
 router = APIRouter()
 
@@ -20,6 +21,7 @@ class ChatRequest(BaseModel):
 
 class SubmitCodingRequest(BaseModel):
     code: str
+    language: Optional[str] = "python"
 
 class CreateInterviewRequest(BaseModel):
     application_id: int
@@ -69,6 +71,9 @@ async def chat_interaction(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    if session.status == InterviewStatus.COMPLETED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview already completed.")
+
     # 2. Append User Message to transcript locally
     user_msg = chat_req.message
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -86,7 +91,13 @@ async def chat_interaction(
         session.status = InterviewStatus.IN_PROGRESS
         session.started_at = datetime.now(timezone.utc)
 
-    # 3. Prepare LangGraph state from the updated transcript
+    # 3. COMMIT BEFORE SLOW AI CALL
+    # This ensures user message is saved and transaction is closed during AI wait
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+
+    # 4. Prepare LangGraph state from the updated transcript
     messages = []
     for m in session.transcript:
         if m["role"] == "candidate":
@@ -108,11 +119,11 @@ async def chat_interaction(
         "experience": candidate_profile.experience_years if candidate_profile else 0,
     })
 
-    # 4. Run LangGraph Workflow
+    # 5. Run LangGraph Workflow
     workflow = build_analyzer_workflow()
     result = await workflow.ainvoke(initial_state)
     
-    # 5. Extract AI Response and Update Session
+    # 6. Extract AI Response and Update Session
     ai_response_msg = result["messages"][-1]
     ai_response = ai_response_msg.content
     
@@ -125,7 +136,7 @@ async def chat_interaction(
     })
     session.transcript = current_transcript
     
-    # 6. Save Internal State and Persist Everything
+    # 7. Save Internal State and Persist Everything
     # Filter out non-serializable objects (like messages) from the result state
     serializable_state = {k: v for k, v in result.items() if k not in ["messages"]}
     session.state = serializable_state
@@ -150,14 +161,22 @@ async def start_interview(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    if session.status == InterviewStatus.COMPLETED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview already completed.")
+
     if session.transcript:
         return {"reply": session.transcript[-1]["content"], "transcript": session.transcript}
 
     # 1. Update status
     session.status = InterviewStatus.IN_PROGRESS
     session.started_at = datetime.now(timezone.utc)
+    
+    # 2. COMMIT BEFORE SLOW AI CALL
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
 
-    # 2. Prepare initial state
+    # 3. Prepare initial state
     candidate = session.application.candidate
     candidate_profile = getattr(candidate, 'candidate_profile', None)
     
@@ -171,11 +190,11 @@ async def start_interview(
         "experience": candidate_profile.experience_years if candidate_profile else 0,
     }
 
-    # 3. Run Initialization + Interviewer Workflow
+    # 4. Run Initialization + Interviewer Workflow
     workflow = build_interview_workflow()
     result = await workflow.ainvoke(initial_state)
     
-    # 4. Extract AI Response and Update Transcript
+    # 5. Extract AI Response and Update Transcript
     ai_response_msg = result["messages"][-1]
     ai_response = ai_response_msg.content
     
@@ -187,7 +206,7 @@ async def start_interview(
     })
     session.transcript = current_transcript
     
-    # 5. Save Internal State and Persist
+    # 6. Save Internal State and Persist
     serializable_state = {k: v for k, v in result.items() if k not in ["messages"]}
     session.state = serializable_state
     
@@ -203,11 +222,18 @@ async def get_coding_question(token: str, db: AsyncSession = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
         
+    if session.status == InterviewStatus.COMPLETED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview already completed.")
+        
     # Check if question exists in state
     current_state = dict(session.state) if session.state else {}
     if "coding_question" in current_state:
         return {"question": current_state["coding_question"]}
         
+    # Release connection during generation
+    await db.commit()
+    await db.refresh(session)
+    
     # Generate question
     llm = get_llm()
     # Skills might be list or string in state depending on how it was saved
@@ -242,12 +268,67 @@ async def submit_coding_challenge(
     session = await service.get_session_by_token(token)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    
+    if session.status == InterviewStatus.COMPLETED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview already completed.")
         
     session.code_submission = req.code
-    session.status = InterviewStatus.SUBMITTED
+    session.programming_language = req.language
+    session.status = InterviewStatus.COMPLETED
     session.completed_at = datetime.now(timezone.utc)
     
+    # Commit submission immediately before long evaluation
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    
+    # 1. Trigger AI Evaluation
+    try:
+        llm = get_llm()
+        transcript_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in session.transcript])
+        coding_question = session.state.get("coding_question", "N/A") if session.state else "N/A"
+        
+        eval_prompt = EVALUATION_PROMPT.format(
+            transcript=transcript_text,
+            coding_question=coding_question,
+            code_submission=req.code
+        )
+        
+        response = await llm.ainvoke([HumanMessage(content=eval_prompt)])
+        
+        try:
+            # Clean possible markdown wrap from AI response
+            raw_content = response.content.strip()
+            if raw_content.startswith("```json"):
+                raw_content = raw_content[7:]
+                if raw_content.endswith("```"):
+                   raw_content = raw_content[:-3]
+            elif raw_content.startswith("```"):
+                raw_content = raw_content[3:]
+                if raw_content.endswith("```"):
+                   raw_content = raw_content[:-3]
+            
+            evaluation = json.loads(raw_content.strip())
+            
+            session.overall_score = float(evaluation.get("overall_score", 0))
+            session.technical_score = float(evaluation.get("technical_score", 0))
+            session.communication_score = float(evaluation.get("communication_score", 0))
+            session.feedback = evaluation.get("feedback", "")
+            
+            # Sync to application
+            if session.application:
+                from src.api.models.application import ApplicationStatus
+                session.application.match_score = session.overall_score
+                session.application.status = ApplicationStatus.INTERVIEW_COMPLETED
+                db.add(session.application)
+                
+        except Exception as e:
+            print(f"Error parsing AI evaluation: {e}")
+            
+    except Exception as e:
+        print(f"Error during AI evaluation: {e}")
+
     db.add(session)
     await db.commit()
     
-    return {"message": "Submission received"}
+    return {"message": "Submission received and evaluated", "score": session.overall_score}

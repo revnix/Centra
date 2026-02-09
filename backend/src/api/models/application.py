@@ -12,6 +12,7 @@ class ApplicationStatus(str, enum.Enum):
     INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
     OFFER = "OFFER"
     REJECTED = "REJECTED"
+    HIRED = "HIRED"
     WITHDRAWN = "WITHDRAWN"
 
 class Application(Base):

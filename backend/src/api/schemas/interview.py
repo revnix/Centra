@@ -13,6 +13,11 @@ class InterviewSessionResponse(InterviewSessionBase):
     token: str
     state: Optional[dict] = {}
     overall_score: Optional[float] = None
+    technical_score: Optional[float] = None
+    communication_score: Optional[float] = None
+    feedback: Optional[str] = None
+    code_submission: Optional[str] = None
+    programming_language: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     
