@@ -22,6 +22,15 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
             status_code=400,
             detail="The user with this email already exists in the system.",
         )
+        
+    if user_in.username:
+        existing_username = await auth_service.get_user_by_username(user_in.username)
+        if existing_username:
+            raise HTTPException(
+                status_code=400,
+                detail="This username is already taken.",
+            )
+            
     user = await auth_service.create_user(user_in)
     
     # Generate token for immediate login after registration

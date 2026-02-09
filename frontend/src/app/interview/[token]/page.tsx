@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Loader2, Bot, User, Clock, CheckCircle2, ArrowRight, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { Send, Loader2, Bot, User, Clock, CheckCircle2, ArrowRight, Mic, MicOff, Volume2, VolumeX, Monitor } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
@@ -63,6 +63,19 @@ export default function InterviewPage() {
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const recognitionRef = useRef<any>(null);
     const lastSpokenMessageIndex = useRef<number>(-1);
+    const screenStreamRef = useRef<MediaStream | null>(null);
+
+    // Global cleanup for speech synthesis
+    useEffect(() => {
+        return () => {
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            if (screenStreamRef.current) {
+                screenStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, []);
 
     // Timer effect with localStorage persistence
     useEffect(() => {
@@ -89,7 +102,9 @@ export default function InterviewPage() {
                 toast.info("Interview time has ended");
                 setIsCompleted(true);
                 stopListening();
-                window.speechSynthesis.cancel();
+                if (typeof window !== 'undefined' && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
             }
         };
 
@@ -143,7 +158,12 @@ export default function InterviewPage() {
 
     // Speech Synthesis Effect
     useEffect(() => {
-        if (!voiceEnabled || messages.length === 0) return;
+        if (!voiceEnabled || messages.length === 0 || isCompleted || timeLeft <= 0) {
+            if (isCompleted || timeLeft <= 0) {
+                window.speechSynthesis.cancel();
+            }
+            return;
+        }
 
         const lastMessage = messages[messages.length - 1];
         const lastIndex = messages.length - 1;
@@ -152,10 +172,10 @@ export default function InterviewPage() {
             speak(lastMessage.content);
             lastSpokenMessageIndex.current = lastIndex;
         }
-    }, [messages, voiceEnabled]);
+    }, [messages, voiceEnabled, isCompleted, timeLeft]);
 
     const speak = (text: string) => {
-        if (!window.speechSynthesis) return;
+        if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
 
         window.speechSynthesis.cancel(); // Stop any current speech
 
@@ -271,6 +291,32 @@ export default function InterviewPage() {
     };
 
     const handleStartInterview = async () => {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+
+        // Screen sharing requirement
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                if (screenStreamRef.current) {
+                    screenStreamRef.current.getTracks().forEach(t => t.stop());
+                }
+                screenStreamRef.current = stream;
+
+                stream.getVideoTracks()[0].onended = () => {
+                    toast.warning("Screen sharing stopped. It is required for the interview.");
+                };
+            } else {
+                toast.error("Screen sharing is not supported by your browser.");
+                return;
+            }
+        } catch (err) {
+            console.error("Screen share error:", err);
+            toast.error("Screen sharing is required to proceed with the interview.");
+            return;
+        }
+
         setIsLoading(true);
         try {
             // Start the timer
@@ -325,7 +371,7 @@ export default function InterviewPage() {
             // Speak the rules
             if (window.speechSynthesis) {
                 window.speechSynthesis.cancel();
-                const text = "Welcome to your interview. Before we begin, please note the following rules: First, no cheating is allowed. Second, the use of external AI tools is strictly prohibited. If you understand, click the start button that appears shortly.";
+                const text = "Welcome to your interview. Before we begin, please note the following rules: First, no cheating is allowed. Second, the use of external AI tools is strictly prohibited. Third, screen sharing is mandatory for the entire session. If you understand, click the start button that appears shortly.";
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.rate = 1.0;
                 utterance.onstart = () => setIsSpeaking(true);
@@ -373,8 +419,9 @@ export default function InterviewPage() {
                                         {[
                                             { id: 1, text: "The recording of your AI interview will be saved and reviewed by hiring managers." },
                                             { id: 2, text: "Please remain on this tab and avoid using external tools during the session." },
-                                            { id: 3, text: "Feel free to ask clarifying questions out loud at any time." },
-                                            { id: 4, text: "A long pause will indicate to Evalyn that you've finished your answer." }
+                                            { id: 3, text: "Screen sharing must be active throughout the session for security." },
+                                            { id: 4, text: "Feel free to ask clarifying questions out loud at any time." },
+                                            { id: 5, text: "A long pause will indicate to Evalyn that you've finished your answer." }
                                         ].map((item) => (
                                             <li key={item.id} className="flex gap-4">
                                                 <span className="text-slate-300 font-bold tabular-nums pt-0.5">{item.id}.</span>
@@ -625,7 +672,12 @@ export default function InterviewPage() {
                             <Button
                                 size="lg"
                                 className="rounded-2xl px-10 h-14 bg-indigo-600 hover:bg-indigo-700 text-lg shadow-xl"
-                                onClick={() => router.push(`/interview/${token}/coding`)}
+                                onClick={() => {
+                                    if (typeof window !== 'undefined' && window.speechSynthesis) {
+                                        window.speechSynthesis.cancel();
+                                    }
+                                    router.push(`/interview/${token}/coding`);
+                                }}
                             >
                                 Start Coding Challenge
                             </Button>

@@ -28,7 +28,16 @@ class AuthService:
 
     async def create_user(self, user_in: UserCreate) -> User:
         hashed_password = get_password_hash(user_in.password)
-        username = user_in.username or user_in.email.split("@")[0]
+        
+        base_username = user_in.username or user_in.email.split("@")[0]
+        username = base_username
+        counter = 1
+        
+        # Check for username collision and handle it
+        while await self.get_user_by_username(username):
+            username = f"{base_username}{counter}"
+            counter += 1
+
         db_user = User(
             email=user_in.email,
             username=username,
@@ -37,7 +46,12 @@ class AuthService:
             role=user_in.role
         )
         self.db.add(db_user)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+            
         # Explicitly reload without triggering lazy loads of relationships
         await self.db.refresh(db_user)
         return db_user

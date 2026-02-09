@@ -16,6 +16,13 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
     const { token } = use(params);
     const router = useRouter();
 
+    // Cleanup any leftover audio from previous phase
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+    }, []);
+
     // State
     const [question, setQuestion] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
