@@ -20,6 +20,7 @@ interface Message {
 // Speech Recognition Types
 interface SpeechRecognitionEvent extends Event {
     results: SpeechRecognitionResultList;
+    resultIndex: number;
 }
 
 interface SpeechRecognition extends EventTarget {
@@ -65,9 +66,28 @@ export default function InterviewPage() {
     const recognitionRef = useRef<any>(null);
     const lastSpokenMessageIndex = useRef<number>(-1);
     const screenStreamRef = useRef<MediaStream | null>(null);
+    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const isAiSpeakingRef = useRef(false);
+    const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+    const SILENCE_THRESHOLD = 3000; // 3 seconds of silence to confirm end of speech
 
-    // Global cleanup for speech synthesis
+    // Global cleanup and Tab-switching detection
     useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isCompleted && timeLeft > 0) {
+                toast.error("Warning: Tab switching is not allowed during the interview. This event has been logged.", {
+                    duration: 5000,
+                    style: { backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #f87171' }
+                });
+                console.warn("User switched tab at:", new Date().toISOString());
+                // In a real scenario, we would send this to the backend to log the violation
+            }
+        };
+
+        if (typeof document !== 'undefined') {
+            document.addEventListener("visibilitychange", handleVisibilityChange);
+        }
+
         return () => {
             if (typeof window !== 'undefined' && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
@@ -75,8 +95,11 @@ export default function InterviewPage() {
             if (screenStreamRef.current) {
                 screenStreamRef.current.getTracks().forEach(track => track.stop());
             }
+            if (typeof document !== 'undefined') {
+                document.removeEventListener("visibilitychange", handleVisibilityChange);
+            }
         };
-    }, []);
+    }, [isCompleted, timeLeft]);
 
     // Timer effect with localStorage persistence
     useEffect(() => {
@@ -129,33 +152,70 @@ export default function InterviewPage() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
+            recognition.continuous = true;
+            recognition.interimResults = true;
             recognition.lang = 'en-US';
 
+            let finalTranscript = '';
+
             recognition.onresult = (event: SpeechRecognitionEvent) => {
-                const transcript = event.results[0][0].transcript;
-                setInput(transcript);
-                setIsListening(false);
-                // Auto-send voice input
-                handleSend(transcript);
+                if (isAiSpeakingRef.current) return;
+
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const currentText = (finalTranscript + interimTranscript).trim();
+                if (currentText) {
+                    setInput(currentText);
+
+                    // Clear existing silence timer
+                    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+                    // Set new silence timer
+                    silenceTimerRef.current = setTimeout(() => {
+                        if (currentText.length > 5 && !isAiSpeakingRef.current) {
+                            handleSend(currentText);
+                            finalTranscript = ''; // Reset for next turn
+                        }
+                    }, SILENCE_THRESHOLD);
+                }
             };
 
             recognition.onerror = (event: any) => {
+                if (event.error === 'aborted') {
+                    // System-triggered abort, safe to ignore
+                    return;
+                }
                 console.error("Speech recognition error", event.error);
-                setIsListening(false);
-                if (event.error !== 'no-speech') {
-                    toast.error("Speech recognition failed. Please try typing.");
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    setIsListening(false);
                 }
             };
 
             recognition.onend = () => {
-                setIsListening(false);
+                // Only restart if we should be listening and AI is NOT talking
+                if (isListening && !isAiSpeakingRef.current && !isCompleted && timeLeft > 0) {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.error("Failed to restart recognition", e);
+                    }
+                }
             };
 
             recognitionRef.current = recognition;
         }
-    }, []);
+
+        return () => {
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        };
+    }, [isListening, isCompleted, timeLeft]);
 
     // Speech Synthesis Effect
     useEffect(() => {
@@ -178,16 +238,97 @@ export default function InterviewPage() {
     const speak = (text: string) => {
         if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
 
-        window.speechSynthesis.cancel(); // Stop any current speech
+        console.log("Evalyn speaking:", text);
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
+        // 1. Force stop recognition immediately and lock the state
+        isAiSpeakingRef.current = true;
+        setIsSpeaking(true);
+        if (recognitionRef.current) {
+            try {
+                recognitionRef.current.stop();
+            } catch (e) { }
+        }
 
-        window.speechSynthesis.speak(utterance);
+        // 2. Clear any pending timers
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+        // 3. Reset Speech Engine
+        window.speechSynthesis.cancel();
+
+        // 4. Granular Chunking (Sentences and Commas for better stability)
+        const chunks = text.split(/([.!?]+\s|,\s)/g).filter(c => c.trim().length > 0);
+
+        // Re-assemble if chunks are too small
+        const processedChunks: string[] = [];
+        let currentCombined = "";
+        for (const chunk of chunks) {
+            if ((currentCombined + chunk).length < 100) {
+                currentCombined += chunk;
+            } else {
+                if (currentCombined) processedChunks.push(currentCombined);
+                currentCombined = chunk;
+            }
+        }
+        if (currentCombined) processedChunks.push(currentCombined);
+
+        let chunkIndex = 0;
+
+        const speakNext = () => {
+            if (chunkIndex >= processedChunks.length || isCompleted || timeLeft <= 0) {
+                // Done speaking
+                isAiSpeakingRef.current = false;
+                setIsSpeaking(false);
+
+                // Transition back to listening after a natural pause
+                setTimeout(() => {
+                    if (voiceEnabled && !isCompleted && !isAiSpeakingRef.current) {
+                        startListening();
+                    }
+                }, 1500);
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(processedChunks[chunkIndex].trim());
+            utterance.rate = 1.05;
+            utterance.pitch = 1.0;
+            utterance.lang = 'en-US';
+
+            // CRITICAL: Keep reference to prevent garbage collection
+            currentUtteranceRef.current = utterance;
+
+            utterance.onend = () => {
+                if (currentUtteranceRef.current === utterance) {
+                    chunkIndex++;
+                    // Small delay between chunks for more natural cadence
+                    setTimeout(speakNext, 100);
+                }
+            };
+
+            utterance.onerror = (event: any) => {
+                if (event.error === 'interrupted' || event.error === 'canceled') return;
+                console.error("Speech error at chunk", chunkIndex, event.error);
+
+                // If it's a real error, move to next chunk anyway to try to recover
+                if (currentUtteranceRef.current === utterance) {
+                    chunkIndex++;
+                    setTimeout(speakNext, 100);
+                }
+            };
+
+            window.speechSynthesis.speak(utterance);
+
+            // Fix for Chrome getting stuck: pulsing resume
+            const resumeInterval = setInterval(() => {
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.resume();
+                } else {
+                    clearInterval(resumeInterval);
+                }
+            }, 5000);
+        };
+
+        // Start with a small buffer after cancellation
+        setTimeout(speakNext, 200);
     };
 
     const toggleListening = () => {
@@ -296,6 +437,53 @@ export default function InterviewPage() {
         }
     };
 
+    const handleStartScreenShare = async () => {
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                screenStreamRef.current = stream;
+                setIsSharingScreen(true);
+
+                stream.getVideoTracks()[0].onended = () => {
+                    setIsSharingScreen(false);
+                    toast.warning("Screen sharing stopped. It is required for the interview.");
+                    setLandingStep('screen-share');
+                };
+
+                setLandingStep('welcome');
+                toast.success("Screen sharing enabled");
+            } else {
+                toast.error("Screen sharing is not supported by your browser.");
+            }
+        } catch (err) {
+            console.error("Screen share error:", err);
+            toast.error("Screen sharing is required to proceed with the interview.");
+        }
+    };
+
+    const handleStartRulesBriefing = () => {
+        setLandingStep('rules');
+        // Speak the rules
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+            const text = "Welcome to your interview. Before we begin, please note the following professional guidelines: First, use of any AI tools is strictly not allowed. Second, tab switching is not allowed. Third, screen sharing is mandatory throughout the interview. Finally, please be aware that the interview may be monitored and reviewed. If you understand, click the start button to begin.";
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => {
+                setIsSpeaking(false);
+                setLandingStep('ready');
+            };
+            utterance.onerror = () => {
+                setIsSpeaking(false);
+                setLandingStep('ready');
+            };
+            window.speechSynthesis.speak(utterance);
+        } else {
+            setLandingStep('ready');
+        }
+    };
+
     const handleStartInterview = async () => {
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
@@ -373,30 +561,6 @@ export default function InterviewPage() {
 
     // New Session Landing
     if (session.status === 'PENDING' && messages.length === 0) {
-
-        const handleStartRulesBriefing = () => {
-            setLandingStep('rules');
-            // Speak the rules
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-                const text = "Welcome to your interview. Before we begin, please note the following rules: First, no cheating is allowed. Second, the use of external AI tools is strictly prohibited. Third, screen sharing is mandatory for the entire session. If you understand, click the start button that appears shortly.";
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 1.0;
-                utterance.onstart = () => setIsSpeaking(true);
-                utterance.onend = () => {
-                    setIsSpeaking(false);
-                    setLandingStep('ready');
-                };
-                utterance.onerror = () => {
-                    setIsSpeaking(false);
-                    setLandingStep('ready');
-                };
-                window.speechSynthesis.speak(utterance);
-            } else {
-                setLandingStep('ready');
-            }
-        };
-
         return (
             <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 overflow-hidden font-sans">
                 {/* Branding */}
@@ -454,11 +618,11 @@ export default function InterviewPage() {
 
                                     <ul className="space-y-6">
                                         {[
-                                            { id: 1, text: "The recording of your AI interview will be saved and reviewed by hiring managers." },
-                                            { id: 2, text: "Please remain on this tab and avoid using external tools during the session." },
-                                            { id: 3, text: "Screen sharing must be active throughout the session for security." },
-                                            { id: 4, text: "Feel free to ask clarifying questions out loud at any time." },
-                                            { id: 5, text: "A long pause will indicate to Evalyn that you've finished your answer." }
+                                            { id: 1, text: "Use of any AI tools is strictly not allowed." },
+                                            { id: 2, text: "Tab switching is not allowed." },
+                                            { id: 3, text: "Screen sharing is mandatory throughout the interview." },
+                                            { id: 4, text: "The interview may be monitored and reviewed." },
+                                            { id: 5, text: "Wait for the AI agent to finish speaking before responding." }
                                         ].map((item) => (
                                             <li key={item.id} className="flex gap-4">
                                                 <span className="text-slate-300 font-bold tabular-nums pt-0.5">{item.id}.</span>

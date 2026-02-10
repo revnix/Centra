@@ -60,6 +60,7 @@ async def interviewer_node(state: InterviewState):
 
     system_prompt = INTERVIEWER_SYSTEM_PROMPT.format(
         candidate_name=state.get("candidate_name", "Candidate"),
+        bio=state.get("bio", "N/A"),
         top_skills=", ".join(top_skills),
         stage=stage,
         current_skill=current_skill,

@@ -13,6 +13,7 @@ class InterviewState(TypedDict, total=False):
     
     # Candidate details (extracted from resume/profile)
     candidate_name: str
+    bio: str
     top_skills: List[str]
     
     # Conversation history
