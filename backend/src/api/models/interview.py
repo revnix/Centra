@@ -46,6 +46,7 @@ class InterviewSession(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
+    recording_path = Column(String, nullable=True, comment="Path to stored screen recording video")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships

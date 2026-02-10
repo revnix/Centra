@@ -12,9 +12,46 @@ from langchain_core.messages import HumanMessage, AIMessage
 from src.api.models.interview import InterviewStatus
 from src.flow.model.llm_manager import get_llm
 from src.flow.interview.prompts import CODING_CHALLENGE_PROMPT, EVALUATION_PROMPT
+from src.api.core.config import settings
 import json
+import os
+import shutil
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 
 router = APIRouter()
+
+@router.post("/{token}/upload-recording")
+async def upload_recording(
+    token: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload screen recording for an interview session."""
+    service = InterviewService(db)
+    session = await service.get_session_by_token(token)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Create directory if it doesn't exist
+    recordings_dir = os.path.join(settings.UPLOAD_DIR, "recordings")
+    os.makedirs(recordings_dir, exist_ok=True)
+
+    # Save file
+    file_extension = os.path.splitext(file.filename)[1] if file.filename else ".webm"
+    filename = f"recording_{token}{file_extension}"
+    file_path = os.path.join(recordings_dir, filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Update database
+    # Store relative path for flexibility
+    relative_path = os.path.join("uploads", "recordings", filename).replace("\\", "/")
+    session.recording_path = relative_path
+    db.add(session)
+    await db.commit()
+
+    return {"message": "Recording uploaded successfully", "path": relative_path}
 
 class ChatRequest(BaseModel):
     message: str

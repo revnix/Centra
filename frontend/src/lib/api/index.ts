@@ -30,6 +30,7 @@ export const api = {
         sendMessage: (token: string, message: string) => interviewsApi.sendMessage(token, message),
         create: (applicationId: number) => interviewsApi.create(applicationId),
         startInterview: (token: string) => interviewsApi.startInterview(token),
+        uploadRecording: (token: string, formData: FormData) => interviewsApi.uploadRecording(token, formData),
     },
     applications: {
         guestApply: (data: any) => applicationsApi.guestApply(data),

@@ -20,6 +20,7 @@ class InterviewSessionResponse(InterviewSessionBase):
     programming_language: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    recording_path: Optional[str] = None
     
     class Config:
         from_attributes = True

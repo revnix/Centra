@@ -113,4 +113,11 @@ export const interviewsApi = {
     submitCoding: async (token: string, code: string, language: string = "python"): Promise<{ message: string }> => {
         return apiClient.post<{ message: string }>(`/interviews/${token}/submit-coding`, { code, language });
     },
+
+    /**
+     * Upload screen recording
+     */
+    uploadRecording: async (token: string, formData: FormData): Promise<any> => {
+        return apiClient.post<any>(`/interviews/${token}/upload-recording`, formData);
+    },
 };

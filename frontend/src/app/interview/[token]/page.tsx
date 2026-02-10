@@ -65,6 +65,8 @@ export default function InterviewPage() {
     const recognitionRef = useRef<any>(null);
     const lastSpokenMessageIndex = useRef<number>(-1);
     const screenStreamRef = useRef<MediaStream | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
 
     // Global cleanup for speech synthesis
     useEffect(() => {
@@ -103,6 +105,7 @@ export default function InterviewPage() {
                 toast.info("Interview time has ended");
                 setIsCompleted(true);
                 stopListening();
+                stopRecording();
                 if (typeof window !== 'undefined' && window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
@@ -188,6 +191,51 @@ export default function InterviewPage() {
         utterance.onerror = () => setIsSpeaking(false);
 
         window.speechSynthesis.speak(utterance);
+    };
+
+    const startRecording = (stream: MediaStream) => {
+        if (!stream) return;
+
+        // Use a supported mimeType
+        const mimeType = 'video/webm;codecs=vp8,opus';
+        const options = MediaRecorder.isTypeSupported(mimeType) ? { mimeType } : {};
+
+        try {
+            const recorder = new MediaRecorder(stream, options);
+            mediaRecorderRef.current = recorder;
+            recordedChunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunksRef.current.push(e.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                if (blob.size > 0) {
+                    const formData = new FormData();
+                    formData.append('file', blob, 'recording.webm');
+                    try {
+                        await api.interviews.uploadRecording(token, formData);
+                        console.log("Screen recording uploaded successfully");
+                    } catch (error) {
+                        console.error("Failed to upload recording", error);
+                    }
+                }
+            };
+
+            recorder.start(1000); // Collect data every 1 second
+            console.log("Screen recording started");
+        } catch (err) {
+            console.error("MediaRecorder error:", err);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
     };
 
     const toggleListening = () => {
@@ -282,6 +330,7 @@ export default function InterviewPage() {
 
             if (res.status === "CODING" || res.status === "COMPLETED") {
                 setIsCompleted(true);
+                stopRecording();
                 if (timerRef.current) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
@@ -296,6 +345,31 @@ export default function InterviewPage() {
         }
     };
 
+    const handleStartScreenShare = async () => {
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                screenStreamRef.current = stream;
+                setIsSharingScreen(true);
+                startRecording(stream);
+
+                stream.getVideoTracks()[0].onended = () => {
+                    toast.warning("Screen sharing stopped. It is required for the interview.");
+                    setIsSharingScreen(false);
+                    setLandingStep('screen-share');
+                };
+
+                setLandingStep('welcome');
+                toast.success("Screen sharing started successfully");
+            } else {
+                toast.error("Screen sharing is not supported by your browser.");
+            }
+        } catch (err) {
+            console.error("Screen share error:", err);
+            toast.error("Screen sharing is required to proceed with the interview.");
+        }
+    };
+
     const handleStartInterview = async () => {
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
@@ -307,9 +381,12 @@ export default function InterviewPage() {
                 if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
                     const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                     screenStreamRef.current = stream;
+                    setIsSharingScreen(true);
+                    startRecording(stream);
 
                     stream.getVideoTracks()[0].onended = () => {
                         toast.warning("Screen sharing stopped. It is required for the interview.");
+                        setIsSharingScreen(false);
                         setLandingStep('screen-share');
                     };
                 } else {
@@ -585,6 +662,7 @@ export default function InterviewPage() {
                                         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                                         screenStreamRef.current = stream;
                                         setIsSharingScreen(true);
+                                        startRecording(stream);
                                         stream.getVideoTracks()[0].onended = () => {
                                             setIsSharingScreen(false);
                                             toast.error("Screen sharing stopped. It is mandatory for this interview.");
