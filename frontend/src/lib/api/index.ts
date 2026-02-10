@@ -38,5 +38,7 @@ export const api = {
         get: (id: string) => applicationsApi.get(id),
         hire: (id: string) => applicationsApi.hire(id),
         reject: (id: string) => applicationsApi.reject(id),
+        shortlist: (id: string) => applicationsApi.shortlist(id),
+        analyze: (id: string) => applicationsApi.analyze(id),
     },
 };

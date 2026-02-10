@@ -95,3 +95,56 @@ The Hiring Team
         except Exception as e:
             logger.error(f"Failed to send offer letter: {str(e)}")
             return False
+    @staticmethod
+    def send_interview_invitation(candidate_email: str, candidate_name: str, job_title: str, interview_link: str, expiry_hours: int = 72):
+        """
+        Sends an interview invitation email with a unique link and deadline.
+        """
+        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+            logger.error("SMTP credentials not configured. Cannot send interview invitation.")
+            return False
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.EMAILS_FROM_EMAIL
+            msg['To'] = candidate_email
+            msg['Subject'] = f"Interview Invitation: {job_title} - Action Required"
+
+            body = f"""
+Hello {candidate_name},
+
+Thank you for your application for the {job_title} position. We are impressed with your profile and would like to invite you to the next stage of our hiring process.
+
+We have set up an automated interview for you. Please complete it at your earliest convenience.
+
+*** IMPORTANT ***
+This interview link is valid for {expiry_hours} hours only.
+
+Your Interview Link:
+{interview_link}
+
+Instructions:
+1. Ensure you have a stable internet connection.
+2. You will need a working microphone and camera.
+3. The interview includes a coding challenge (if applicable).
+4. Screen sharing will be required.
+
+Good luck!
+
+Best regards,
+The Hiring Team
+"""
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
+            server.quit()
+            
+            logger.info(f"Interview invitation sent to {candidate_email}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send interview invitation: {str(e)}")
+            return False

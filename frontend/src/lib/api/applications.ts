@@ -44,7 +44,24 @@ export const applicationsApi = {
     /**
      * Reject an application
      */
+    /**
+     * Reject an application
+     */
     reject: async (id: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/reject`, {});
     },
+
+    /**
+     * Shortlist a candidate (Send Interview Invite)
+     */
+    shortlist: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/shortlist`, {});
+    },
+
+    /**
+     * Trigger AI Analysis manually
+     */
+    analyze: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/analyze`, {});
+    }
 };
