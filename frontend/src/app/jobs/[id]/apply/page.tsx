@@ -30,6 +30,9 @@ const applicationSchema = z.object({
     phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
     resume_file: z.any().refine((file) => file !== undefined, "Resume file is required"),
     linkedin_url: z.string().optional().or(z.literal("")),
+    cover_letter: z.string().optional(),
+    skills: z.string().min(3, "Please list at least a few skills"),
+    experience_years: z.coerce.number().min(0, "Experience years cannot be negative"),
 });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
@@ -51,6 +54,9 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             phone_number: "",
             resume_file: undefined,
             linkedin_url: "",
+            cover_letter: "",
+            skills: "",
+            experience_years: 0,
         },
     });
 
@@ -62,6 +68,9 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('full_name', data.full_name);
             formData.append('email', data.email);
             formData.append('phone_number', data.phone_number);
+            if (data.cover_letter) {
+                formData.append('cover_letter', data.cover_letter);
+            }
             if (data.linkedin_url) {
                 let url = data.linkedin_url;
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -72,8 +81,8 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             if (resumeFile) {
                 formData.append('resume_file', resumeFile);
             }
-            formData.append('skills', JSON.stringify([]));
-            formData.append('experience_years', '0');
+            formData.append('skills', JSON.stringify(data.skills.split(',').map(s => s.trim())));
+            formData.append('experience_years', data.experience_years.toString());
 
             const response = await api.applications.guestApply(formData);
 
@@ -133,17 +142,32 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
-                            <p className="text-sm text-slate-600 dark:text-slate-400">
-                                Your application has been processed. To proceed with your candidacy, you are required to complete an AI-led interview.
-                            </p>
+                            {interviewToken ? (
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    You have been shortlisted! Please proceed to the AI interview.
+                                </p>
+                            ) : (
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Your application is currently <strong>Under Review</strong>.
+                                    We will evaluate your profile and contact you via email if you are shortlisted for the next round.
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex flex-col gap-3">
-                            <Link href={`/interview/${interviewToken}`} className="w-full">
-                                <Button size="lg" className="w-full h-14 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 dark:shadow-none font-bold gap-2">
-                                    Start Interview <ArrowLeft className="h-5 w-5 rotate-180" />
-                                </Button>
-                            </Link>
+                            {interviewToken ? (
+                                <Link href={`/interview/${interviewToken}`} className="w-full">
+                                    <Button size="lg" className="w-full h-14 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 dark:shadow-none font-bold gap-2">
+                                        Start Interview <ArrowLeft className="h-5 w-5 rotate-180" />
+                                    </Button>
+                                </Link>
+                            ) : (
+                                <Link href="/portal/status" className="w-full">
+                                    <Button size="lg" variant="outline" className="w-full h-14 text-lg font-medium">
+                                        Check Application Status
+                                    </Button>
+                                </Link>
+                            )}
 
                             <Link href={`/jobs/${id}`} className="w-full">
                                 <Button variant="ghost" className="w-full">Return to Job Posting</Button>
@@ -226,6 +250,56 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                                         )}
                                     />
                                 </div>
+
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="skills"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Key Skills *</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="React, Node.js, TypeScript" {...field} />
+                                                </FormControl>
+                                                <FormDescription>Separate skills with commas</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="experience_years"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Years of Experience *</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" min="0" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="cover_letter"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Cover Letter (Optional)</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Tell us why you're a great fit for this role..."
+                                                    className="min-h-[120px]"
+                                                    rows={5}
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
                                 <FormField
                                     control={form.control}

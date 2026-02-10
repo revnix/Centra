@@ -17,23 +17,37 @@ class InterviewService:
         alphabet = string.ascii_letters + string.digits
         return ''.join(secrets.choice(alphabet) for _ in range(length))
 
-    async def create_session(self, application_id: int) -> InterviewSession:
+    async def create_session(self, application_id: int, expiry_hours: int = 72) -> InterviewSession:
         """Create or return existing interview session for an application."""
         # Check existing
         result = await self.db.execute(
             select(InterviewSession).where(InterviewSession.application_id == application_id)
         )
         existing = result.scalars().first()
+        
+        from datetime import timedelta
+        new_expiry = datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
+
         if existing:
+            # Refresh expiry if re-shortlisting
+            existing.expires_at = new_expiry
+            if existing.status == InterviewStatus.EXPIRED:
+                 existing.status = InterviewStatus.PENDING
+            
+            self.db.add(existing)
+            await self.db.commit()
+            await self.db.refresh(existing)
             return existing
 
         token = self._generate_token()
+        
         session = InterviewSession(
             application_id=application_id,
             token=token,
             status=InterviewStatus.PENDING,
             transcript=[],
-            overall_score=0.0
+            overall_score=0.0,
+            expires_at=new_expiry
         )
         self.db.add(session)
         await self.db.commit()

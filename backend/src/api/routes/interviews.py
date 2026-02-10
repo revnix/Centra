@@ -83,6 +83,17 @@ async def get_interview_session(
     session = await service.get_session_by_token(token)
     if not session:
         raise HTTPException(status_code=404, detail="Interview session not found")
+        
+    # Check Expiry
+    if session.expires_at and session.status == InterviewStatus.PENDING:
+         import datetime
+         # Ensure both are timezone aware
+         now = datetime.datetime.now(session.expires_at.tzinfo)
+         if now > session.expires_at:
+             raise HTTPException(
+                 status_code=status.HTTP_403_FORBIDDEN, 
+                 detail="Your interview link has expired. Please contact HR."
+             )
     
     # If the session is PENDING and there's no transcript, we might want to trigger the first message
     if session.status == InterviewStatus.PENDING and not session.transcript:
@@ -200,6 +211,17 @@ async def start_interview(
 
     if session.status == InterviewStatus.COMPLETED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview already completed.")
+
+    # Check Expiry
+    if session.expires_at and session.status == InterviewStatus.PENDING:
+         # Use datetime from import above or standard lib
+         from datetime import datetime
+         now = datetime.now(session.expires_at.tzinfo)
+         if now > session.expires_at:
+             raise HTTPException(
+                 status_code=status.HTTP_403_FORBIDDEN, 
+                 detail="Your interview link has expired. Please contact HR."
+             )
 
     if session.transcript:
         return {"reply": session.transcript[-1]["content"], "transcript": session.transcript}

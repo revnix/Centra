@@ -111,6 +111,32 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             </Button>
                         </a>
                     )}
+
+                    {app.status === 'SCREENING' && (
+                        <Button
+                            variant="secondary"
+                            className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                            onClick={async () => {
+                                setIsActionLoading(true);
+                                try {
+                                    await api.applications.shortlist(id);
+                                    toast.success("Candidate shortlisted & interview invite sent!");
+                                    const updated = await api.applications.get(id);
+                                    setApp(updated);
+                                } catch (error) {
+                                    toast.error("Failed to shortlist candidate");
+                                    console.error(error);
+                                } finally {
+                                    setIsActionLoading(false);
+                                }
+                            }}
+                            disabled={isActionLoading}
+                        >
+                            <Zap className="w-4 h-4 mr-2" />
+                            {isActionLoading ? 'Sending Invite...' : 'Shortlist & Invite'}
+                        </Button>
+                    )}
+
                     <Button
                         variant="destructive"
                         onClick={handleReject}

@@ -44,7 +44,7 @@ declare global {
 export default function InterviewPage() {
     const params = useParams();
     const token = params.token as string;
-    const { startScreenShare, stream } = useInterview();
+    const { startScreenShare, stopScreenShare, stream } = useInterview();
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -67,9 +67,9 @@ export default function InterviewPage() {
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const recognitionRef = useRef<any>(null);
     const lastSpokenMessageIndex = useRef<number>(-1);
-    const screenStreamRef = useRef<MediaStream | null>(null); // Keep this for local view binding if necessary, or just use context stream directly
+    const screenStreamRef = useRef<MediaStream | null>(null);
 
-    // Global cleanup for speech synthesis
+    // Global cleanup
     useEffect(() => {
         return () => {
             if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -81,17 +81,14 @@ export default function InterviewPage() {
         };
     }, []);
 
-    // Timer effect with localStorage persistence
+    // Timer effect
     useEffect(() => {
         const INTERVIEW_DURATION = 60; // 1 minute in seconds
         const storageKey = `interview_start_${token}`;
 
         const updateTimer = () => {
             const startTime = localStorage.getItem(storageKey);
-            if (!startTime) {
-                // Timer hasn't started yet
-                return;
-            }
+            if (!startTime) return;
 
             const elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
             const remaining = Math.max(0, INTERVIEW_DURATION - elapsed);
@@ -112,12 +109,10 @@ export default function InterviewPage() {
             }
         };
 
-        // If session is already in progress, timer might have started
         updateTimer();
         if (session?.status === 'IN_PROGRESS') {
             timerRef.current = setInterval(updateTimer, 1000);
         }
-
 
         return () => {
             if (timerRef.current) {
@@ -127,7 +122,7 @@ export default function InterviewPage() {
         };
     }, [token, session?.status]);
 
-    // Initialize Speech Recognition
+    // Speech Recognition
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
@@ -140,7 +135,6 @@ export default function InterviewPage() {
                 const transcript = event.results[0][0].transcript;
                 setInput(transcript);
                 setIsListening(false);
-                // Auto-send voice input
                 handleSend(transcript);
             };
 
@@ -152,15 +146,12 @@ export default function InterviewPage() {
                 }
             };
 
-            recognition.onend = () => {
-                setIsListening(false);
-            };
-
+            recognition.onend = () => setIsListening(false);
             recognitionRef.current = recognition;
         }
     }, []);
 
-    // Speech Synthesis Effect
+    // Speech Synthesis
     useEffect(() => {
         if (!voiceEnabled || messages.length === 0 || isCompleted || timeLeft <= 0) {
             if (isCompleted || timeLeft <= 0) {
@@ -180,36 +171,25 @@ export default function InterviewPage() {
 
     const speak = (text: string) => {
         if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
-
-        window.speechSynthesis.cancel(); // Stop any current speech
-
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
         utterance.onstart = () => setIsSpeaking(true);
         utterance.onend = () => setIsSpeaking(false);
         utterance.onerror = () => setIsSpeaking(false);
-
         window.speechSynthesis.speak(utterance);
     };
 
-
-
     const toggleListening = () => {
-        if (isListening) {
-            stopListening();
-        } else {
-            startListening();
-        }
+        if (isListening) stopListening();
+        else startListening();
     };
 
     const startListening = () => {
         if (isCompleted || timeLeft <= 0) return;
-
-        // Stop speech if AI is talking
         window.speechSynthesis.cancel();
         setIsSpeaking(false);
-
         if (recognitionRef.current) {
             try {
                 recognitionRef.current.start();
@@ -242,19 +222,27 @@ export default function InterviewPage() {
 
                 if (data.transcript && data.transcript.length > 0) {
                     setMessages(data.transcript);
-                    // Don't re-speak entire history on reload, only new messages
                     lastSpokenMessageIndex.current = data.transcript.length - 1;
                 }
             } catch (error: any) {
-                toast.error("Failed to load interview session");
-                console.error(error);
+                if (error.response?.status === 403) {
+                    const msg = error.response.data?.detail || "Interview link expired";
+                    toast.error(msg);
+                    setSession({ status: 'EXPIRED', error: msg });
+                } else if (error.response?.status === 404) {
+                    toast.error("Interview not found");
+                    router.push('/portal/status');
+                } else {
+                    toast.error("Failed to load interview session");
+                    console.error(error);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         if (token) fetchSession();
-    }, [token]);
+    }, [token, router]);
 
     useEffect(() => {
         scrollToBottom();
@@ -273,7 +261,6 @@ export default function InterviewPage() {
         setIsSending(true);
         stopListening();
 
-        // Optimistic update
         const newMessage: Message = {
             role: "candidate",
             content: userMsg,
@@ -287,7 +274,9 @@ export default function InterviewPage() {
 
             if (res.status === "CODING" || res.status === "COMPLETED") {
                 setIsCompleted(true);
-                stopRecording();
+                // Call stopScreenShare safely
+                if (stopScreenShare) await stopScreenShare();
+
                 if (timerRef.current) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
@@ -315,30 +304,28 @@ export default function InterviewPage() {
             window.speechSynthesis.cancel();
         }
 
-        // Screen sharing requirement check
         if (!isSharingScreen) {
             const s = await startScreenShare();
-            if (!s) {
-                // If failed or cancelled
-                return;
-            }
+            if (!s) return;
         }
 
         setIsLoading(true);
         try {
-            // Start the timer
             localStorage.setItem(`interview_start_${token}`, Date.now().toString());
-
             const startRes = await api.interviews.startInterview(token);
             setMessages(startRes.transcript);
-
-            // Transition UI
             setLandingStep('in_progress');
             if (session) {
                 setSession({ ...session, status: 'IN_PROGRESS' });
             }
-        } catch (error) {
-            toast.error("Failed to start the interview");
+        } catch (error: any) {
+            if (error.response?.status === 403) {
+                const msg = error.response.data?.detail || "Interview link expired";
+                toast.error(msg);
+                setSession({ status: 'EXPIRED', error: msg });
+            } else {
+                toast.error("Failed to start the interview");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -354,6 +341,29 @@ export default function InterviewPage() {
                     </div>
                 </div>
                 <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 animate-pulse">Initializing Evalyn AI...</p>
+            </div>
+        );
+    }
+
+    if (session?.status === 'EXPIRED') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-[#F0F2FF] dark:bg-slate-950 p-6">
+                <div className="bg-white p-10 rounded-[40px] shadow-2xl border border-red-100 text-center space-y-4 max-w-sm">
+                    <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+                        <Clock className="h-8 w-8 text-red-500" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-slate-900">Link Expired</h1>
+                    <p className="text-slate-500 leading-relaxed">
+                        {session.error || "Your interview link has expired. Please contact HR."}
+                    </p>
+                    <Button
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => router.push('/portal/status')}
+                    >
+                        Return to Portal
+                    </Button>
+                </div>
             </div>
         );
     }
