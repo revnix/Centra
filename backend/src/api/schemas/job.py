@@ -55,10 +55,24 @@ class JobBase(BaseModel):
 class JobCreate(JobBase):
     pass
 
-class JobUpdate(JobBase):
+class JobUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    # Add other optional fields for update as needed
+    short_description: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_type: Optional[JobType] = None
+    experience_level: Optional[ExperienceLevel] = None
+    department: Optional[str] = None
+    salary_min: Optional[int] = None
+    salary_max: Optional[int] = None
+    required_skills: Optional[List[str]] = None
+    preferred_skills: Optional[List[str]] = None
+    benefits: Optional[List[str]] = None
+    application_url: Optional[str] = None
+
+class JobImproveRequest(BaseModel):
+    feedback: str
     
 class JobResponse(JobBase):
     id: int

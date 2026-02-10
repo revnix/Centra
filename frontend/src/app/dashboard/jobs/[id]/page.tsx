@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check } from "lucide-react";
+import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Checkbox } from "@/components/ui/checkbox";
 import { integrationsApi } from "@/lib/api/integrations";
 import { jobsApi } from "@/lib/api/jobs";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 
@@ -29,7 +31,7 @@ interface ConnectedAccount {
 export default function DashboardJobDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
-    const { data: job, isLoading, error } = useJob(id);
+    const { data: job, isLoading, error, refetch: refetchJob } = useJob(id);
     const publishMutation = usePublishJob();
     const closeMutation = useCloseJob();
 
@@ -37,6 +39,63 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
     const [isPublishing, setIsPublishing] = useState(false);
+
+    // Feedback & Edit states
+    const [showImproveDialog, setShowImproveDialog] = useState(false);
+    const [showEditDialog, setShowEditDialog] = useState(false);
+    const [feedback, setFeedback] = useState("");
+    const [isImproving, setIsImproving] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    // Edit Form State
+    const [editForm, setEditForm] = useState({
+        title: "",
+        description: "",
+        location: "",
+        department: ""
+    });
+
+    const openEditDialog = () => {
+        if (job) {
+            setEditForm({
+                title: job.title || "",
+                description: job.description || "",
+                location: job.location || "",
+                department: job.department || ""
+            });
+            setShowEditDialog(true);
+        }
+    };
+
+    const handleImprove = async () => {
+        if (!feedback.trim()) return;
+        setIsImproving(true);
+        try {
+            await jobsApi.improve(id, feedback);
+            toast.success("Job improved successfully!");
+            setShowImproveDialog(false);
+            setFeedback("");
+            refetchJob();
+        } catch (error: any) {
+            toast.error(`Failed to improve job: ${error.message || "Unknown error"}`);
+        } finally {
+            setIsImproving(false);
+        }
+    };
+
+    const handleManualSave = async () => {
+        setIsUpdating(true);
+        try {
+            await jobsApi.update(id, editForm);
+            toast.success("Job updated successfully!");
+            setShowEditDialog(false);
+            refetchJob();
+        } catch (error: any) {
+            toast.error(`Failed to update job: ${error.message || "Unknown error"}`);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -93,9 +152,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                             <>
                                 <Button
                                     variant="outline"
-                                    onClick={() => {
-                                        toast.info("Feedback feature coming soon! For now, you can edit the job directly.");
-                                    }}
+                                    onClick={() => setShowImproveDialog(true)}
                                     className="border-slate-200 hover:bg-slate-50"
                                 >
                                     <MessageSquare className="w-4 h-4 mr-2" />
@@ -175,7 +232,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                 </Link>
                             </div>
                         )}
-                        <Button variant="outline">
+                        <Button variant="outline" onClick={openEditDialog}>
                             <Edit className="w-4 h-4 mr-2" /> Edit
                         </Button>
                         <Link href={`/dashboard/jobs/${job.id}/candidates`}>
@@ -401,6 +458,117 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                     <Rocket className="mr-2 h-4 w-4" />
                                     Publish to {selectedAccounts.length} Account{selectedAccounts.length !== 1 ? 's' : ''}
                                 </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Suggest Improvement Dialog */}
+            <Dialog open={showImproveDialog} onOpenChange={setShowImproveDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-indigo-600" />
+                            Suggest Improvements
+                        </DialogTitle>
+                        <DialogDescription>
+                            What would you like the AI agent to change in this job post?
+                            Provide feedback and it will automatically regenerate the post.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Textarea
+                            placeholder="e.g. Add more detail about the tech stack, make the requirements more senior, or change the tone to be more creative..."
+                            className="min-h-[150px]"
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowImproveDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleImprove}
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                            disabled={isImproving || !feedback.trim()}
+                        >
+                            {isImproving ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Improving...
+                                </>
+                            ) : (
+                                <>
+                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    Update Job
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Manual Edit Dialog */}
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Edit className="w-5 h-5 text-indigo-600" />
+                            Edit Job Post
+                        </DialogTitle>
+                        <DialogDescription>
+                            Manually update the job post details. These changes will be reflected immediately.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Job Title</label>
+                            <Input
+                                value={editForm.title}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Location</label>
+                            <Input
+                                value={editForm.location}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, location: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Department</label>
+                            <Input
+                                value={editForm.department}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                            />
+                        </div>
+                        <div className="md:col-span-2 space-y-2">
+                            <label className="text-sm font-medium">Description</label>
+                            <Textarea
+                                className="min-h-[200px]"
+                                value={editForm.description}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleManualSave}
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                            disabled={isUpdating}
+                        >
+                            {isUpdating ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                "Save Changes"
                             )}
                         </Button>
                     </DialogFooter>

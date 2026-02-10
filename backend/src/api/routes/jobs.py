@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
 from src.api.services.job_service import JobService
-from src.api.schemas.job import JobResponse, JobCreate
+from src.api.schemas.job import JobResponse, JobCreate, JobUpdate, JobImproveRequest
 from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 
@@ -70,6 +70,38 @@ async def read_job(
     """
     job_service = JobService(db)
     job = await job_service.get_job(job_id)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.put("/{job_id}", response_model=JobResponse)
+async def update_job(
+    job_id: int,
+    job_data: JobUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a specific job post manually"""
+    job_service = JobService(db)
+    job = await job_service.update_job(job_id, job_data)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post("/{job_id}/improve", response_model=JobResponse)
+async def improve_job(
+    job_id: int,
+    request: JobImproveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Refine job post using AI based on HR feedback"""
+    job_service = JobService(db)
+    job = await job_service.improve_job(job_id, request.feedback)
     if not job:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job not found")

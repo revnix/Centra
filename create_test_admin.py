@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 
 async def create_admin():
     async with AsyncSessionLocal() as db:
-        email = "admin@company.com"
+        email = "admin@example.com"
         password = "password"
         
         result = await db.execute(select(User).where(User.email == email))

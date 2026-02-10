@@ -58,6 +58,55 @@ class JobService:
         await self.db.refresh(db_job)
         return db_job
 
+    async def improve_job(self, job_id: int, feedback: str):
+        import asyncio
+        from src.flow.prompts.human.jd_prompt import JD_GENERATION_PROMPT
+        from src.flow.model.llm_manager import get_llm
+        from src.flow.model.structure.jd import JobPost
+        from datetime import datetime, timezone
+        from fastapi.concurrency import run_in_threadpool
+        
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+        
+        # Prepare inputs for the agent based on existing job data
+        messages = JD_GENERATION_PROMPT.format_messages(
+            job_title=db_job.title,
+            location=db_job.location or "Remote",
+            skills=", ".join(db_job.required_skills or []),
+            company_name=db_job.company_name or "Our Company",
+            employment_type=db_job.job_type.value if db_job.job_type else "Full-time",
+            experience_level=db_job.experience_level.value if db_job.experience_level else "Mid",
+            feedback=feedback
+        )
+        
+        # LLM CALL
+        llm = get_llm().with_structured_output(JobPost)
+        response = await run_in_threadpool(llm.invoke, messages)
+        
+        # Convert to dict
+        post_data = response.model_dump() if hasattr(response, 'model_dump') else response
+        
+        # Update the job record
+        db_job.title = post_data.get("job_title", db_job.title)
+        db_job.description = post_data.get("summary", db_job.description)
+        db_job.required_skills = post_data.get("skills", db_job.required_skills)
+        db_job.preferred_skills = post_data.get("preferred_qualifications", db_job.preferred_skills)
+        db_job.benefits = post_data.get("benefits", db_job.benefits)
+        
+        metadata = db_job.metadata_json or {}
+        metadata["responsibilities"] = post_data.get("responsibilities", [])
+        metadata["requirements"] = post_data.get("requirements", [])
+        metadata["preferred_qualifications"] = post_data.get("preferred_qualifications", [])
+        metadata["benefits"] = post_data.get("benefits", [])
+        metadata["improved_at_utc"] = datetime.now(timezone.utc).isoformat()
+        db_job.metadata_json = metadata
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job
+
     async def delete_job(self, job_id: int):
         db_job = await self.get_job(job_id)
         if db_job:

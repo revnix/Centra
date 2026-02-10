@@ -24,7 +24,7 @@ export const applicationsApi = {
      * List all applications (Admin only)
      */
     list: async (): Promise<any[]> => {
-        return apiClient.get<any[]>("/applications/");
+        return apiClient.get<any[]>("/applications");
     },
 
     /**

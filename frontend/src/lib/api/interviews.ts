@@ -22,7 +22,7 @@ export const interviewsApi = {
      * Create interview session
      */
     create: async (applicationId: number): Promise<any> => {
-        return apiClient.post<any>('/interviews/', { application_id: applicationId });
+        return apiClient.post<any>('/interviews', { application_id: applicationId });
     },
 
     /**
