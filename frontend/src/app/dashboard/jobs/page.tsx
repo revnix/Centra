@@ -1,10 +1,12 @@
 'use client';
 
+import { useJobs } from '@/lib/hooks/useJobs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Briefcase, Users, TrendingUp, Clock, Plus, ArrowRight, Sparkles } from 'lucide-react';
+import { Briefcase, Users, TrendingUp, Clock, Plus, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import type { Job } from '@/lib/types';
 
 /**
  * Jobs Dashboard Page
@@ -12,33 +14,10 @@ import Link from 'next/link';
  */
 
 export default function JobsPage() {
-    // TODO: Fetch from API using useJobs hook
-    const mockJobs = [
-        {
-            id: '1',
-            title: 'Senior Frontend Engineer',
-            department: 'Engineering',
-            status: 'PUBLISHED' as const, // Match DB
-            candidateCount: 12,
-            pendingActionCount: 3,
-        },
-        {
-            id: '2',
-            title: 'Product Manager',
-            department: 'Product',
-            status: 'PUBLISHED' as const, // Match DB
-            candidateCount: 8,
-            pendingActionCount: 1,
-        },
-        {
-            id: '3',
-            title: 'UX Designer',
-            department: 'Design',
-            status: 'DRAFT' as const,
-            candidateCount: 0,
-            pendingActionCount: 1,
-        },
-    ];
+    const { data: realJobs, isLoading, error } = useJobs();
+
+    // Fallback to empty array if loading or error
+    const jobs = realJobs || [];
 
     const getStatusConfig = (status: string) => {
         const configs: Record<string, any> = {
@@ -52,7 +31,7 @@ export default function JobsPage() {
                 text: 'text-indigo-700',
                 border: 'border-indigo-200'
             },
-            INTERVIEWING: { // Keep for mock if needed, but not in DB yet
+            INTERVIEWING: {
                 bg: 'bg-gradient-to-r from-amber-100 to-orange-100',
                 text: 'text-amber-700',
                 border: 'border-amber-200'
@@ -69,7 +48,7 @@ export default function JobsPage() {
     const stats = [
         {
             title: 'Total Jobs',
-            value: mockJobs.length,
+            value: jobs.length,
             icon: Briefcase,
             gradient: 'from-indigo-500 to-purple-600',
             iconBg: 'bg-indigo-100',
@@ -77,7 +56,7 @@ export default function JobsPage() {
         },
         {
             title: 'Total Candidates',
-            value: mockJobs.reduce((sum, job) => sum + job.candidateCount, 0),
+            value: jobs.reduce((sum: number, job: Job) => sum + (job.application_count || 0), 0),
             icon: Users,
             gradient: 'from-emerald-500 to-teal-600',
             iconBg: 'bg-emerald-100',
@@ -85,7 +64,7 @@ export default function JobsPage() {
         },
         {
             title: 'Active Interviews',
-            value: mockJobs.filter((j) => j.status === 'PUBLISHED').length,
+            value: jobs.filter((j: Job) => j.status === 'PUBLISHED').length,
             icon: TrendingUp,
             gradient: 'from-blue-500 to-cyan-600',
             iconBg: 'bg-blue-100',
@@ -93,14 +72,22 @@ export default function JobsPage() {
         },
         {
             title: 'Needs Review',
-            value: mockJobs.reduce((sum, job) => sum + job.pendingActionCount, 0),
+            value: jobs.filter((j: Job) => j.status === 'DRAFT').length,
             icon: Clock,
             gradient: 'from-amber-500 to-orange-600',
             iconBg: 'bg-amber-100',
             iconColor: 'text-amber-600',
-            highlight: true
+            highlight: jobs.some((j: Job) => j.status === 'DRAFT')
         },
     ];
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">
@@ -151,7 +138,7 @@ export default function JobsPage() {
             <div>
                 <h2 className="text-lg font-semibold text-slate-800 mb-4">Active Positions</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {mockJobs.map((job, index) => {
+                    {jobs.map((job: Job, index: number) => {
                         const statusConfig = getStatusConfig(job.status);
                         return (
                             <Card
@@ -188,7 +175,7 @@ export default function JobsPage() {
                                         </span>
                                     </div>
 
-                                    {job.pendingActionCount > 0 && (
+                                    {(job.pendingActionCount ?? 0) > 0 && (
                                         <div className="flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-lg">
                                             <div className="relative">
                                                 <Clock className="h-4 w-4 text-amber-600" />
