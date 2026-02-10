@@ -185,7 +185,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                             <Card className="sticky top-24">
                                 <CardContent className="p-6 space-y-4">
                                     {job.status === 'PUBLISHED' ? (
-                                        <Link href={`/jobs/${job.id}/apply`}>
+                                        <Link href={`/jobs/${job.id}/apply?source_url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}>
                                             <Button
                                                 size="lg"
                                                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 h-12 text-base"

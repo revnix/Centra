@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -22,7 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, CheckCircle2, Upload } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const applicationSchema = z.object({
     full_name: z.string().min(2, "Name must be at least 2 characters"),
@@ -40,11 +40,33 @@ type ApplicationFormValues = z.infer<typeof applicationSchema>;
 export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { data: job, isLoading: isJobLoading } = useJob(id);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
     const [resumeFile, setResumeFile] = useState<File | null>(null);
     const [interviewToken, setInterviewToken] = useState<string | null>(null);
+
+    // Use ref to store the source URL to avoid re-capturing on re-renders
+    const sourceUrlRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && !sourceUrlRef.current) {
+            // Priority 1: Query parameter (passed from our job page)
+            const paramSource = searchParams.get('source_url');
+            // Priority 2: Document referrer (if they come directly from LinkedIn/Indeed)
+            const referrer = document.referrer;
+
+            if (paramSource) {
+                sourceUrlRef.current = paramSource;
+            } else if (referrer && !referrer.includes(window.location.host)) {
+                sourceUrlRef.current = referrer;
+            } else {
+                // Fallback to the job posting page
+                sourceUrlRef.current = `${window.location.origin}/jobs/${id}`;
+            }
+            console.log("Captured source URL for redirect:", sourceUrlRef.current);
+        }
+    }, [searchParams, id]);
 
     const form = useForm<ApplicationFormValues>({
         resolver: zodResolver(applicationSchema),
@@ -87,8 +109,14 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             const response = await api.applications.guestApply(formData);
 
             toast.success("Application submitted successfully!");
-            setInterviewToken(response.interview_token);
-            setIsSuccess(true);
+
+            // Seamless redirect back to source platform
+            if (sourceUrlRef.current) {
+                // Instant redirect
+                window.location.href = sourceUrlRef.current;
+            } else {
+                router.push(`/jobs/${id}`);
+            }
         } catch (error: any) {
             console.error("Application error:", error);
             let errorMessage = error.message || "Failed to submit application. Please try again.";
@@ -127,57 +155,6 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
         );
     }
 
-    if (isSuccess) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-                <Card className="w-full max-w-md text-center">
-                    <CardHeader>
-                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                            <CheckCircle2 className="h-8 w-8 text-green-600" />
-                        </div>
-                        <CardTitle className="text-2xl">Application Received!</CardTitle>
-                        <CardDescription>
-                            Thanks for applying to <strong>{job.title}</strong> at {job.company_name}.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
-                            {interviewToken ? (
-                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                    You have been shortlisted! Please proceed to the AI interview.
-                                </p>
-                            ) : (
-                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                    Your application is currently <strong>Under Review</strong>.
-                                    We will evaluate your profile and contact you via email if you are shortlisted for the next round.
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            {interviewToken ? (
-                                <Link href={`/interview/${interviewToken}`} className="w-full">
-                                    <Button size="lg" className="w-full h-14 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 dark:shadow-none font-bold gap-2">
-                                        Start Interview <ArrowLeft className="h-5 w-5 rotate-180" />
-                                    </Button>
-                                </Link>
-                            ) : (
-                                <Link href="/portal/status" className="w-full">
-                                    <Button size="lg" variant="outline" className="w-full h-14 text-lg font-medium">
-                                        Check Application Status
-                                    </Button>
-                                </Link>
-                            )}
-
-                            <Link href={`/jobs/${id}`} className="w-full">
-                                <Button variant="ghost" className="w-full">Return to Job Posting</Button>
-                            </Link>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
