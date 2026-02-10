@@ -369,3 +369,38 @@ async def submit_coding_challenge(
     await db.commit()
     
     return {"message": "Submission received and evaluated", "score": session.overall_score}
+
+@router.post("/{token}/upload-recording")
+async def upload_recording(
+    token: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    service = InterviewService(db)
+    session = await service.get_session_by_token(token)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Ensure upload directory exists
+    upload_dir = settings.UPLOAD_DIR
+    recordings_dir = os.path.join(upload_dir, "recordings")
+    os.makedirs(recordings_dir, exist_ok=True)
+    
+    # Generate filename
+    filename = f"{session.id}_{token}_recording.webm"
+    file_path = os.path.join(recordings_dir, filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Save relative path to DB
+        relative_path = f"recordings/{filename}"
+        session.recording_path = relative_path
+        db.add(session)
+        await db.commit()
+        
+        return {"message": "Recording uploaded successfully", "path": relative_path}
+    except Exception as e:
+        print(f"Failed to upload recording: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save recording")
