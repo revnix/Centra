@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Send, Loader2, Bot, User, Clock, CheckCircle2, ArrowRight, Mic, MicOff, Volume2, VolumeX, Monitor } from "lucide-react";
 import { toast } from "sonner";
+import { useInterview } from "./InterviewContext";
 
 interface Message {
     role: "ai" | "candidate" | "system";
@@ -44,6 +45,7 @@ declare global {
 export default function InterviewPage() {
     const params = useParams();
     const token = params.token as string;
+    const { startScreenShare, stopScreenShare, stream } = useInterview();
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -58,8 +60,13 @@ export default function InterviewPage() {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
+<<<<<<< HEAD
     const [isSharingScreen, setIsSharingScreen] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
+=======
+
+    const isSharingScreen = !!stream;
+>>>>>>> origin/main
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -74,7 +81,11 @@ export default function InterviewPage() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
 
+<<<<<<< HEAD
     // Global cleanup and Tab-switching detection
+=======
+    // Global cleanup
+>>>>>>> origin/main
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isCompleted && timeLeft > 0) {
@@ -106,17 +117,14 @@ export default function InterviewPage() {
         };
     }, [token]);
 
-    // Timer effect with localStorage persistence
+    // Timer effect
     useEffect(() => {
         const INTERVIEW_DURATION = 60; // 1 minute in seconds
         const storageKey = `interview_start_${token}`;
 
         const updateTimer = () => {
             const startTime = localStorage.getItem(storageKey);
-            if (!startTime) {
-                // Timer hasn't started yet
-                return;
-            }
+            if (!startTime) return;
 
             const elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
             const remaining = Math.max(0, INTERVIEW_DURATION - elapsed);
@@ -137,12 +145,10 @@ export default function InterviewPage() {
             }
         };
 
-        // If session is already in progress, timer might have started
         updateTimer();
         if (session?.status === 'IN_PROGRESS') {
             timerRef.current = setInterval(updateTimer, 1000);
         }
-
 
         return () => {
             if (timerRef.current) {
@@ -152,7 +158,7 @@ export default function InterviewPage() {
         };
     }, [token, session?.status]);
 
-    // Initialize Speech Recognition
+    // Speech Recognition
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
@@ -164,6 +170,7 @@ export default function InterviewPage() {
             let finalTranscript = '';
 
             recognition.onresult = (event: SpeechRecognitionEvent) => {
+<<<<<<< HEAD
                 if (isAiSpeakingRef.current) return;
 
                 let interimTranscript = '';
@@ -193,6 +200,12 @@ export default function InterviewPage() {
                         }
                     }, 3500); // 3.5s VAD threshold for natural pauses
                 }
+=======
+                const transcript = event.results[0][0].transcript;
+                setInput(transcript);
+                setIsListening(false);
+                handleSend(transcript);
+>>>>>>> origin/main
             };
 
             recognition.onerror = (event: any) => {
@@ -212,6 +225,7 @@ export default function InterviewPage() {
                 }
             };
 
+<<<<<<< HEAD
             recognition.onend = () => {
                 // Auto-restart if we should be listening and AI is NOT talking
                 if (isListening && !isAiSpeakingRef.current && !isCompleted && timeLeft > 0) {
@@ -223,6 +237,9 @@ export default function InterviewPage() {
                 }
             };
 
+=======
+            recognition.onend = () => setIsListening(false);
+>>>>>>> origin/main
             recognitionRef.current = recognition;
         }
 
@@ -231,7 +248,7 @@ export default function InterviewPage() {
         };
     }, [isListening, isCompleted, timeLeft]);
 
-    // Speech Synthesis Effect
+    // Speech Synthesis
     useEffect(() => {
         if (!voiceEnabled || messages.length === 0 || isCompleted || timeLeft <= 0) {
             if ((isCompleted || timeLeft <= 0) && typeof window !== 'undefined') {
@@ -256,6 +273,7 @@ export default function InterviewPage() {
     }, [messages, voiceEnabled, isCompleted, timeLeft]);
 
     const speak = (text: string) => {
+<<<<<<< HEAD
         if (!window.speechSynthesis || isCompleted || timeLeft <= 0 || !text) return;
 
         console.log("Evalyn speaking:", text);
@@ -361,23 +379,28 @@ export default function InterviewPage() {
 
         // Start playback
         speakNext();
+=======
+        if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+>>>>>>> origin/main
     };
 
     const toggleListening = () => {
-        if (isListening) {
-            stopListening();
-        } else {
-            startListening();
-        }
+        if (isListening) stopListening();
+        else startListening();
     };
 
     const startListening = () => {
         if (isCompleted || timeLeft <= 0) return;
-
-        // Stop speech if AI is talking
         window.speechSynthesis.cancel();
         setIsSpeaking(false);
-
         if (recognitionRef.current) {
             try {
                 recognitionRef.current.start();
@@ -410,19 +433,27 @@ export default function InterviewPage() {
 
                 if (data.transcript && data.transcript.length > 0) {
                     setMessages(data.transcript);
-                    // Don't re-speak entire history on reload, only new messages
                     lastSpokenMessageIndex.current = data.transcript.length - 1;
                 }
             } catch (error: any) {
-                toast.error("Failed to load interview session");
-                console.error(error);
+                if (error.response?.status === 403) {
+                    const msg = error.response.data?.detail || "Interview link expired";
+                    toast.error(msg);
+                    setSession({ status: 'EXPIRED', error: msg });
+                } else if (error.response?.status === 404) {
+                    toast.error("Interview not found");
+                    router.push('/portal/status');
+                } else {
+                    toast.error("Failed to load interview session");
+                    console.error(error);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         if (token) fetchSession();
-    }, [token]);
+    }, [token, router]);
 
     useEffect(() => {
         scrollToBottom();
@@ -441,7 +472,6 @@ export default function InterviewPage() {
         setIsSending(true);
         stopListening();
 
-        // Optimistic update
         const newMessage: Message = {
             role: "candidate",
             content: userMsg,
@@ -456,6 +486,9 @@ export default function InterviewPage() {
 
             if (res.status === "CODING" || res.status === "COMPLETED") {
                 setIsCompleted(true);
+                // Call stopScreenShare safely
+                if (stopScreenShare) await stopScreenShare();
+
                 if (timerRef.current) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
@@ -474,6 +507,7 @@ export default function InterviewPage() {
         }
     };
 
+<<<<<<< HEAD
     const startRecording = () => {
         if (!screenStreamRef.current) return;
 
@@ -565,6 +599,13 @@ export default function InterviewPage() {
             window.speechSynthesis.speak(utterance);
         } else {
             setLandingStep('ready');
+=======
+    const handleStartScreenShare = async () => {
+        const s = await startScreenShare();
+        if (s) {
+            setLandingStep('welcome');
+            toast.success("Screen sharing started successfully");
+>>>>>>> origin/main
         }
     };
 
@@ -573,35 +614,17 @@ export default function InterviewPage() {
             window.speechSynthesis.cancel();
         }
 
-        // Screen sharing requirement check
-        if (!screenStreamRef.current) {
-            try {
-                if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                    screenStreamRef.current = stream;
-
-                    stream.getVideoTracks()[0].onended = () => {
-                        toast.warning("Screen sharing stopped. It is required for the interview.");
-                        setLandingStep('screen-share');
-                    };
-                } else {
-                    toast.error("Screen sharing is not supported by your browser.");
-                    return;
-                }
-            } catch (err) {
-                console.error("Screen share error:", err);
-                toast.error("Screen sharing is required to proceed with the interview.");
-                return;
-            }
+        if (!isSharingScreen) {
+            const s = await startScreenShare();
+            if (!s) return;
         }
 
         setIsLoading(true);
         try {
-            // Start the timer
             localStorage.setItem(`interview_start_${token}`, Date.now().toString());
-
             const startRes = await api.interviews.startInterview(token);
             setMessages(startRes.transcript);
+<<<<<<< HEAD
 
             // Start recording
             startRecording();
@@ -615,12 +638,20 @@ export default function InterviewPage() {
             }
 
             // Transition UI
+=======
+>>>>>>> origin/main
             setLandingStep('in_progress');
             if (session) {
                 setSession({ ...session, status: 'IN_PROGRESS' });
             }
-        } catch (error) {
-            toast.error("Failed to start the interview");
+        } catch (error: any) {
+            if (error.response?.status === 403) {
+                const msg = error.response.data?.detail || "Interview link expired";
+                toast.error(msg);
+                setSession({ status: 'EXPIRED', error: msg });
+            } else {
+                toast.error("Failed to start the interview");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -636,6 +667,29 @@ export default function InterviewPage() {
                     </div>
                 </div>
                 <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 animate-pulse">Initializing Evalyn AI...</p>
+            </div>
+        );
+    }
+
+    if (session?.status === 'EXPIRED') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-[#F0F2FF] dark:bg-slate-950 p-6">
+                <div className="bg-white p-10 rounded-[40px] shadow-2xl border border-red-100 text-center space-y-4 max-w-sm">
+                    <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+                        <Clock className="h-8 w-8 text-red-500" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-slate-900">Link Expired</h1>
+                    <p className="text-slate-500 leading-relaxed">
+                        {session.error || "Your interview link has expired. Please contact HR."}
+                    </p>
+                    <Button
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => router.push('/portal/status')}
+                    >
+                        Return to Portal
+                    </Button>
+                </div>
             </div>
         );
     }
@@ -841,14 +895,10 @@ export default function InterviewPage() {
                                 className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-[0_15px_30px_-5px_rgba(79,70,229,0.3)] hover:translate-y-[-2px] transition-all rounded-[24px] gap-2 font-bold"
                                 onClick={async () => {
                                     try {
-                                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                                        screenStreamRef.current = stream;
-                                        setIsSharingScreen(true);
-                                        stream.getVideoTracks()[0].onended = () => {
-                                            setIsSharingScreen(false);
-                                            toast.error("Screen sharing stopped. It is mandatory for this interview.");
-                                        };
-                                        toast.success("Screen sharing resumed");
+                                        const s = await startScreenShare();
+                                        if (s) {
+                                            toast.success("Screen sharing resumed");
+                                        }
                                     } catch (error) {
                                         toast.error("You must enable screen sharing to continue.");
                                     }
@@ -1102,14 +1152,7 @@ export default function InterviewPage() {
                                 className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 rounded-[24px] font-bold"
                                 onClick={async () => {
                                     try {
-                                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-                                        stream.getVideoTracks()[0].onended = () => {
-                                            setIsSharingScreen(false);
-                                            toast.error("Screen sharing stopped.");
-                                        };
-                                        screenStreamRef.current = stream;
-                                        setIsSharingScreen(true);
-                                        toast.success("Sharing resumed");
+                                        await startScreenShare();
                                     } catch (e) {
                                         toast.error("Failed to re-enable sharing");
                                     }

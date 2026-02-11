@@ -24,7 +24,7 @@ export const applicationsApi = {
      * List all applications (Admin only)
      */
     list: async (): Promise<any[]> => {
-        return apiClient.get<any[]>("/applications/");
+        return apiClient.get<any[]>("/applications");
     },
 
     /**
@@ -44,14 +44,32 @@ export const applicationsApi = {
     /**
      * Reject an application
      */
+    /**
+     * Reject an application
+     */
     reject: async (id: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/reject`, {});
     },
 
     /**
+<<<<<<< HEAD
      * Delete an application (Permanently)
      */
     delete: async (id: string): Promise<void> => {
         return apiClient.delete<void>(`/applications/${id}`);
     },
+=======
+     * Shortlist a candidate (Send Interview Invite)
+     */
+    shortlist: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/shortlist`, {});
+    },
+
+    /**
+     * Trigger AI Analysis manually
+     */
+    analyze: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/analyze`, {});
+    }
+>>>>>>> origin/main
 };

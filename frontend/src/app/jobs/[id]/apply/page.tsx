@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -22,7 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, CheckCircle2, Upload } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const applicationSchema = z.object({
     full_name: z.string().min(2, "Name must be at least 2 characters"),
@@ -30,9 +30,15 @@ const applicationSchema = z.object({
     phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
     resume_file: z.any().refine((file) => file !== undefined, "Resume file is required"),
     linkedin_url: z.string().optional().or(z.literal("")),
+<<<<<<< HEAD
     cover_letter: z.string().optional().or(z.literal("")),
     skills: z.string().min(2, "Please enter at least one skill"),
     experience_years: z.number().min(0, "Experience cannot be negative"),
+=======
+    cover_letter: z.string().optional(),
+    skills: z.string().min(3, "Please list at least a few skills"),
+    experience_years: z.coerce.number().min(0, "Experience years cannot be negative"),
+>>>>>>> origin/main
 });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
@@ -40,13 +46,38 @@ type ApplicationFormValues = z.infer<typeof applicationSchema>;
 export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { data: job, isLoading: isJobLoading } = useJob(id);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
     const [resumeFile, setResumeFile] = useState<File | null>(null);
     const [interviewToken, setInterviewToken] = useState<string | null>(null);
 
+<<<<<<< HEAD
     // Finalized Application Form with Cover Letter, Skills, and Experience
+=======
+    // Use ref to store the source URL to avoid re-capturing on re-renders
+    const sourceUrlRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && !sourceUrlRef.current) {
+            // Priority 1: Query parameter (passed from our job page)
+            const paramSource = searchParams.get('source_url');
+            // Priority 2: Document referrer (if they come directly from LinkedIn/Indeed)
+            const referrer = document.referrer;
+
+            if (paramSource) {
+                sourceUrlRef.current = paramSource;
+            } else if (referrer && !referrer.includes(window.location.host)) {
+                sourceUrlRef.current = referrer;
+            } else {
+                // Fallback to the job posting page
+                sourceUrlRef.current = `${window.location.origin}/jobs/${id}`;
+            }
+            console.log("Captured source URL for redirect:", sourceUrlRef.current);
+        }
+    }, [searchParams, id]);
+
+>>>>>>> origin/main
     const form = useForm<ApplicationFormValues>({
         resolver: zodResolver(applicationSchema),
         defaultValues: {
@@ -69,8 +100,14 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('full_name', data.full_name);
             formData.append('email', data.email);
             formData.append('phone_number', data.phone_number);
+<<<<<<< HEAD
             formData.append('cover_letter', data.cover_letter || "");
 
+=======
+            if (data.cover_letter) {
+                formData.append('cover_letter', data.cover_letter);
+            }
+>>>>>>> origin/main
             if (data.linkedin_url) {
                 let url = data.linkedin_url;
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -82,6 +119,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             if (resumeFile) {
                 formData.append('resume_file', resumeFile);
             }
+<<<<<<< HEAD
 
             // Format skills as JSON array string
             const skillsArray = data.skills
@@ -90,13 +128,22 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                 .filter(s => s !== "");
             formData.append('skills', JSON.stringify(skillsArray));
 
+=======
+            formData.append('skills', JSON.stringify(data.skills.split(',').map(s => s.trim())));
+>>>>>>> origin/main
             formData.append('experience_years', data.experience_years.toString());
 
             const response = await api.applications.guestApply(formData);
 
             toast.success("Application submitted successfully!");
-            setInterviewToken(response.interview_token);
-            setIsSuccess(true);
+
+            // Seamless redirect back to source platform
+            if (sourceUrlRef.current) {
+                // Instant redirect
+                window.location.href = sourceUrlRef.current;
+            } else {
+                router.push(`/jobs/${id}`);
+            }
         } catch (error: any) {
             console.error("Application error:", error);
             let errorMessage = error.message || "Failed to submit application. Please try again.";
@@ -135,6 +182,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
         );
     }
 
+<<<<<<< HEAD
     if (isSuccess) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
@@ -172,6 +220,8 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             </div>
         );
     }
+=======
+>>>>>>> origin/main
 
     return (
         <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -247,6 +297,56 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                                         )}
                                     />
                                 </div>
+
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="skills"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Key Skills *</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="React, Node.js, TypeScript" {...field} />
+                                                </FormControl>
+                                                <FormDescription>Separate skills with commas</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="experience_years"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Years of Experience *</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" min="0" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="cover_letter"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Cover Letter (Optional)</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Tell us why you're a great fit for this role..."
+                                                    className="min-h-[120px]"
+                                                    rows={5}
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
                                 <FormField
                                     control={form.control}

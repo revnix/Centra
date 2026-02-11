@@ -15,9 +15,46 @@ from langchain_core.messages import HumanMessage, AIMessage
 from src.api.models.interview import InterviewStatus
 from src.flow.model.llm_manager import get_llm
 from src.flow.interview.prompts import CODING_CHALLENGE_PROMPT, EVALUATION_PROMPT
+from src.api.core.config import settings
 import json
+import os
+import shutil
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 
 router = APIRouter()
+
+@router.post("/{token}/upload-recording")
+async def upload_recording(
+    token: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload screen recording for an interview session."""
+    service = InterviewService(db)
+    session = await service.get_session_by_token(token)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Create directory if it doesn't exist
+    recordings_dir = os.path.join(settings.UPLOAD_DIR, "recordings")
+    os.makedirs(recordings_dir, exist_ok=True)
+
+    # Save file
+    file_extension = os.path.splitext(file.filename)[1] if file.filename else ".webm"
+    filename = f"recording_{token}{file_extension}"
+    file_path = os.path.join(recordings_dir, filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Update database
+    # Store relative path for flexibility
+    relative_path = os.path.join("uploads", "recordings", filename).replace("\\", "/")
+    session.recording_path = relative_path
+    db.add(session)
+    await db.commit()
+
+    return {"message": "Recording uploaded successfully", "path": relative_path}
 
 class ChatRequest(BaseModel):
     message: str
@@ -49,6 +86,17 @@ async def get_interview_session(
     session = await service.get_session_by_token(token)
     if not session:
         raise HTTPException(status_code=404, detail="Interview session not found")
+        
+    # Check Expiry
+    if session.expires_at and session.status == InterviewStatus.PENDING:
+         import datetime
+         # Ensure both are timezone aware
+         now = datetime.datetime.now(session.expires_at.tzinfo)
+         if now > session.expires_at:
+             raise HTTPException(
+                 status_code=status.HTTP_403_FORBIDDEN, 
+                 detail="Your interview link has expired. Please contact HR."
+             )
     
     # Check for expiry
     if session.expires_at and datetime.now(timezone.utc) > session.expires_at:
@@ -173,6 +221,17 @@ async def start_interview(
 
     if session.status == InterviewStatus.COMPLETED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview already completed.")
+
+    # Check Expiry
+    if session.expires_at and session.status == InterviewStatus.PENDING:
+         # Use datetime from import above or standard lib
+         from datetime import datetime
+         now = datetime.now(session.expires_at.tzinfo)
+         if now > session.expires_at:
+             raise HTTPException(
+                 status_code=status.HTTP_403_FORBIDDEN, 
+                 detail="Your interview link has expired. Please contact HR."
+             )
 
     if session.transcript:
         return {"reply": session.transcript[-1]["content"], "transcript": session.transcript}
@@ -342,19 +401,28 @@ async def submit_coding_challenge(
     await db.commit()
     
     return {"message": "Submission received and evaluated", "score": session.overall_score}
+<<<<<<< HEAD
     
 @router.post("/{token}/recording", status_code=status.HTTP_200_OK)
+=======
+
+@router.post("/{token}/upload-recording")
+>>>>>>> origin/main
 async def upload_recording(
     token: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
+<<<<<<< HEAD
     """Upload screen recording for an interview session."""
+=======
+>>>>>>> origin/main
     service = InterviewService(db)
     session = await service.get_session_by_token(token)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+<<<<<<< HEAD
     # 1. Save File
     file_ext = os.path.splitext(file.filename)[1]
     if not file_ext:
@@ -376,3 +444,28 @@ async def upload_recording(
     await db.commit()
     
     return {"message": "Recording uploaded successfully", "url": session.recording_url}
+=======
+    # Ensure upload directory exists
+    upload_dir = settings.UPLOAD_DIR
+    recordings_dir = os.path.join(upload_dir, "recordings")
+    os.makedirs(recordings_dir, exist_ok=True)
+    
+    # Generate filename
+    filename = f"{session.id}_{token}_recording.webm"
+    file_path = os.path.join(recordings_dir, filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Save relative path to DB
+        relative_path = f"recordings/{filename}"
+        session.recording_path = relative_path
+        db.add(session)
+        await db.commit()
+        
+        return {"message": "Recording uploaded successfully", "path": relative_path}
+    except Exception as e:
+        print(f"Failed to upload recording: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save recording")
+>>>>>>> origin/main

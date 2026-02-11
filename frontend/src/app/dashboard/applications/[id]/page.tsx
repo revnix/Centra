@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { api } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap } from "lucide-react";
+import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -111,6 +111,32 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             </Button>
                         </a>
                     )}
+
+                    {app.status === 'SCREENING' && (
+                        <Button
+                            variant="secondary"
+                            className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                            onClick={async () => {
+                                setIsActionLoading(true);
+                                try {
+                                    await api.applications.shortlist(id);
+                                    toast.success("Candidate shortlisted & interview invite sent!");
+                                    const updated = await api.applications.get(id);
+                                    setApp(updated);
+                                } catch (error) {
+                                    toast.error("Failed to shortlist candidate");
+                                    console.error(error);
+                                } finally {
+                                    setIsActionLoading(false);
+                                }
+                            }}
+                            disabled={isActionLoading}
+                        >
+                            <Zap className="w-4 h-4 mr-2" />
+                            {isActionLoading ? 'Sending Invite...' : 'Shortlist & Invite'}
+                        </Button>
+                    )}
+
                     <Button
                         variant="destructive"
                         onClick={handleReject}
@@ -176,6 +202,30 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             </p>
                         </CardContent>
                     </Card>
+
+                    {/* Screen Recording */}
+                    {app.interview_session?.recording_path && (
+                        <Card className="border-border shadow-sm overflow-hidden">
+                            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Monitor className="w-5 h-5 text-indigo-500" />
+                                    Interview Screen Recording
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="aspect-video bg-black flex items-center justify-center">
+                                    <video
+                                        src={`http://localhost:8123/${app.interview_session.recording_path}`}
+                                        controls
+                                        className="w-full h-full"
+                                        poster="/video-poster.png"
+                                    >
+                                        Your browser does not support the video tag.
+                                    </video>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Interview Conversation Transcript */}
                     {app.interview_session?.transcript && app.interview_session.transcript.length > 0 && (

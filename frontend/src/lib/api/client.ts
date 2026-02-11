@@ -7,7 +7,9 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
 const getApiBaseUrl = () => {
     if (typeof window !== "undefined") {
-        return "/api/v1";
+        // Direct to backend in development to avoid proxy issues
+        // In production, this would be "/api/v1"
+        return "http://localhost:8123/api/v1";
     }
     // Server-side default
     return "http://127.0.0.1:8123/api/v1";

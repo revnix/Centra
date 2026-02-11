@@ -26,7 +26,7 @@ print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # L
 
 engine = create_async_engine(
     database_url,
-    echo=True,
+    echo=False,
     future=True,
     connect_args=connect_args,
     pool_pre_ping=True,

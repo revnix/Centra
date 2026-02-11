@@ -234,13 +234,14 @@ export default function GeneratedJobsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-3 md:border-l md:border-slate-100 md:pl-6">
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
-                                        className="whitespace-nowrap"
-                                    >
-                                        Review Details
-                                    </Button>
+                                    <Link href={`/dashboard/jobs/${job.id}`}>
+                                        <Button
+                                            variant="outline"
+                                            className="whitespace-nowrap"
+                                        >
+                                            Review Details
+                                        </Button>
+                                    </Link>
                                     <Button
                                         variant="outline"
                                         onClick={async () => {

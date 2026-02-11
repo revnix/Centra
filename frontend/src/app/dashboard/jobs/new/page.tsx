@@ -837,7 +837,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                                 console.log('DEBUG: Sending job data to backend:', JSON.stringify(jobData, null, 2));
 
                                                                 // Create job in database using apiClient
-                                                                await apiClient.post('/jobs/', jobData);
+                                                                await apiClient.post('/jobs', jobData);
 
                                                                 toast.success("Job saved successfully!");
                                                                 router.push("/dashboard/generated-jobs");

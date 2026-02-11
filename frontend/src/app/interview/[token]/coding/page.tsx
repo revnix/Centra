@@ -12,9 +12,12 @@ import { motion } from "framer-motion";
 // If Card is simple export: import { Card } from ...
 // Checking file list, card.tsx usually has named exports.
 
+import { useInterview } from "../InterviewContext"; // Import context
+
 export default function CodingPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
     const router = useRouter();
+    const { stopScreenShare } = useInterview();
 
     // Cleanup any leftover audio from previous phase
     useEffect(() => {
@@ -109,6 +112,7 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
             await interviewsApi.submitCoding(token, code, selectedLanguage);
             localStorage.removeItem(`interview_timer_${token}`);
             setIsSubmitted(true);
+            stopScreenShare(); // Stop recording and screen share
             setTimeout(() => {
                 router.push("/portal/jobs");
             }, 3000);

@@ -47,6 +47,7 @@ class InterviewSession(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     recording_url = Column(String, nullable=True, comment="URL/Path to screen recording file")
     expires_at = Column(DateTime(timezone=True), nullable=True)
+    recording_path = Column(String, nullable=True, comment="Path to stored screen recording video")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
