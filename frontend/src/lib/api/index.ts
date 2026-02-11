@@ -37,5 +37,6 @@ export const api = {
         get: (id: string) => applicationsApi.get(id),
         hire: (id: string) => applicationsApi.hire(id),
         reject: (id: string) => applicationsApi.reject(id),
+        delete: (id: string) => applicationsApi.delete(id),
     },
 };

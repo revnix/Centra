@@ -45,8 +45,9 @@ class InterviewSession(Base):
     # Timestamps
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    recording_url = Column(String, nullable=True, comment="URL/Path to screen recording file")
     expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    application = relationship("Application", backref=backref("interview_session", uselist=False))
+    application = relationship("Application", back_populates="interview_session")

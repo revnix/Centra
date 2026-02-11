@@ -30,6 +30,9 @@ const applicationSchema = z.object({
     phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
     resume_file: z.any().refine((file) => file !== undefined, "Resume file is required"),
     linkedin_url: z.string().optional().or(z.literal("")),
+    cover_letter: z.string().optional().or(z.literal("")),
+    skills: z.string().min(2, "Please enter at least one skill"),
+    experience_years: z.number().min(0, "Experience cannot be negative"),
 });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
@@ -43,6 +46,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
     const [resumeFile, setResumeFile] = useState<File | null>(null);
     const [interviewToken, setInterviewToken] = useState<string | null>(null);
 
+    // Finalized Application Form with Cover Letter, Skills, and Experience
     const form = useForm<ApplicationFormValues>({
         resolver: zodResolver(applicationSchema),
         defaultValues: {
@@ -51,6 +55,9 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             phone_number: "",
             resume_file: undefined,
             linkedin_url: "",
+            cover_letter: "",
+            skills: "",
+            experience_years: 0,
         },
     });
 
@@ -62,6 +69,8 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('full_name', data.full_name);
             formData.append('email', data.email);
             formData.append('phone_number', data.phone_number);
+            formData.append('cover_letter', data.cover_letter || "");
+
             if (data.linkedin_url) {
                 let url = data.linkedin_url;
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -69,11 +78,19 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                 }
                 formData.append('linkedin_url', url);
             }
+
             if (resumeFile) {
                 formData.append('resume_file', resumeFile);
             }
-            formData.append('skills', JSON.stringify([]));
-            formData.append('experience_years', '0');
+
+            // Format skills as JSON array string
+            const skillsArray = data.skills
+                .split(",")
+                .map(s => s.trim())
+                .filter(s => s !== "");
+            formData.append('skills', JSON.stringify(skillsArray));
+
+            formData.append('experience_years', data.experience_years.toString());
 
             const response = await api.applications.guestApply(formData);
 
@@ -123,8 +140,8 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
                 <Card className="w-full max-w-md text-center">
                     <CardHeader>
-                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                            <CheckCircle2 className="h-8 w-8 text-green-600" />
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
+                            <CheckCircle2 className="h-8 w-8 text-indigo-600" />
                         </div>
                         <CardTitle className="text-2xl">Application Received!</CardTitle>
                         <CardDescription>
@@ -132,21 +149,22 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Internal Review in Progress</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400">
-                                Your application has been processed. To proceed with your candidacy, you are required to complete an AI-led interview.
+                                Our AI system is currently reviewing your resume, skills, and experience against the job requirements.
+                            </p>
+                            <p className="mt-4 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                                If shortlisted, you will receive an interview invitation link via email.
                             </p>
                         </div>
 
-                        <div className="flex flex-col gap-3">
-                            <Link href={`/interview/${interviewToken}`} className="w-full">
-                                <Button size="lg" className="w-full h-14 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 dark:shadow-none font-bold gap-2">
-                                    Start Interview <ArrowLeft className="h-5 w-5 rotate-180" />
-                                </Button>
-                            </Link>
-
+                        <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
+                            <p className="text-xs text-slate-500">
+                                Please check your inbox (and spam folder) for further updates.
+                            </p>
                             <Link href={`/jobs/${id}`} className="w-full">
-                                <Button variant="ghost" className="w-full">Return to Job Posting</Button>
+                                <Button variant="outline" className="w-full">Return to Job Posting</Button>
                             </Link>
                         </div>
                     </CardContent>
@@ -183,6 +201,9 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                     <CardContent>
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-700 text-xs font-medium">
+                                    DEBUG: Form Version 1.2 (Skills & Experience Updated)
+                                </div>
                                 <FormField
                                     control={form.control}
                                     name="full_name"
@@ -235,6 +256,60 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                                             <FormLabel>LinkedIn Profile URL</FormLabel>
                                             <FormControl>
                                                 <Input placeholder="https://linkedin.com/in/johndoe" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="skills"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Top Skills *</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="React, Python, SQL" {...field} />
+                                                </FormControl>
+                                                <FormDescription>Separate skills with commas</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="experience_years"
+                                        render={({ field: { onChange, ...field } }) => (
+                                            <FormItem>
+                                                <FormLabel>Years of Experience *</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="cover_letter"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Cover Letter / Additional Info</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Tell us why you are a good fit for this role..."
+                                                    className="min-h-[120px]"
+                                                    {...field}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>

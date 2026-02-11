@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "@/lib/api";
+import { api, interviewsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,6 +59,7 @@ export default function InterviewPage() {
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
     const [isSharingScreen, setIsSharingScreen] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -69,7 +70,9 @@ export default function InterviewPage() {
     const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isAiSpeakingRef = useRef(false);
     const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-    const SILENCE_THRESHOLD = 3000; // 3 seconds of silence to confirm end of speech
+    const SILENCE_THRESHOLD = 3000;
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
 
     // Global cleanup and Tab-switching detection
     useEffect(() => {
@@ -89,17 +92,19 @@ export default function InterviewPage() {
         }
 
         return () => {
-            if (typeof window !== 'undefined' && window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-            }
+            // Only stop tracks, don't cancel speech globally on every status change
+            // This prevents the 'Start Interview' transition from silencing the AI
             if (screenStreamRef.current) {
                 screenStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
             }
             if (typeof document !== 'undefined') {
                 document.removeEventListener("visibilitychange", handleVisibilityChange);
             }
         };
-    }, [isCompleted, timeLeft]);
+    }, [token]);
 
     // Timer effect with localStorage persistence
     useEffect(() => {
@@ -177,34 +182,43 @@ export default function InterviewPage() {
                     // Clear existing silence timer
                     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
-                    // Set new silence timer
+                    // VOICE ACTIVITY DETECTION:
+                    // Only trigger if we have a meaningful input and user has stopped speaking
                     silenceTimerRef.current = setTimeout(() => {
-                        if (currentText.length > 5 && !isAiSpeakingRef.current) {
+                        if (currentText.length > 2 && !isAiSpeakingRef.current && isListening) {
+                            console.log("[Silence Detection] Threshold met. Triggering AI response.");
+                            setIsThinking(true);
                             handleSend(currentText);
-                            finalTranscript = ''; // Reset for next turn
+                            finalTranscript = '';
                         }
-                    }, SILENCE_THRESHOLD);
+                    }, 3500); // 3.5s VAD threshold for natural pauses
                 }
             };
 
             recognition.onerror = (event: any) => {
-                if (event.error === 'aborted') {
-                    // System-triggered abort, safe to ignore
+                const isSilent = event.error === 'no-speech';
+                const isAborted = event.error === 'aborted';
+
+                if (isAborted || isSilent) {
+                    // Silently handle common transient states
                     return;
                 }
-                console.error("Speech recognition error", event.error);
+
+                console.warn("Speech recognition warning:", event.error);
+
                 if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                     setIsListening(false);
+                    toast.error("Microphone access denied or not available.");
                 }
             };
 
             recognition.onend = () => {
-                // Only restart if we should be listening and AI is NOT talking
+                // Auto-restart if we should be listening and AI is NOT talking
                 if (isListening && !isAiSpeakingRef.current && !isCompleted && timeLeft > 0) {
                     try {
                         recognition.start();
                     } catch (e) {
-                        console.error("Failed to restart recognition", e);
+                        // Ignore restart errors as they are usually due to double-starting
                     }
                 }
             };
@@ -220,7 +234,7 @@ export default function InterviewPage() {
     // Speech Synthesis Effect
     useEffect(() => {
         if (!voiceEnabled || messages.length === 0 || isCompleted || timeLeft <= 0) {
-            if (isCompleted || timeLeft <= 0) {
+            if ((isCompleted || timeLeft <= 0) && typeof window !== 'undefined') {
                 window.speechSynthesis.cancel();
             }
             return;
@@ -230,94 +244,112 @@ export default function InterviewPage() {
         const lastIndex = messages.length - 1;
 
         if (lastMessage.role === 'ai' && lastIndex > lastSpokenMessageIndex.current) {
-            speak(lastMessage.content);
-            lastSpokenMessageIndex.current = lastIndex;
+            console.log(`[Audio] Playing AI message: ${lastIndex}`);
+            // Force strict turn-taking: Mic OFF when AI starts
+            stopListening();
+
+            if (!isAiSpeakingRef.current) {
+                speak(lastMessage.content);
+                lastSpokenMessageIndex.current = lastIndex;
+            }
         }
     }, [messages, voiceEnabled, isCompleted, timeLeft]);
 
     const speak = (text: string) => {
-        if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
+        if (!window.speechSynthesis || isCompleted || timeLeft <= 0 || !text) return;
 
         console.log("Evalyn speaking:", text);
 
-        // 1. Force stop recognition immediately and lock the state
+        // 1. Lock state and stop listening
         isAiSpeakingRef.current = true;
         setIsSpeaking(true);
-        if (recognitionRef.current) {
-            try {
-                recognitionRef.current.stop();
-            } catch (e) { }
-        }
+        stopListening();
 
-        // 2. Clear any pending timers
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
-        // 3. Reset Speech Engine
+        // 2. Reset Engine
         window.speechSynthesis.cancel();
 
-        // 4. Granular Chunking (Sentences and Commas for better stability)
-        const chunks = text.split(/([.!?]+\s|,\s)/g).filter(c => c.trim().length > 0);
+        // 3. Better Chunking: Split by punctuation without losing the trailing text
+        const chunks = text.split(/([.!?]+)/g).filter(Boolean);
+        const sentences: string[] = [];
+        for (let i = 0; i < chunks.length; i += 2) {
+            const s = chunks[i] + (chunks[i + 1] || "");
+            if (s.trim()) sentences.push(s.trim());
+        }
 
-        // Re-assemble if chunks are too small
         const processedChunks: string[] = [];
-        let currentCombined = "";
-        for (const chunk of chunks) {
-            if ((currentCombined + chunk).length < 100) {
-                currentCombined += chunk;
+        let currentChunk = "";
+
+        for (const sentence of sentences) {
+            if ((currentChunk + sentence).length < 250) {
+                currentChunk += (currentChunk ? " " : "") + sentence;
             } else {
-                if (currentCombined) processedChunks.push(currentCombined);
-                currentCombined = chunk;
+                if (currentChunk) processedChunks.push(currentChunk);
+                currentChunk = sentence;
             }
         }
-        if (currentCombined) processedChunks.push(currentCombined);
+        if (currentChunk) processedChunks.push(currentChunk);
 
         let chunkIndex = 0;
 
         const speakNext = () => {
             if (chunkIndex >= processedChunks.length || isCompleted || timeLeft <= 0) {
-                // Done speaking
                 isAiSpeakingRef.current = false;
                 setIsSpeaking(false);
 
-                // Transition back to listening after a natural pause
+                // Transition back to listening ONLY after AI stops
                 setTimeout(() => {
                     if (voiceEnabled && !isCompleted && !isAiSpeakingRef.current) {
+                        console.log("[Audio] AI finished. Re-enabling microphone.");
                         startListening();
                     }
-                }, 1500);
+                }, 800);
                 return;
             }
 
+            const voice = window.speechSynthesis.getVoices().find(v =>
+                v.name.includes('Google US English') ||
+                v.name.includes('Microsoft Aria') ||
+                v.name.includes('Samantha') ||
+                v.lang === 'en-US'
+            );
+
             const utterance = new SpeechSynthesisUtterance(processedChunks[chunkIndex].trim());
-            utterance.rate = 1.05;
+            if (voice) utterance.voice = voice;
+            utterance.rate = 1.0;
             utterance.pitch = 1.0;
             utterance.lang = 'en-US';
 
-            // CRITICAL: Keep reference to prevent garbage collection
+            // Critical for keeping reference
             currentUtteranceRef.current = utterance;
 
             utterance.onend = () => {
                 if (currentUtteranceRef.current === utterance) {
                     chunkIndex++;
-                    // Small delay between chunks for more natural cadence
-                    setTimeout(speakNext, 100);
+                    setTimeout(speakNext, 50);
                 }
             };
 
-            utterance.onerror = (event: any) => {
-                if (event.error === 'interrupted' || event.error === 'canceled') return;
-                console.error("Speech error at chunk", chunkIndex, event.error);
+            utterance.onerror = (e: any) => {
+                const isInterrupted = e.error === 'interrupted' || e.error === 'canceled';
+                if (!isInterrupted) {
+                    console.error("Speech Synthesis Error:", e.error, e);
+                }
 
-                // If it's a real error, move to next chunk anyway to try to recover
                 if (currentUtteranceRef.current === utterance) {
-                    chunkIndex++;
-                    setTimeout(speakNext, 100);
+                    console.log(`[Audio] Utterance error (${e.error}). Cleaning up state.`);
+                    isAiSpeakingRef.current = false;
+                    setIsSpeaking(false);
+
+                    if (!isInterrupted) {
+                        chunkIndex++;
+                        setTimeout(speakNext, 50);
+                    }
                 }
             };
 
             window.speechSynthesis.speak(utterance);
 
-            // Fix for Chrome getting stuck: pulsing resume
+            // Fix for Chrome/Windows getting stuck: pulsing resume
             const resumeInterval = setInterval(() => {
                 if (window.speechSynthesis.speaking) {
                     window.speechSynthesis.resume();
@@ -327,8 +359,8 @@ export default function InterviewPage() {
             }, 5000);
         };
 
-        // Start with a small buffer after cancellation
-        setTimeout(speakNext, 200);
+        // Start playback
+        speakNext();
     };
 
     const toggleListening = () => {
@@ -419,6 +451,7 @@ export default function InterviewPage() {
 
         try {
             const res = await api.interviews.sendMessage(token, userMsg);
+            setIsThinking(false);
             setMessages(res.transcript);
 
             if (res.status === "CODING" || res.status === "COMPLETED") {
@@ -428,13 +461,64 @@ export default function InterviewPage() {
                     timerRef.current = null;
                 }
                 window.speechSynthesis.cancel();
+
+                // Stop recording and upload
+                stopAndUploadRecording();
             }
         } catch (error) {
+            setIsThinking(false);
             toast.error("Failed to send message");
             console.error(error);
         } finally {
             setIsSending(false);
         }
+    };
+
+    const startRecording = () => {
+        if (!screenStreamRef.current) return;
+
+        try {
+            const mediaRecorder = new MediaRecorder(screenStreamRef.current, {
+                mimeType: 'video/webm;codecs=vp8'
+            });
+
+            chunksRef.current = [];
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                console.log("Recording stopped. Total chunks:", chunksRef.current.length);
+            };
+
+            mediaRecorder.start(1000); // 1 second timeslices
+            mediaRecorderRef.current = mediaRecorder;
+            console.log("Screen recording started");
+        } catch (e) {
+            console.error("Failed to start recording:", e);
+        }
+    };
+
+    const stopAndUploadRecording = async () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+
+        // Wait a bit for final chunks
+        setTimeout(async () => {
+            if (chunksRef.current.length === 0) return;
+
+            const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+            try {
+                toast.promise(interviewsApi.uploadRecording(token, blob), {
+                    loading: 'Uploading screen recording...',
+                    success: 'Recording saved successfully',
+                    error: 'Failed to save recording'
+                });
+            } catch (e) {
+                console.error("Upload error:", e);
+            }
+        }, 500);
     };
 
     const handleStartScreenShare = async () => {
@@ -518,6 +602,17 @@ export default function InterviewPage() {
 
             const startRes = await api.interviews.startInterview(token);
             setMessages(startRes.transcript);
+
+            // Start recording
+            startRecording();
+
+            // Force Reset Audio State for Interview
+            isAiSpeakingRef.current = false;
+            setIsSpeaking(false);
+            if (startRes.transcript && startRes.transcript.length > 0) {
+                // Ensure the watcher picks up the FIRST message
+                lastSpokenMessageIndex.current = -1;
+            }
 
             // Transition UI
             setLandingStep('in_progress');
@@ -874,6 +969,13 @@ export default function InterviewPage() {
                                             <span className="text-xs font-black uppercase tracking-widest text-slate-500">Recording...</span>
                                         </div>
                                     )}
+
+                                    {isThinking && (
+                                        <div className="mt-6 flex items-center gap-3 bg-white/60 dark:bg-slate-900 border border-white dark:border-slate-800 px-5 py-2.5 rounded-2xl w-fit shadow-sm">
+                                            <Loader2 className="h-3 w-3 animate-spin text-indigo-600" />
+                                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Thinking...</span>
+                                        </div>
+                                    )}
                                 </motion.div>
                             ))}
                         </AnimatePresence>
@@ -924,19 +1026,19 @@ export default function InterviewPage() {
                 </div>
             </main>
 
-            {/* Input Overlay (Minimized) */}
-            <footer className="p-8 z-30">
-                <div className="max-w-4xl mx-auto flex justify-center">
+            {/* Voice-Only Footer */}
+            <footer className="p-12 z-40 bg-gradient-to-t from-[#F0F2FF] dark:from-slate-950 to-transparent">
+                <div className="max-w-4xl mx-auto flex flex-col items-center gap-8">
                     {isCompleted ? (
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white p-6 rounded-[40px] shadow-2xl border border-indigo-100 flex flex-col items-center gap-4 text-center"
+                            className="bg-white dark:bg-slate-900 px-12 py-8 rounded-[48px] shadow-2xl border border-indigo-100 dark:border-slate-800 flex flex-col items-center gap-6 text-center"
                         >
-                            <h3 className="text-xl font-bold">Phase Complete</h3>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-wider">Phase Complete</h3>
                             <Button
                                 size="lg"
-                                className="rounded-2xl px-10 h-14 bg-indigo-600 hover:bg-indigo-700 text-lg shadow-xl"
+                                className="rounded-[24px] px-12 h-16 bg-indigo-600 hover:bg-indigo-700 text-xl font-bold shadow-xl transition-all hover:translate-y-[-2px]"
                                 onClick={() => {
                                     if (typeof window !== 'undefined' && window.speechSynthesis) {
                                         window.speechSynthesis.cancel();
@@ -944,42 +1046,33 @@ export default function InterviewPage() {
                                     router.push(`/interview/${token}/coding`);
                                 }}
                             >
-                                Start Coding Challenge
+                                Start Coding Challenge <ArrowRight className="ml-2 h-6 w-6" />
                             </Button>
                         </motion.div>
                     ) : (
-                        <div className="relative flex items-center gap-4 w-full max-w-2xl group">
-                            <Input
-                                placeholder={isListening ? "Listening..." : "Type or speak your response..."}
-                                className="h-16 pl-8 pr-32 rounded-[32px] border-transparent bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl focus-visible:ring-indigo-600 text-lg font-medium placeholder:text-slate-300 transition-all group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)]"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                disabled={isSending || timeLeft <= 0}
-                            />
-
-                            <div className="absolute right-2 flex items-center gap-2">
-                                {input.trim() && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-12 w-12 rounded-full hover:bg-indigo-50 text-indigo-600"
-                                        onClick={() => handleSend()}
+                        <div className="flex flex-col items-center gap-6 w-full max-w-2xl group">
+                            {/* Live Transcription Display (Passive) */}
+                            <AnimatePresence>
+                                {input && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-md px-8 py-4 rounded-[24px] border border-white/60 dark:border-slate-800/60 shadow-sm"
                                     >
-                                        <Send className="h-6 w-6" />
-                                    </Button>
+                                        <p className="text-slate-500 dark:text-slate-400 italic text-center font-medium leading-relaxed">
+                                            "{input}"
+                                        </p>
+                                    </motion.div>
                                 )}
-                                <Button
-                                    size="lg"
-                                    className={`h-12 w-12 p-0 rounded-full shadow-lg transition-all ${isListening
-                                        ? "bg-red-500 hover:bg-red-600"
-                                        : "bg-indigo-600 hover:bg-indigo-700"
-                                        }`}
-                                    onClick={toggleListening}
-                                    disabled={isSending || timeLeft <= 0}
-                                >
-                                    {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                                </Button>
+                            </AnimatePresence>
+
+                            {/* Status Banner */}
+                            <div className="flex items-center gap-4 bg-indigo-600/5 dark:bg-indigo-900/10 px-6 py-2 rounded-full border border-indigo-600/10 transition-all">
+                                <span className={`h-2 w-2 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600/70 dark:text-indigo-400/70">
+                                    {isListening ? "Listening Mode Active" : isSpeaking ? "Evalyn Speaking" : isThinking ? "Processing Audio" : "Waiting for Input"}
+                                </span>
                             </div>
                         </div>
                     )}

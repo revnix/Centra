@@ -31,7 +31,9 @@ async def extract_skills_node(state: InterviewState):
         experience=experience
     )
     
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    from src.flow.model.llm_manager import get_fast_llm
+    fast_llm = get_fast_llm()
+    response = await fast_llm.ainvoke([HumanMessage(content=prompt)])
     skills = [s.strip() for s in response.content.split(",")]
     
     return {

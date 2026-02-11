@@ -95,3 +95,48 @@ The Hiring Team
         except Exception as e:
             logger.error(f"Failed to send offer letter: {str(e)}")
             return False
+    @staticmethod
+    def send_interview_invitation(candidate_email: str, candidate_name: str, job_title: str, interview_url: str, expiry_hours: int = 72):
+        """
+        Sends an AI interview invitation email to the candidate.
+        """
+        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+            logger.error("SMTP credentials not configured. Cannot send invitation.")
+            return False
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.EMAILS_FROM_EMAIL
+            msg['To'] = candidate_email
+            msg['Subject'] = f"Interview Invitation: {job_title} at Evalyn AI"
+
+            body = f"""
+Hello {candidate_name},
+
+Great news! After reviewing your application for the {job_title} position, we would like to invite you for an AI-led interview.
+
+This interview will help us better understand your skills and experience. It is a conversational interview followed by a short coding challenge, and it should take about 10-15 minutes.
+
+You can start your interview here:
+{interview_url}
+
+Please note: This link is unique to you and will expire in {expiry_hours} hours.
+
+Good luck!
+The Hiring Team
+Evalyn AI
+"""
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
+            server.quit()
+            
+            logger.info(f"Interview invitation sent successfully to {candidate_email}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send interview invitation: {str(e)}")
+            return False

@@ -45,3 +45,4 @@ class Application(Base):
     # Relationships
     job = relationship("Posts", backref="applications")
     candidate = relationship("User", backref="applications")
+    interview_session = relationship("InterviewSession", back_populates="application", uselist=False, cascade="all, delete-orphan")

@@ -47,4 +47,11 @@ export const applicationsApi = {
     reject: async (id: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/reject`, {});
     },
+
+    /**
+     * Delete an application (Permanently)
+     */
+    delete: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/applications/${id}`);
+    },
 };

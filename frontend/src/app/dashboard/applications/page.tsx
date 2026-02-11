@@ -15,7 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, Filter, Loader2, Bot } from "lucide-react";
+import { Eye, Search, Filter, Loader2, Bot, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -27,20 +27,36 @@ export default function ApplicationsPage() {
     const [applications, setApplications] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    const fetchApplications = async () => {
+        try {
+            const res = await api.applications.list();
+            setApplications(res);
+        } catch (error: any) {
+            console.error("Failed to fetch applications:", error);
+            toast.error(`Error loading applications: ${error.message || 'Please try again'}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchApplications = async () => {
-            try {
-                const res = await api.applications.list();
-                setApplications(res);
-            } catch (error: any) {
-                console.error("Failed to fetch applications:", error);
-                toast.error(`Error loading applications: ${error.message || 'Please try again'}`);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchApplications();
     }, []);
+
+    const handleDelete = async (id: string, name: string) => {
+        if (!window.confirm(`Are you sure you want to permanently delete the application for ${name}? This will remove all interview data and cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await api.applications.delete(id);
+            toast.success(`Application for ${name} deleted successfully`);
+            fetchApplications(); // Refresh list
+        } catch (err: any) {
+            console.error("Delete error:", err);
+            toast.error(`Failed to delete application: ${err.message || "Unauthorized"}`);
+        }
+    };
 
     const getInitials = (name: string) => name ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "??";
 
@@ -161,6 +177,18 @@ export default function ApplicationsPage() {
                                                         Review <Eye className="w-4 h-4 ml-2" />
                                                     </Button>
                                                 </Link>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(app.id, app.candidate?.full_name || "Unknown");
+                                                    }}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
                                             </div>
                                         </TableCell>
                                     </TableRow>

@@ -113,4 +113,13 @@ export const interviewsApi = {
     submitCoding: async (token: string, code: string, language: string = "python"): Promise<{ message: string }> => {
         return apiClient.post<{ message: string }>(`/interviews/${token}/submit-coding`, { code, language });
     },
+
+    /**
+     * Upload screen recording
+     */
+    uploadRecording: async (token: string, blob: Blob): Promise<any> => {
+        const formData = new FormData();
+        formData.append('file', blob, 'recording.webm');
+        return apiClient.post<any>(`/interviews/${token}/recording`, formData);
+    },
 };
