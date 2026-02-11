@@ -117,7 +117,9 @@ export const interviewsApi = {
     /**
      * Upload screen recording
      */
-    uploadRecording: async (token: string, formData: FormData): Promise<any> => {
-        return apiClient.post<any>(`/interviews/${token}/upload-recording`, formData);
+    uploadRecording: async (token: string, blob: Blob): Promise<any> => {
+        const formData = new FormData();
+        formData.append('file', blob, 'recording.webm');
+        return apiClient.post<any>(`/interviews/${token}/recording`, formData);
     },
 };

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "@/lib/api";
+import { api, interviewsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,7 @@ interface Message {
 // Speech Recognition Types
 interface SpeechRecognitionEvent extends Event {
     results: SpeechRecognitionResultList;
+    resultIndex: number;
 }
 
 interface SpeechRecognition extends EventTarget {
@@ -59,8 +60,13 @@ export default function InterviewPage() {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
+<<<<<<< HEAD
+    const [isSharingScreen, setIsSharingScreen] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
+=======
 
     const isSharingScreen = !!stream;
+>>>>>>> origin/main
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,18 +74,48 @@ export default function InterviewPage() {
     const recognitionRef = useRef<any>(null);
     const lastSpokenMessageIndex = useRef<number>(-1);
     const screenStreamRef = useRef<MediaStream | null>(null);
+    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const isAiSpeakingRef = useRef(false);
+    const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+    const SILENCE_THRESHOLD = 3000;
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
 
+<<<<<<< HEAD
+    // Global cleanup and Tab-switching detection
+=======
     // Global cleanup
+>>>>>>> origin/main
     useEffect(() => {
-        return () => {
-            if (typeof window !== 'undefined' && window.speechSynthesis) {
-                window.speechSynthesis.cancel();
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isCompleted && timeLeft > 0) {
+                toast.error("Warning: Tab switching is not allowed during the interview. This event has been logged.", {
+                    duration: 5000,
+                    style: { backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #f87171' }
+                });
+                console.warn("User switched tab at:", new Date().toISOString());
+                // In a real scenario, we would send this to the backend to log the violation
             }
+        };
+
+        if (typeof document !== 'undefined') {
+            document.addEventListener("visibilitychange", handleVisibilityChange);
+        }
+
+        return () => {
+            // Only stop tracks, don't cancel speech globally on every status change
+            // This prevents the 'Start Interview' transition from silencing the AI
             if (screenStreamRef.current) {
                 screenStreamRef.current.getTracks().forEach(track => track.stop());
             }
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
+            if (typeof document !== 'undefined') {
+                document.removeEventListener("visibilitychange", handleVisibilityChange);
+            }
         };
-    }, []);
+    }, [token]);
 
     // Timer effect
     useEffect(() => {
@@ -127,34 +163,95 @@ export default function InterviewPage() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
+            recognition.continuous = true;
+            recognition.interimResults = true;
             recognition.lang = 'en-US';
 
+            let finalTranscript = '';
+
             recognition.onresult = (event: SpeechRecognitionEvent) => {
+<<<<<<< HEAD
+                if (isAiSpeakingRef.current) return;
+
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const currentText = (finalTranscript + interimTranscript).trim();
+                if (currentText) {
+                    setInput(currentText);
+
+                    // Clear existing silence timer
+                    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+                    // VOICE ACTIVITY DETECTION:
+                    // Only trigger if we have a meaningful input and user has stopped speaking
+                    silenceTimerRef.current = setTimeout(() => {
+                        if (currentText.length > 2 && !isAiSpeakingRef.current && isListening) {
+                            console.log("[Silence Detection] Threshold met. Triggering AI response.");
+                            setIsThinking(true);
+                            handleSend(currentText);
+                            finalTranscript = '';
+                        }
+                    }, 3500); // 3.5s VAD threshold for natural pauses
+                }
+=======
                 const transcript = event.results[0][0].transcript;
                 setInput(transcript);
                 setIsListening(false);
                 handleSend(transcript);
+>>>>>>> origin/main
             };
 
             recognition.onerror = (event: any) => {
-                console.error("Speech recognition error", event.error);
-                setIsListening(false);
-                if (event.error !== 'no-speech') {
-                    toast.error("Speech recognition failed. Please try typing.");
+                const isSilent = event.error === 'no-speech';
+                const isAborted = event.error === 'aborted';
+
+                if (isAborted || isSilent) {
+                    // Silently handle common transient states
+                    return;
+                }
+
+                console.warn("Speech recognition warning:", event.error);
+
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    setIsListening(false);
+                    toast.error("Microphone access denied or not available.");
                 }
             };
 
+<<<<<<< HEAD
+            recognition.onend = () => {
+                // Auto-restart if we should be listening and AI is NOT talking
+                if (isListening && !isAiSpeakingRef.current && !isCompleted && timeLeft > 0) {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        // Ignore restart errors as they are usually due to double-starting
+                    }
+                }
+            };
+
+=======
             recognition.onend = () => setIsListening(false);
+>>>>>>> origin/main
             recognitionRef.current = recognition;
         }
-    }, []);
+
+        return () => {
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        };
+    }, [isListening, isCompleted, timeLeft]);
 
     // Speech Synthesis
     useEffect(() => {
         if (!voiceEnabled || messages.length === 0 || isCompleted || timeLeft <= 0) {
-            if (isCompleted || timeLeft <= 0) {
+            if ((isCompleted || timeLeft <= 0) && typeof window !== 'undefined') {
                 window.speechSynthesis.cancel();
             }
             return;
@@ -164,12 +261,125 @@ export default function InterviewPage() {
         const lastIndex = messages.length - 1;
 
         if (lastMessage.role === 'ai' && lastIndex > lastSpokenMessageIndex.current) {
-            speak(lastMessage.content);
-            lastSpokenMessageIndex.current = lastIndex;
+            console.log(`[Audio] Playing AI message: ${lastIndex}`);
+            // Force strict turn-taking: Mic OFF when AI starts
+            stopListening();
+
+            if (!isAiSpeakingRef.current) {
+                speak(lastMessage.content);
+                lastSpokenMessageIndex.current = lastIndex;
+            }
         }
     }, [messages, voiceEnabled, isCompleted, timeLeft]);
 
     const speak = (text: string) => {
+<<<<<<< HEAD
+        if (!window.speechSynthesis || isCompleted || timeLeft <= 0 || !text) return;
+
+        console.log("Evalyn speaking:", text);
+
+        // 1. Lock state and stop listening
+        isAiSpeakingRef.current = true;
+        setIsSpeaking(true);
+        stopListening();
+
+        // 2. Reset Engine
+        window.speechSynthesis.cancel();
+
+        // 3. Better Chunking: Split by punctuation without losing the trailing text
+        const chunks = text.split(/([.!?]+)/g).filter(Boolean);
+        const sentences: string[] = [];
+        for (let i = 0; i < chunks.length; i += 2) {
+            const s = chunks[i] + (chunks[i + 1] || "");
+            if (s.trim()) sentences.push(s.trim());
+        }
+
+        const processedChunks: string[] = [];
+        let currentChunk = "";
+
+        for (const sentence of sentences) {
+            if ((currentChunk + sentence).length < 250) {
+                currentChunk += (currentChunk ? " " : "") + sentence;
+            } else {
+                if (currentChunk) processedChunks.push(currentChunk);
+                currentChunk = sentence;
+            }
+        }
+        if (currentChunk) processedChunks.push(currentChunk);
+
+        let chunkIndex = 0;
+
+        const speakNext = () => {
+            if (chunkIndex >= processedChunks.length || isCompleted || timeLeft <= 0) {
+                isAiSpeakingRef.current = false;
+                setIsSpeaking(false);
+
+                // Transition back to listening ONLY after AI stops
+                setTimeout(() => {
+                    if (voiceEnabled && !isCompleted && !isAiSpeakingRef.current) {
+                        console.log("[Audio] AI finished. Re-enabling microphone.");
+                        startListening();
+                    }
+                }, 800);
+                return;
+            }
+
+            const voice = window.speechSynthesis.getVoices().find(v =>
+                v.name.includes('Google US English') ||
+                v.name.includes('Microsoft Aria') ||
+                v.name.includes('Samantha') ||
+                v.lang === 'en-US'
+            );
+
+            const utterance = new SpeechSynthesisUtterance(processedChunks[chunkIndex].trim());
+            if (voice) utterance.voice = voice;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.lang = 'en-US';
+
+            // Critical for keeping reference
+            currentUtteranceRef.current = utterance;
+
+            utterance.onend = () => {
+                if (currentUtteranceRef.current === utterance) {
+                    chunkIndex++;
+                    setTimeout(speakNext, 50);
+                }
+            };
+
+            utterance.onerror = (e: any) => {
+                const isInterrupted = e.error === 'interrupted' || e.error === 'canceled';
+                if (!isInterrupted) {
+                    console.error("Speech Synthesis Error:", e.error, e);
+                }
+
+                if (currentUtteranceRef.current === utterance) {
+                    console.log(`[Audio] Utterance error (${e.error}). Cleaning up state.`);
+                    isAiSpeakingRef.current = false;
+                    setIsSpeaking(false);
+
+                    if (!isInterrupted) {
+                        chunkIndex++;
+                        setTimeout(speakNext, 50);
+                    }
+                }
+            };
+
+            window.speechSynthesis.speak(utterance);
+
+            // Fix for Chrome/Windows getting stuck: pulsing resume
+            const resumeInterval = setInterval(() => {
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.resume();
+                } else {
+                    clearInterval(resumeInterval);
+                }
+            }, 5000);
+        };
+
+        // Start playback
+        speakNext();
+=======
         if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
@@ -179,6 +389,7 @@ export default function InterviewPage() {
         utterance.onend = () => setIsSpeaking(false);
         utterance.onerror = () => setIsSpeaking(false);
         window.speechSynthesis.speak(utterance);
+>>>>>>> origin/main
     };
 
     const toggleListening = () => {
@@ -270,6 +481,7 @@ export default function InterviewPage() {
 
         try {
             const res = await api.interviews.sendMessage(token, userMsg);
+            setIsThinking(false);
             setMessages(res.transcript);
 
             if (res.status === "CODING" || res.status === "COMPLETED") {
@@ -282,8 +494,12 @@ export default function InterviewPage() {
                     timerRef.current = null;
                 }
                 window.speechSynthesis.cancel();
+
+                // Stop recording and upload
+                stopAndUploadRecording();
             }
         } catch (error) {
+            setIsThinking(false);
             toast.error("Failed to send message");
             console.error(error);
         } finally {
@@ -291,11 +507,105 @@ export default function InterviewPage() {
         }
     };
 
+<<<<<<< HEAD
+    const startRecording = () => {
+        if (!screenStreamRef.current) return;
+
+        try {
+            const mediaRecorder = new MediaRecorder(screenStreamRef.current, {
+                mimeType: 'video/webm;codecs=vp8'
+            });
+
+            chunksRef.current = [];
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                console.log("Recording stopped. Total chunks:", chunksRef.current.length);
+            };
+
+            mediaRecorder.start(1000); // 1 second timeslices
+            mediaRecorderRef.current = mediaRecorder;
+            console.log("Screen recording started");
+        } catch (e) {
+            console.error("Failed to start recording:", e);
+        }
+    };
+
+    const stopAndUploadRecording = async () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+
+        // Wait a bit for final chunks
+        setTimeout(async () => {
+            if (chunksRef.current.length === 0) return;
+
+            const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+            try {
+                toast.promise(interviewsApi.uploadRecording(token, blob), {
+                    loading: 'Uploading screen recording...',
+                    success: 'Recording saved successfully',
+                    error: 'Failed to save recording'
+                });
+            } catch (e) {
+                console.error("Upload error:", e);
+            }
+        }, 500);
+    };
+
+    const handleStartScreenShare = async () => {
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                screenStreamRef.current = stream;
+                setIsSharingScreen(true);
+
+                stream.getVideoTracks()[0].onended = () => {
+                    setIsSharingScreen(false);
+                    toast.warning("Screen sharing stopped. It is required for the interview.");
+                    setLandingStep('screen-share');
+                };
+
+                setLandingStep('welcome');
+                toast.success("Screen sharing enabled");
+            } else {
+                toast.error("Screen sharing is not supported by your browser.");
+            }
+        } catch (err) {
+            console.error("Screen share error:", err);
+            toast.error("Screen sharing is required to proceed with the interview.");
+        }
+    };
+
+    const handleStartRulesBriefing = () => {
+        setLandingStep('rules');
+        // Speak the rules
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+            const text = "Welcome to your interview. Before we begin, please note the following professional guidelines: First, use of any AI tools is strictly not allowed. Second, tab switching is not allowed. Third, screen sharing is mandatory throughout the interview. Finally, please be aware that the interview may be monitored and reviewed. If you understand, click the start button to begin.";
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => {
+                setIsSpeaking(false);
+                setLandingStep('ready');
+            };
+            utterance.onerror = () => {
+                setIsSpeaking(false);
+                setLandingStep('ready');
+            };
+            window.speechSynthesis.speak(utterance);
+        } else {
+            setLandingStep('ready');
+=======
     const handleStartScreenShare = async () => {
         const s = await startScreenShare();
         if (s) {
             setLandingStep('welcome');
             toast.success("Screen sharing started successfully");
+>>>>>>> origin/main
         }
     };
 
@@ -314,6 +624,22 @@ export default function InterviewPage() {
             localStorage.setItem(`interview_start_${token}`, Date.now().toString());
             const startRes = await api.interviews.startInterview(token);
             setMessages(startRes.transcript);
+<<<<<<< HEAD
+
+            // Start recording
+            startRecording();
+
+            // Force Reset Audio State for Interview
+            isAiSpeakingRef.current = false;
+            setIsSpeaking(false);
+            if (startRes.transcript && startRes.transcript.length > 0) {
+                // Ensure the watcher picks up the FIRST message
+                lastSpokenMessageIndex.current = -1;
+            }
+
+            // Transition UI
+=======
+>>>>>>> origin/main
             setLandingStep('in_progress');
             if (session) {
                 setSession({ ...session, status: 'IN_PROGRESS' });
@@ -384,30 +710,6 @@ export default function InterviewPage() {
 
     // New Session Landing
     if (session.status === 'PENDING' && messages.length === 0) {
-
-        const handleStartRulesBriefing = () => {
-            setLandingStep('rules');
-            // Speak the rules
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-                const text = "Welcome to your interview. Before we begin, please note the following rules: First, no cheating is allowed. Second, the use of external AI tools is strictly prohibited. Third, screen sharing is mandatory for the entire session. If you understand, click the start button that appears shortly.";
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 1.0;
-                utterance.onstart = () => setIsSpeaking(true);
-                utterance.onend = () => {
-                    setIsSpeaking(false);
-                    setLandingStep('ready');
-                };
-                utterance.onerror = () => {
-                    setIsSpeaking(false);
-                    setLandingStep('ready');
-                };
-                window.speechSynthesis.speak(utterance);
-            } else {
-                setLandingStep('ready');
-            }
-        };
-
         return (
             <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 overflow-hidden font-sans">
                 {/* Branding */}
@@ -465,11 +767,11 @@ export default function InterviewPage() {
 
                                     <ul className="space-y-6">
                                         {[
-                                            { id: 1, text: "The recording of your AI interview will be saved and reviewed by hiring managers." },
-                                            { id: 2, text: "Please remain on this tab and avoid using external tools during the session." },
-                                            { id: 3, text: "Screen sharing must be active throughout the session for security." },
-                                            { id: 4, text: "Feel free to ask clarifying questions out loud at any time." },
-                                            { id: 5, text: "A long pause will indicate to Evalyn that you've finished your answer." }
+                                            { id: 1, text: "Use of any AI tools is strictly not allowed." },
+                                            { id: 2, text: "Tab switching is not allowed." },
+                                            { id: 3, text: "Screen sharing is mandatory throughout the interview." },
+                                            { id: 4, text: "The interview may be monitored and reviewed." },
+                                            { id: 5, text: "Wait for the AI agent to finish speaking before responding." }
                                         ].map((item) => (
                                             <li key={item.id} className="flex gap-4">
                                                 <span className="text-slate-300 font-bold tabular-nums pt-0.5">{item.id}.</span>
@@ -717,6 +1019,13 @@ export default function InterviewPage() {
                                             <span className="text-xs font-black uppercase tracking-widest text-slate-500">Recording...</span>
                                         </div>
                                     )}
+
+                                    {isThinking && (
+                                        <div className="mt-6 flex items-center gap-3 bg-white/60 dark:bg-slate-900 border border-white dark:border-slate-800 px-5 py-2.5 rounded-2xl w-fit shadow-sm">
+                                            <Loader2 className="h-3 w-3 animate-spin text-indigo-600" />
+                                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Thinking...</span>
+                                        </div>
+                                    )}
                                 </motion.div>
                             ))}
                         </AnimatePresence>
@@ -767,19 +1076,19 @@ export default function InterviewPage() {
                 </div>
             </main>
 
-            {/* Input Overlay (Minimized) */}
-            <footer className="p-8 z-30">
-                <div className="max-w-4xl mx-auto flex justify-center">
+            {/* Voice-Only Footer */}
+            <footer className="p-12 z-40 bg-gradient-to-t from-[#F0F2FF] dark:from-slate-950 to-transparent">
+                <div className="max-w-4xl mx-auto flex flex-col items-center gap-8">
                     {isCompleted ? (
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white p-6 rounded-[40px] shadow-2xl border border-indigo-100 flex flex-col items-center gap-4 text-center"
+                            className="bg-white dark:bg-slate-900 px-12 py-8 rounded-[48px] shadow-2xl border border-indigo-100 dark:border-slate-800 flex flex-col items-center gap-6 text-center"
                         >
-                            <h3 className="text-xl font-bold">Phase Complete</h3>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-wider">Phase Complete</h3>
                             <Button
                                 size="lg"
-                                className="rounded-2xl px-10 h-14 bg-indigo-600 hover:bg-indigo-700 text-lg shadow-xl"
+                                className="rounded-[24px] px-12 h-16 bg-indigo-600 hover:bg-indigo-700 text-xl font-bold shadow-xl transition-all hover:translate-y-[-2px]"
                                 onClick={() => {
                                     if (typeof window !== 'undefined' && window.speechSynthesis) {
                                         window.speechSynthesis.cancel();
@@ -787,42 +1096,33 @@ export default function InterviewPage() {
                                     router.push(`/interview/${token}/coding`);
                                 }}
                             >
-                                Start Coding Challenge
+                                Start Coding Challenge <ArrowRight className="ml-2 h-6 w-6" />
                             </Button>
                         </motion.div>
                     ) : (
-                        <div className="relative flex items-center gap-4 w-full max-w-2xl group">
-                            <Input
-                                placeholder={isListening ? "Listening..." : "Type or speak your response..."}
-                                className="h-16 pl-8 pr-32 rounded-[32px] border-transparent bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl focus-visible:ring-indigo-600 text-lg font-medium placeholder:text-slate-300 transition-all group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)]"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                disabled={isSending || timeLeft <= 0}
-                            />
-
-                            <div className="absolute right-2 flex items-center gap-2">
-                                {input.trim() && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-12 w-12 rounded-full hover:bg-indigo-50 text-indigo-600"
-                                        onClick={() => handleSend()}
+                        <div className="flex flex-col items-center gap-6 w-full max-w-2xl group">
+                            {/* Live Transcription Display (Passive) */}
+                            <AnimatePresence>
+                                {input && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-md px-8 py-4 rounded-[24px] border border-white/60 dark:border-slate-800/60 shadow-sm"
                                     >
-                                        <Send className="h-6 w-6" />
-                                    </Button>
+                                        <p className="text-slate-500 dark:text-slate-400 italic text-center font-medium leading-relaxed">
+                                            "{input}"
+                                        </p>
+                                    </motion.div>
                                 )}
-                                <Button
-                                    size="lg"
-                                    className={`h-12 w-12 p-0 rounded-full shadow-lg transition-all ${isListening
-                                        ? "bg-red-500 hover:bg-red-600"
-                                        : "bg-indigo-600 hover:bg-indigo-700"
-                                        }`}
-                                    onClick={toggleListening}
-                                    disabled={isSending || timeLeft <= 0}
-                                >
-                                    {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                                </Button>
+                            </AnimatePresence>
+
+                            {/* Status Banner */}
+                            <div className="flex items-center gap-4 bg-indigo-600/5 dark:bg-indigo-900/10 px-6 py-2 rounded-full border border-indigo-600/10 transition-all">
+                                <span className={`h-2 w-2 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600/70 dark:text-indigo-400/70">
+                                    {isListening ? "Listening Mode Active" : isSpeaking ? "Evalyn Speaking" : isThinking ? "Processing Audio" : "Waiting for Input"}
+                                </span>
                             </div>
                         </div>
                     )}

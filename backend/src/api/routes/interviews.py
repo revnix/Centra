@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+import os
+import uuid
+from src.api.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
 from src.api.services.interview_service import InterviewService
@@ -94,6 +97,13 @@ async def get_interview_session(
                  status_code=status.HTTP_403_FORBIDDEN, 
                  detail="Your interview link has expired. Please contact HR."
              )
+    
+    # Check for expiry
+    if session.expires_at and datetime.now(timezone.utc) > session.expires_at:
+        session.status = InterviewStatus.EXPIRED
+        db.add(session)
+        await db.commit()
+        raise HTTPException(status_code=403, detail="This interview link has expired.")
     
     # If the session is PENDING and there's no transcript, we might want to trigger the first message
     if session.status == InterviewStatus.PENDING and not session.transcript:
@@ -391,18 +401,50 @@ async def submit_coding_challenge(
     await db.commit()
     
     return {"message": "Submission received and evaluated", "score": session.overall_score}
+<<<<<<< HEAD
+    
+@router.post("/{token}/recording", status_code=status.HTTP_200_OK)
+=======
 
 @router.post("/{token}/upload-recording")
+>>>>>>> origin/main
 async def upload_recording(
     token: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
+<<<<<<< HEAD
+    """Upload screen recording for an interview session."""
+=======
+>>>>>>> origin/main
     service = InterviewService(db)
     session = await service.get_session_by_token(token)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+<<<<<<< HEAD
+    # 1. Save File
+    file_ext = os.path.splitext(file.filename)[1]
+    if not file_ext:
+        file_ext = ".webm"
+        
+    unique_filename = f"record_{token}_{uuid.uuid4().hex}{file_ext}"
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "interviews")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    file_path = os.path.join(upload_dir, unique_filename)
+    
+    with open(file_path, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+    
+    # 2. Update DB
+    session.recording_url = f"/uploads/interviews/{unique_filename}"
+    db.add(session)
+    await db.commit()
+    
+    return {"message": "Recording uploaded successfully", "url": session.recording_url}
+=======
     # Ensure upload directory exists
     upload_dir = settings.UPLOAD_DIR
     recordings_dir = os.path.join(upload_dir, "recordings")
@@ -426,3 +468,4 @@ async def upload_recording(
     except Exception as e:
         print(f"Failed to upload recording: {e}")
         raise HTTPException(status_code=500, detail="Failed to save recording")
+>>>>>>> origin/main

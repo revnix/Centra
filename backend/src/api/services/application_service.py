@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from src.api.models.application import Application, ApplicationStatus
 from src.api.models.candidate import CandidateProfile
 from src.api.models.user import User, UserRole
@@ -48,9 +48,9 @@ class ApplicationService:
         result = await self.db.execute(
             select(Application)
             .options(
-                selectinload(Application.candidate).selectinload(User.candidate_profile),
-                selectinload(Application.job),
-                selectinload(Application.interview_session)
+                joinedload(Application.candidate).joinedload(User.candidate_profile),
+                joinedload(Application.job),
+                joinedload(Application.interview_session)
             )
             .where(Application.id == application_id)
         )
@@ -61,9 +61,9 @@ class ApplicationService:
         result = await self.db.execute(
             select(Application)
             .options(
-                selectinload(Application.candidate).selectinload(User.candidate_profile),
-                selectinload(Application.job),
-                selectinload(Application.interview_session)
+                joinedload(Application.candidate).joinedload(User.candidate_profile),
+                joinedload(Application.job),
+                joinedload(Application.interview_session)
             )
             .offset(skip)
             .limit(limit)
@@ -255,3 +255,13 @@ class ApplicationService:
         await self.db.commit()
         await self.db.refresh(application)
         return application
+
+    async def delete_application(self, application_id: int) -> bool:
+        """Permanently delete an application and its related data."""
+        application = await self.get_application_by_id(application_id)
+        if not application:
+            return False
+        
+        await self.db.delete(application)
+        await self.db.commit()
+        return True

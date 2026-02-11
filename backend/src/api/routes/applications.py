@@ -1,16 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, BackgroundTasks
 import os
 import uuid
 import json
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.api.db.session import get_db
+from src.api.db.session import get_db, AsyncSessionLocal # Use AsyncSessionLocal for background tasks
 from src.api.core.dependencies import get_current_user
 from src.api.models.user import User, UserRole
 from src.api.services.application_service import ApplicationService
 from src.api.services.interview_service import InterviewService
 from src.api.services.auth_service import AuthService
 from src.api.services.candidate_service import CandidateService
+from src.api.services.screening_service import ScreeningService
 from src.api.schemas.application import ApplicationCreate, ApplicationResponse
 from src.api.schemas.user import UserCreate
 from src.api.schemas.candidate import CandidateProfileCreate
@@ -18,8 +19,15 @@ from src.api.core.config import settings
 
 router = APIRouter()
 
+async def run_screening(application_id: int):
+    """Background task to run screening."""
+    async with AsyncSessionLocal() as db:
+        service = ScreeningService(db)
+        await service.evaluate_and_invite(application_id)
+
 @router.post("/guest", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def guest_apply(
+    background_tasks: BackgroundTasks,
     job_id: int = Form(...),
     email: str = Form(...),
     full_name: str = Form(...),
@@ -27,6 +35,7 @@ async def guest_apply(
     linkedin_url: Optional[str] = Form(None),
     skills: str = Form("[]"),
     experience_years: int = Form(0),
+    cover_letter: Optional[str] = Form(None),
     resume_file: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
@@ -85,19 +94,36 @@ async def guest_apply(
             experience_years=experience_years
         )
         await cand_service.create_profile(user.id, profile_in)
-    elif resume_url:
-        # Update resume URL if new one uploaded
-        profile.resume_url = resume_url
+    else:
+        # Update existing profile with latest info
+        if resume_url:
+            profile.resume_url = resume_url
+        if linkedin_url:
+            profile.linkedin_url = linkedin_url
+        if skills_list:
+            profile.skills = skills_list
+        if experience_years > 0:
+            profile.experience_years = experience_years
+        
         db.add(profile)
-        await db.commit()
+        # We don't need a separate commit here as there's one in service or end of request
         
     # 4. Create Application
     application = await app_service.create_application(
         user.id, 
         job_id,
-        phone_number=phone_number
+        phone_number=phone_number,
+        cover_letter=cover_letter
     )
     
+<<<<<<< HEAD
+    # 5. Trigger AI Screening (Background Task)
+    background_tasks.add_task(run_screening, application.id)
+    
+    return {
+        "message": "Application submitted successfully. Our AI system will review your profile and send an interview invitation via email if you are shortlisted.",
+        "status": "review_pending"
+=======
     # Trigger AI Analysis immediately
     # This will score the candidate and update status to SCREENING
     await app_service.analyze_application(application.id)
@@ -109,17 +135,23 @@ async def guest_apply(
         "message": "Application submitted successfully",
         "redirect_url": "/portal/status", # Redirect to status page instead of interview
         "interview_token": None
+>>>>>>> origin/main
     }
 
 @router.post("", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
 async def apply(
     apply_data: ApplicationCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Authenticated user application."""
     app_service = ApplicationService(db)
     application = await app_service.create_application(current_user.id, apply_data.job_id)
+    
+    # Trigger AI Screening
+    background_tasks.add_task(run_screening, application.id)
+    
     return application
 
 @router.get("", response_model=List[ApplicationResponse])
@@ -131,7 +163,7 @@ async def list_applications(
 ):
     """List all applications (Admin only)."""
     # In a real app, restrict this to Admin/Recruiter roles
-    # if current_user.role not in [UserRole.ADMIN, UserRole.RECRUITER]:
+    # if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
     #     raise HTTPException(status_code=403, detail="Not authorized")
     
     app_service = ApplicationService(db)
@@ -179,12 +211,29 @@ async def reject_application_route(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+<<<<<<< HEAD
+@router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_application(
+=======
 @router.post("/{application_id}/analyze", response_model=ApplicationResponse)
 async def analyze_application_route(
+>>>>>>> origin/main
     application_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+<<<<<<< HEAD
+    """Permanently delete an application."""
+    # Restrict to Admin/Reviewer roles
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized to delete applications")
+        
+    app_service = ApplicationService(db)
+    success = await app_service.delete_application(application_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return None
+=======
     """Trigger AI analysis of the application."""
     app_service = ApplicationService(db)
     try:
@@ -209,3 +258,4 @@ async def shortlist_application_route(
         return application
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+>>>>>>> origin/main
