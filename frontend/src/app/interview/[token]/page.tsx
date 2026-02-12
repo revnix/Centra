@@ -52,7 +52,7 @@ export default function InterviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
     const [session, setSession] = useState<any>(null);
-    const [timeLeft, setTimeLeft] = useState(60); // 1 minute
+    const [timeLeft, setTimeLeft] = useState(120); // 2 minutes
     const [isCompleted, setIsCompleted] = useState(false);
 
     // Voice States
@@ -60,32 +60,21 @@ export default function InterviewPage() {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [landingStep, setLandingStep] = useState<'screen-share' | 'welcome' | 'rules' | 'ready' | 'in_progress'>('screen-share');
-<<<<<<< HEAD
-    const [isSharingScreen, setIsSharingScreen] = useState(false);
-    const [isThinking, setIsThinking] = useState(false);
-=======
 
+    const [isThinking, setIsThinking] = useState(false);
     const isSharingScreen = !!stream;
->>>>>>> origin/main
 
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const recognitionRef = useRef<any>(null);
     const lastSpokenMessageIndex = useRef<number>(-1);
-    const screenStreamRef = useRef<MediaStream | null>(null);
     const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isAiSpeakingRef = useRef(false);
     const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const SILENCE_THRESHOLD = 3000;
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const chunksRef = useRef<Blob[]>([]);
 
-<<<<<<< HEAD
     // Global cleanup and Tab-switching detection
-=======
-    // Global cleanup
->>>>>>> origin/main
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isCompleted && timeLeft > 0) {
@@ -103,23 +92,15 @@ export default function InterviewPage() {
         }
 
         return () => {
-            // Only stop tracks, don't cancel speech globally on every status change
-            // This prevents the 'Start Interview' transition from silencing the AI
-            if (screenStreamRef.current) {
-                screenStreamRef.current.getTracks().forEach(track => track.stop());
-            }
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop();
-            }
             if (typeof document !== 'undefined') {
                 document.removeEventListener("visibilitychange", handleVisibilityChange);
             }
         };
-    }, [token]);
+    }, [token, isCompleted, timeLeft]);
 
     // Timer effect
     useEffect(() => {
-        const INTERVIEW_DURATION = 60; // 1 minute in seconds
+        const INTERVIEW_DURATION = 120; // 2 minutes in seconds
         const storageKey = `interview_start_${token}`;
 
         const updateTimer = () => {
@@ -136,17 +117,53 @@ export default function InterviewPage() {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
                 }
-                toast.info("Interview time has ended");
-                setIsCompleted(true);
+
+                // HARD TRANSITION RULE: stop everything immediately
                 stopListening();
                 if (typeof window !== 'undefined' && window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
+
+                const finalizeAndRedirect = async () => {
+                    if (isCompleted) return;
+
+                    try {
+                        let currentStatus = '';
+                        // 1. Force Submit last response if any
+                        if (inputRef.current.trim() && !isSendingRef.current) {
+                            console.log("[Timer End] Force-submitting ongoing response.");
+                            const res = await handleSend(inputRef.current.trim());
+                            currentStatus = res?.status || '';
+                        }
+
+                        // 2. Force backend transition if not already handled by AI turn
+                        if (currentStatus !== 'CODING' && currentStatus !== 'COMPLETED') {
+                            await api.interviews.endVoiceInterview(token);
+                        }
+                    } catch (e) {
+                        console.error("Error during finalization:", e);
+                        // Emergency fallback for backend sync
+                        await api.interviews.endVoiceInterview(token).catch(() => { });
+                    }
+
+                    toast.info("Interview time ended. Redirecting to coding section...", { duration: 3000 });
+                    setIsCompleted(true);
+
+                    // 3. HARD REDIRECT after 2 seconds
+                    setTimeout(() => {
+                        if (typeof window !== 'undefined' && window.speechSynthesis) {
+                            window.speechSynthesis.cancel();
+                        }
+                        router.push(`/interview/${token}/coding`);
+                    }, 2500);
+                };
+
+                finalizeAndRedirect();
             }
         };
 
         updateTimer();
-        if (session?.status === 'IN_PROGRESS') {
+        if (session?.status === 'IN_PROGRESS' && !isCompleted) {
             timerRef.current = setInterval(updateTimer, 1000);
         }
 
@@ -156,7 +173,46 @@ export default function InterviewPage() {
                 timerRef.current = null;
             }
         };
-    }, [token, session?.status]);
+    }, [token, session?.status, isCompleted]);
+
+    // Refs for accessing state in asynchronous callbacks
+    const inputRef = useRef("");
+    const isSendingRef = useRef(false);
+
+    useEffect(() => {
+        inputRef.current = input;
+    }, [input]);
+
+    useEffect(() => {
+        isSendingRef.current = isSending;
+    }, [isSending]);
+
+    // 5s Global Silence Watchdog (Hard Rule)
+    useEffect(() => {
+        if (!isListening || isSending || isCompleted || isAiSpeakingRef.current) {
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            return;
+        }
+
+        // Hard Limit: If NO input change for 5 seconds while listening
+        const hardLimit = setTimeout(() => {
+            console.log("[Silence Watchdog] 5s limit reached. Forcing response.");
+            handleSend(inputRef.current);
+        }, 5000);
+
+        // Emergency Fallback: If for ANY reason we are stuck in listening for 12s
+        const emergencyFallback = setTimeout(() => {
+            if (isListening && !isSending && !isCompleted && !isAiSpeakingRef.current) {
+                console.warn("[Emergency Fallback] 12s listening limit reached. Breaking deadlock.");
+                handleSend(inputRef.current || "(Candidate is silent)");
+            }
+        }, 12000);
+
+        return () => {
+            clearTimeout(hardLimit);
+            clearTimeout(emergencyFallback);
+        };
+    }, [isListening, input, isSending, isCompleted]);
 
     // Speech Recognition
     useEffect(() => {
@@ -170,8 +226,10 @@ export default function InterviewPage() {
             let finalTranscript = '';
 
             recognition.onresult = (event: SpeechRecognitionEvent) => {
-<<<<<<< HEAD
-                if (isAiSpeakingRef.current) return;
+                // TURN RULE: If AI is speaking or we are already sending, IGNORE mic
+                if (isAiSpeakingRef.current || isSendingRef.current) {
+                    return;
+                }
 
                 let interimTranscript = '';
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -186,60 +244,33 @@ export default function InterviewPage() {
                 if (currentText) {
                     setInput(currentText);
 
-                    // Clear existing silence timer
+                    // Natural Pause Detection (3s)
                     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
-                    // VOICE ACTIVITY DETECTION:
-                    // Only trigger if we have a meaningful input and user has stopped speaking
                     silenceTimerRef.current = setTimeout(() => {
-                        if (currentText.length > 2 && !isAiSpeakingRef.current && isListening) {
-                            console.log("[Silence Detection] Threshold met. Triggering AI response.");
-                            setIsThinking(true);
+                        if (currentText.length > 2 && !isAiSpeakingRef.current && isListening && !isSendingRef.current) {
+                            console.log("[Natural Pause] 3s silence. Auto-sending.");
                             handleSend(currentText);
                             finalTranscript = '';
                         }
-                    }, 3500); // 3.5s VAD threshold for natural pauses
+                    }, 3000);
                 }
-=======
-                const transcript = event.results[0][0].transcript;
-                setInput(transcript);
-                setIsListening(false);
-                handleSend(transcript);
->>>>>>> origin/main
             };
 
             recognition.onerror = (event: any) => {
-                const isSilent = event.error === 'no-speech';
-                const isAborted = event.error === 'aborted';
-
-                if (isAborted || isSilent) {
-                    // Silently handle common transient states
-                    return;
-                }
-
+                if (event.error === 'no-speech' || event.error === 'aborted') return;
                 console.warn("Speech recognition warning:", event.error);
-
-                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                if (event.error === 'not-allowed') {
                     setIsListening(false);
-                    toast.error("Microphone access denied or not available.");
+                    toast.error("Microphone access denied.");
                 }
             };
 
-<<<<<<< HEAD
             recognition.onend = () => {
-                // Auto-restart if we should be listening and AI is NOT talking
-                if (isListening && !isAiSpeakingRef.current && !isCompleted && timeLeft > 0) {
-                    try {
-                        recognition.start();
-                    } catch (e) {
-                        // Ignore restart errors as they are usually due to double-starting
-                    }
+                if (isListening && !isAiSpeakingRef.current && !isCompleted && timeLeft > 0 && !isSendingRef.current) {
+                    try { recognition.start(); } catch (e) { }
                 }
             };
 
-=======
-            recognition.onend = () => setIsListening(false);
->>>>>>> origin/main
             recognitionRef.current = recognition;
         }
 
@@ -262,7 +293,6 @@ export default function InterviewPage() {
 
         if (lastMessage.role === 'ai' && lastIndex > lastSpokenMessageIndex.current) {
             console.log(`[Audio] Playing AI message: ${lastIndex}`);
-            // Force strict turn-taking: Mic OFF when AI starts
             stopListening();
 
             if (!isAiSpeakingRef.current) {
@@ -273,20 +303,17 @@ export default function InterviewPage() {
     }, [messages, voiceEnabled, isCompleted, timeLeft]);
 
     const speak = (text: string) => {
-<<<<<<< HEAD
         if (!window.speechSynthesis || isCompleted || timeLeft <= 0 || !text) return;
 
         console.log("Evalyn speaking:", text);
 
-        // 1. Lock state and stop listening
         isAiSpeakingRef.current = true;
         setIsSpeaking(true);
         stopListening();
 
-        // 2. Reset Engine
         window.speechSynthesis.cancel();
 
-        // 3. Better Chunking: Split by punctuation without losing the trailing text
+        // Better Chunking
         const chunks = text.split(/([.!?]+)/g).filter(Boolean);
         const sentences: string[] = [];
         for (let i = 0; i < chunks.length; i += 2) {
@@ -314,7 +341,6 @@ export default function InterviewPage() {
                 isAiSpeakingRef.current = false;
                 setIsSpeaking(false);
 
-                // Transition back to listening ONLY after AI stops
                 setTimeout(() => {
                     if (voiceEnabled && !isCompleted && !isAiSpeakingRef.current) {
                         console.log("[Audio] AI finished. Re-enabling microphone.");
@@ -337,7 +363,6 @@ export default function InterviewPage() {
             utterance.pitch = 1.0;
             utterance.lang = 'en-US';
 
-            // Critical for keeping reference
             currentUtteranceRef.current = utterance;
 
             utterance.onend = () => {
@@ -354,7 +379,6 @@ export default function InterviewPage() {
                 }
 
                 if (currentUtteranceRef.current === utterance) {
-                    console.log(`[Audio] Utterance error (${e.error}). Cleaning up state.`);
                     isAiSpeakingRef.current = false;
                     setIsSpeaking(false);
 
@@ -367,7 +391,6 @@ export default function InterviewPage() {
 
             window.speechSynthesis.speak(utterance);
 
-            // Fix for Chrome/Windows getting stuck: pulsing resume
             const resumeInterval = setInterval(() => {
                 if (window.speechSynthesis.speaking) {
                     window.speechSynthesis.resume();
@@ -377,19 +400,7 @@ export default function InterviewPage() {
             }, 5000);
         };
 
-        // Start playback
         speakNext();
-=======
-        if (!window.speechSynthesis || isCompleted || timeLeft <= 0) return;
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
->>>>>>> origin/main
     };
 
     const toggleListening = () => {
@@ -464,29 +475,46 @@ export default function InterviewPage() {
     };
 
     const handleSend = async (contentOverride?: string) => {
-        const messageContent = contentOverride || input;
-        if (!messageContent.trim() || isSending || isCompleted) return;
+        const messageContent = contentOverride !== undefined ? contentOverride : input;
 
+        // Prevent multiple simultaneous sends or sending after completion
+        if (isSending || isCompleted) return;
+
+        // The user says Evalyn MUST respond. If the candidate is silent, 
+        // we'll send a placeholder if empty to trigger AI response.
         const userMsg = messageContent.trim();
+        const finalMsg = userMsg === "" ? "(Candidate is silent)" : userMsg;
+
         setInput("");
         setIsSending(true);
+        setIsThinking(true);
+
+        // Barge-in protection: If AI was speaking, stop it
+        if (typeof window !== 'undefined' && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            isAiSpeakingRef.current = false;
+            setIsSpeaking(false);
+        }
+
         stopListening();
 
-        const newMessage: Message = {
-            role: "candidate",
-            content: userMsg,
-            timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, newMessage]);
+        // Only add non-empty messages to the UI for better UX
+        if (userMsg !== "") {
+            const newMessage: Message = {
+                role: "candidate",
+                content: userMsg,
+                timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, newMessage]);
+        }
 
         try {
-            const res = await api.interviews.sendMessage(token, userMsg);
+            const res = await api.interviews.sendMessage(token, finalMsg);
             setIsThinking(false);
             setMessages(res.transcript);
 
             if (res.status === "CODING" || res.status === "COMPLETED") {
                 setIsCompleted(true);
-                // Call stopScreenShare safely
                 if (stopScreenShare) await stopScreenShare();
 
                 if (timerRef.current) {
@@ -494,84 +522,24 @@ export default function InterviewPage() {
                     timerRef.current = null;
                 }
                 window.speechSynthesis.cancel();
-
-                // Stop recording and upload
-                stopAndUploadRecording();
             }
+            return res;
         } catch (error) {
             setIsThinking(false);
             toast.error("Failed to send message");
             console.error(error);
+            return undefined;
         } finally {
             setIsSending(false);
         }
     };
 
-<<<<<<< HEAD
-    const startRecording = () => {
-        if (!screenStreamRef.current) return;
-
-        try {
-            const mediaRecorder = new MediaRecorder(screenStreamRef.current, {
-                mimeType: 'video/webm;codecs=vp8'
-            });
-
-            chunksRef.current = [];
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunksRef.current.push(e.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                console.log("Recording stopped. Total chunks:", chunksRef.current.length);
-            };
-
-            mediaRecorder.start(1000); // 1 second timeslices
-            mediaRecorderRef.current = mediaRecorder;
-            console.log("Screen recording started");
-        } catch (e) {
-            console.error("Failed to start recording:", e);
-        }
-    };
-
-    const stopAndUploadRecording = async () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
-
-        // Wait a bit for final chunks
-        setTimeout(async () => {
-            if (chunksRef.current.length === 0) return;
-
-            const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-            try {
-                toast.promise(interviewsApi.uploadRecording(token, blob), {
-                    loading: 'Uploading screen recording...',
-                    success: 'Recording saved successfully',
-                    error: 'Failed to save recording'
-                });
-            } catch (e) {
-                console.error("Upload error:", e);
-            }
-        }, 500);
-    };
-
     const handleStartScreenShare = async () => {
         try {
-            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                screenStreamRef.current = stream;
-                setIsSharingScreen(true);
-
-                stream.getVideoTracks()[0].onended = () => {
-                    setIsSharingScreen(false);
-                    toast.warning("Screen sharing stopped. It is required for the interview.");
-                    setLandingStep('screen-share');
-                };
-
+            const s = await startScreenShare();
+            if (s) {
                 setLandingStep('welcome');
                 toast.success("Screen sharing enabled");
-            } else {
-                toast.error("Screen sharing is not supported by your browser.");
             }
         } catch (err) {
             console.error("Screen share error:", err);
@@ -581,7 +549,6 @@ export default function InterviewPage() {
 
     const handleStartRulesBriefing = () => {
         setLandingStep('rules');
-        // Speak the rules
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
             const text = "Welcome to your interview. Before we begin, please note the following professional guidelines: First, use of any AI tools is strictly not allowed. Second, tab switching is not allowed. Third, screen sharing is mandatory throughout the interview. Finally, please be aware that the interview may be monitored and reviewed. If you understand, click the start button to begin.";
@@ -599,13 +566,6 @@ export default function InterviewPage() {
             window.speechSynthesis.speak(utterance);
         } else {
             setLandingStep('ready');
-=======
-    const handleStartScreenShare = async () => {
-        const s = await startScreenShare();
-        if (s) {
-            setLandingStep('welcome');
-            toast.success("Screen sharing started successfully");
->>>>>>> origin/main
         }
     };
 
@@ -624,22 +584,13 @@ export default function InterviewPage() {
             localStorage.setItem(`interview_start_${token}`, Date.now().toString());
             const startRes = await api.interviews.startInterview(token);
             setMessages(startRes.transcript);
-<<<<<<< HEAD
 
-            // Start recording
-            startRecording();
-
-            // Force Reset Audio State for Interview
             isAiSpeakingRef.current = false;
             setIsSpeaking(false);
             if (startRes.transcript && startRes.transcript.length > 0) {
-                // Ensure the watcher picks up the FIRST message
                 lastSpokenMessageIndex.current = -1;
             }
 
-            // Transition UI
-=======
->>>>>>> origin/main
             setLandingStep('in_progress');
             if (session) {
                 setSession({ ...session, status: 'IN_PROGRESS' });
@@ -708,11 +659,9 @@ export default function InterviewPage() {
         );
     }
 
-    // New Session Landing
     if (session.status === 'PENDING' && messages.length === 0) {
         return (
             <div className="flex flex-col min-h-screen bg-[#F0F2FF] dark:bg-slate-950 overflow-hidden font-sans">
-                {/* Branding */}
                 <div className="absolute top-10 left-10">
                     <h2 className="text-3xl font-[900] tracking-tighter text-slate-900 group cursor-default">
                         evalyn<span className="text-indigo-600">.</span>
@@ -911,7 +860,6 @@ export default function InterviewPage() {
                 )}
             </AnimatePresence>
 
-            {/* Top Navigation / Progress Tabs */}
             <div className="w-full pt-8 px-12 flex justify-between items-start z-20">
                 <div className="flex flex-col gap-0.5">
                     <h2 className="text-3xl font-[900] tracking-tighter text-slate-900 dark:text-white group cursor-default">
@@ -954,10 +902,7 @@ export default function InterviewPage() {
                 </div>
             </div>
 
-            {/* Main Content Area */}
             <main className="flex-1 relative flex items-center justify-center p-6">
-
-                {/* Central Orb Element */}
                 <div className="relative flex flex-col items-center justify-center">
                     <motion.div
                         initial={{ scale: 0.8, opacity: 0 }}
@@ -970,7 +915,6 @@ export default function InterviewPage() {
                                 e<span className="text-indigo-600">.</span>
                             </div>
 
-                            {/* Outer Glow Circles */}
                             <AnimatePresence>
                                 {(isSpeaking || isListening) && (
                                     <>
@@ -990,12 +934,10 @@ export default function InterviewPage() {
                                 )}
                             </AnimatePresence>
 
-                            {/* Rotating Ring */}
                             <div className="absolute -inset-2 rounded-full border-2 border-dashed border-indigo-200 dark:border-indigo-800/30 animate-[spin_20s_linear_infinite]" />
                         </div>
                     </motion.div>
 
-                    {/* AI Message (Right Aligned) */}
                     <div className="absolute left-[220px] w-[350px] space-y-4">
                         <AnimatePresence mode="wait">
                             {messages.filter(m => m.role === 'ai').slice(-1).map((msg, idx) => (
@@ -1032,7 +974,6 @@ export default function InterviewPage() {
                     </div>
                 </div>
 
-                {/* Bottom Bar Info */}
                 <div className="absolute bottom-12 left-10 z-20">
                     <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-white/60 dark:border-slate-800 px-6 py-4 rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.06)] flex items-center gap-8 group hover:translate-y-[-2px] transition-transform duration-300">
                         <div className="flex items-center gap-4 border-r border-slate-100 dark:border-slate-800 pr-6">
@@ -1070,13 +1011,11 @@ export default function InterviewPage() {
                     </div>
                 </div>
 
-                {/* Subtle Background Pattern */}
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
                     <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#4f46e5_1px,transparent_1px)] [background-size:40px_40px]" />
                 </div>
             </main>
 
-            {/* Voice-Only Footer */}
             <footer className="p-12 z-40 bg-gradient-to-t from-[#F0F2FF] dark:from-slate-950 to-transparent">
                 <div className="max-w-4xl mx-auto flex flex-col items-center gap-8">
                     {isCompleted ? (
@@ -1101,7 +1040,6 @@ export default function InterviewPage() {
                         </motion.div>
                     ) : (
                         <div className="flex flex-col items-center gap-6 w-full max-w-2xl group">
-                            {/* Live Transcription Display (Passive) */}
                             <AnimatePresence>
                                 {input && (
                                     <motion.div
@@ -1117,7 +1055,6 @@ export default function InterviewPage() {
                                 )}
                             </AnimatePresence>
 
-                            {/* Status Banner */}
                             <div className="flex items-center gap-4 bg-indigo-600/5 dark:bg-indigo-900/10 px-6 py-2 rounded-full border border-indigo-600/10 transition-all">
                                 <span className={`h-2 w-2 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
                                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600/70 dark:text-indigo-400/70">
@@ -1128,42 +1065,6 @@ export default function InterviewPage() {
                     )}
                 </div>
             </footer>
-            {/* Mandatory Screen Share Overlay (If interrupted during interview) */}
-            <AnimatePresence>
-                {session?.status === 'IN_PROGRESS' && !isSharingScreen && !isCompleted && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6"
-                    >
-                        <div className="max-w-md w-full bg-white p-10 rounded-[48px] shadow-2xl text-center space-y-8">
-                            <div className="w-20 h-20 bg-red-50 rounded-[28px] flex items-center justify-center mx-auto border border-red-100">
-                                <Monitor className="h-10 w-10 text-red-500" />
-                            </div>
-                            <div className="space-y-3">
-                                <h2 className="text-2xl font-bold text-slate-900">Screen Sharing Required</h2>
-                                <p className="text-slate-500 font-medium">
-                                    Your interview has been paused because screen sharing was stopped. Please re-enable it to continue.
-                                </p>
-                            </div>
-                            <Button
-                                size="lg"
-                                className="w-full h-16 text-lg bg-indigo-600 hover:bg-indigo-700 rounded-[24px] font-bold"
-                                onClick={async () => {
-                                    try {
-                                        await startScreenShare();
-                                    } catch (e) {
-                                        toast.error("Failed to re-enable sharing");
-                                    }
-                                }}
-                            >
-                                Resume Screen Sharing
-                            </Button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     );
 }

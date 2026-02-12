@@ -195,32 +195,50 @@ class ApplicationService:
         # 72 hours expiry
         session = await int_service.create_session(application.id, expiry_hours=72)
         
-        # 3. Send Email
+        # 3. Send Email with Retry logic
         from src.api.services.email_service import EmailService
         from src.api.core.config import settings
+        from starlette.concurrency import run_in_threadpool
         
-        # Generate link
         interview_link = f"{settings.FRONTEND_URL}/interview/{session.token}"
-        
         candidate = application.candidate
         job = application.job
         
-        from starlette.concurrency import run_in_threadpool
+        application.email_delivery_status = "PENDING"
+        max_retries = 3
+        sent = False
+        error_msg = ""
 
-        sent = await run_in_threadpool(
-            EmailService.send_interview_invitation,
-            candidate_email=candidate.email,
-            candidate_name=candidate.full_name,
-            job_title=job.title if job else "the position",
-            interview_link=interview_link,
-            expiry_hours=72
-        )
+        for attempt in range(max_retries):
+            try:
+                sent = await run_in_threadpool(
+                    EmailService.send_interview_invitation,
+                    candidate_email=candidate.email,
+                    candidate_name=candidate.full_name,
+                    job_title=job.title if job else "the position",
+                    interview_link=interview_link,
+                    expiry_hours=72
+                )
+                if sent:
+                    break
+                else:
+                    error_msg = f"Attempt {attempt + 1} failed (SMTP return False; check server logs)"
+            except Exception as e:
+                error_msg = f"Attempt {attempt + 1} raised Exception: {str(e)}"
+                if attempt < max_retries - 1:
+                    import asyncio
+                    await asyncio.sleep(2)
         
         if sent:
             application.status = ApplicationStatus.INTERVIEW_INVITED
-            self.db.add(application)
-            await self.db.commit()
+            application.email_delivery_status = "SENT"
+            application.email_logs = "Email delivered successfully."
+        else:
+            application.email_delivery_status = "FAILED"
+            application.email_logs = error_msg or "Unknown SMTP error after retries."
             
+        self.db.add(application)
+        await self.db.commit()
         await self.db.refresh(application)
         return application
 
@@ -242,7 +260,10 @@ class ApplicationService:
         
         # Trigger Email
         from src.api.services.email_service import EmailService
-        EmailService.send_offer_letter(
+        from starlette.concurrency import run_in_threadpool
+        
+        await run_in_threadpool(
+            EmailService.send_offer_letter,
             candidate_email=candidate.email,
             candidate_name=candidate.full_name,
             job_title=job.title,

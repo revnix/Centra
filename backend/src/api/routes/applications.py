@@ -116,26 +116,12 @@ async def guest_apply(
         cover_letter=cover_letter
     )
     
-<<<<<<< HEAD
     # 5. Trigger AI Screening (Background Task)
     background_tasks.add_task(run_screening, application.id)
     
     return {
         "message": "Application submitted successfully. Our AI system will review your profile and send an interview invitation via email if you are shortlisted.",
         "status": "review_pending"
-=======
-    # Trigger AI Analysis immediately
-    # This will score the candidate and update status to SCREENING
-    await app_service.analyze_application(application.id)
-    
-    # NOTE: Interview is NOT started immediately anymore.
-    # It will be triggered after manual/auto shortlisting.
-    
-    return {
-        "message": "Application submitted successfully",
-        "redirect_url": "/portal/status", # Redirect to status page instead of interview
-        "interview_token": None
->>>>>>> origin/main
     }
 
 @router.post("", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
@@ -211,18 +197,12 @@ async def reject_application_route(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-<<<<<<< HEAD
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_application(
-=======
-@router.post("/{application_id}/analyze", response_model=ApplicationResponse)
-async def analyze_application_route(
->>>>>>> origin/main
     application_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-<<<<<<< HEAD
     """Permanently delete an application."""
     # Restrict to Admin/Reviewer roles
     if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
@@ -233,7 +213,13 @@ async def analyze_application_route(
     if not success:
         raise HTTPException(status_code=404, detail="Application not found")
     return None
-=======
+
+@router.post("/{application_id}/analyze", response_model=ApplicationResponse)
+async def analyze_application_route(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Trigger AI analysis of the application."""
     app_service = ApplicationService(db)
     try:
@@ -258,4 +244,3 @@ async def shortlist_application_route(
         return application
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
->>>>>>> origin/main

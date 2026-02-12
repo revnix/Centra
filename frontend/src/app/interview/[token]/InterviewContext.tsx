@@ -48,11 +48,9 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
             recorder.onstop = async () => {
                 const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
                 if (blob.size > 0) {
-                    const formData = new FormData();
-                    formData.append('file', blob, 'recording.webm');
                     try {
                         toast.info("Uploading screen recording...");
-                        await api.interviews.uploadRecording(token, formData);
+                        await api.interviews.uploadRecording(token, blob);
                         toast.success("Screen recording saved successfully");
                     } catch (error) {
                         console.error("Failed to upload recording", error);

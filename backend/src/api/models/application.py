@@ -39,6 +39,10 @@ class Application(Base):
     cover_letter = Column(Text, nullable=True)
     phone_number = Column(String(50), nullable=True)
     
+    # Email Delivery Status
+    email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED")
+    email_logs = Column(Text, nullable=True, comment="Failure reasons or SMTP logs")
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

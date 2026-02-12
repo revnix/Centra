@@ -122,4 +122,10 @@ export const interviewsApi = {
         formData.append('file', blob, 'recording.webm');
         return apiClient.post<any>(`/interviews/${token}/recording`, formData);
     },
+    /**
+     * Force end voice interview and transition to coding
+     */
+    endVoiceInterview: async (token: string): Promise<any> => {
+        return apiClient.post<any>(`/interviews/${token}/end-voice`);
+    },
 };

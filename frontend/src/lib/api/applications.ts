@@ -44,21 +44,18 @@ export const applicationsApi = {
     /**
      * Reject an application
      */
-    /**
-     * Reject an application
-     */
     reject: async (id: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/reject`, {});
     },
 
     /**
-<<<<<<< HEAD
      * Delete an application (Permanently)
      */
     delete: async (id: string): Promise<void> => {
         return apiClient.delete<void>(`/applications/${id}`);
     },
-=======
+
+    /**
      * Shortlist a candidate (Send Interview Invite)
      */
     shortlist: async (id: string): Promise<any> => {
@@ -71,5 +68,4 @@ export const applicationsApi = {
     analyze: async (id: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/analyze`, {});
     }
->>>>>>> origin/main
 };
