@@ -30,7 +30,8 @@ export const api = {
         sendMessage: (token: string, message: string) => interviewsApi.sendMessage(token, message),
         create: (applicationId: number) => interviewsApi.create(applicationId),
         startInterview: (token: string) => interviewsApi.startInterview(token),
-        uploadRecording: (token: string, formData: FormData) => interviewsApi.uploadRecording(token, formData),
+        uploadRecording: (token: string, blob: Blob) => interviewsApi.uploadRecording(token, blob),
+        endVoiceInterview: (token: string) => interviewsApi.endVoiceInterview(token),
     },
     applications: {
         guestApply: (data: any) => applicationsApi.guestApply(data),
@@ -38,11 +39,8 @@ export const api = {
         get: (id: string) => applicationsApi.get(id),
         hire: (id: string) => applicationsApi.hire(id),
         reject: (id: string) => applicationsApi.reject(id),
-<<<<<<< HEAD
         delete: (id: string) => applicationsApi.delete(id),
-=======
         shortlist: (id: string) => applicationsApi.shortlist(id),
         analyze: (id: string) => applicationsApi.analyze(id),
->>>>>>> origin/main
     },
 };

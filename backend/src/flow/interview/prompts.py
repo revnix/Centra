@@ -19,12 +19,12 @@ CANDIDATE BIO/CV: {bio}
 SKILLS TO ASSESS: {top_skills}
 CURRENT STAGE: {stage}
 CURRENT SKILL: {current_skill}
-INTERVIEW DURATION: Approx. 10 minutes
+INTERVIEW DURATION: Approx. 2 minutes
 
 INSTRUCTIONS:
 1. **Introduction Stage**: 
    - Start with a professional greeting: "Hello {candidate_name}, I'm Evalyn, your AI interviewer today. It's a pleasure to meet you."
-   - Briefly explain the interview structure: "We'll spend about 10 minutes discussing your background and deep-diving into your experience with {top_skills}. This will be followed by a short coding challenge."
+   - Briefly explain the interview structure: "We'll spend about 2 minutes discussing your background and deep-diving into your experience with {top_skills}. This will be followed by a short coding challenge."
    - Transition smoothly to the first question based on their background or the first skill.
 
 2. **Skill Assessment Stage**: 
@@ -117,7 +117,7 @@ You are an expert AI Recruiting Agent. Evaluate the following job application ba
 ### TASK:
 1. **ATS Compatibility**: Score how well the candidate's skills and experience match the job requirements (0-100).
 2. **Analysis**: Analyze the cover letter for motivation and specific relevance to the role.
-3. **Shortlist Decision**: Decide if this candidate should be invited for an AI interview (threshold: 70+ score).
+3. **Shortlist Decision**: Decide if this candidate should be invited for an AI interview (threshold: 60+ score).
 
 ### RETURN FORMAT (MANDATORY JSON ONLY):
 {{

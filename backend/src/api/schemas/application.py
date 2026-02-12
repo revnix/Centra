@@ -31,6 +31,8 @@ class ApplicationResponse(ApplicationBase):
     candidate_id: int
     status: ApplicationStatus
     match_score: Optional[float] = None
+    email_delivery_status: Optional[str] = "PENDING"
+    email_logs: Optional[str] = None
     created_at: datetime
     
     candidate: Optional[UserResponse] = None

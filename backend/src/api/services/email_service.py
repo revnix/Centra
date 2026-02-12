@@ -96,50 +96,25 @@ The Hiring Team
             logger.error(f"Failed to send offer letter: {str(e)}")
             return False
     @staticmethod
-<<<<<<< HEAD
-    def send_interview_invitation(candidate_email: str, candidate_name: str, job_title: str, interview_url: str, expiry_hours: int = 72):
-        """
-        Sends an AI interview invitation email to the candidate.
-        """
-        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-            logger.error("SMTP credentials not configured. Cannot send invitation.")
-=======
     def send_interview_invitation(candidate_email: str, candidate_name: str, job_title: str, interview_link: str, expiry_hours: int = 72):
         """
         Sends an interview invitation email with a unique link and deadline.
         """
+        logger.info(f"📧 Attempting to send interview invitation to {candidate_email} for {job_title}")
+        
         if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-            logger.error("SMTP credentials not configured. Cannot send interview invitation.")
->>>>>>> origin/main
+            logger.error("❌ SMTP credentials NOT configured in .env. Cannot send interview invitation.")
             return False
 
         try:
             msg = MIMEMultipart()
             msg['From'] = settings.EMAILS_FROM_EMAIL
             msg['To'] = candidate_email
-<<<<<<< HEAD
-            msg['Subject'] = f"Interview Invitation: {job_title} at Evalyn AI"
-=======
             msg['Subject'] = f"Interview Invitation: {job_title} - Action Required"
->>>>>>> origin/main
 
             body = f"""
 Hello {candidate_name},
 
-<<<<<<< HEAD
-Great news! After reviewing your application for the {job_title} position, we would like to invite you for an AI-led interview.
-
-This interview will help us better understand your skills and experience. It is a conversational interview followed by a short coding challenge, and it should take about 10-15 minutes.
-
-You can start your interview here:
-{interview_url}
-
-Please note: This link is unique to you and will expire in {expiry_hours} hours.
-
-Good luck!
-The Hiring Team
-Evalyn AI
-=======
 Thank you for your application for the {job_title} position. We are impressed with your profile and would like to invite you to the next stage of our hiring process.
 
 We have set up an automated interview for you. Please complete it at your earliest convenience.
@@ -160,23 +135,24 @@ Good luck!
 
 Best regards,
 The Hiring Team
->>>>>>> origin/main
 """
             msg.attach(MIMEText(body, 'plain'))
 
-            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
+            logger.info(f"Connecting to SMTP server {settings.SMTP_HOST}:{settings.SMTP_PORT}...")
+            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            
             text = msg.as_string()
+            logger.info(f"🔗 Generated Interview Link: {interview_link}")
             server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
             server.quit()
             
-<<<<<<< HEAD
-            logger.info(f"Interview invitation sent successfully to {candidate_email}")
-=======
-            logger.info(f"Interview invitation sent to {candidate_email}")
->>>>>>> origin/main
+            logger.info(f"✅ Interview invitation SUCCESSFULLY sent to {candidate_email}")
             return True
+        except smtplib.SMTPAuthenticationError:
+            logger.error(f"❌ SMTP Authentication Failed for {settings.SMTP_USER}. Ensure App Password is used.")
+            return False
         except Exception as e:
-            logger.error(f"Failed to send interview invitation: {str(e)}")
+            logger.error(f"❌ Failed to send interview invitation to {candidate_email}: {str(e)} (Type: {type(e).__name__})")
             return False

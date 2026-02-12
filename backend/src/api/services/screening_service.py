@@ -69,8 +69,10 @@ class ScreeningService:
             evaluation = json.loads(raw_content)
             
             score = evaluation.get("match_score", 0)
-            is_qualified = evaluation.get("shortlist_decision", False)
             feedback = evaluation.get("feedback", "")
+            
+            # MANDATORY RULE: Shortlist if score >= 60
+            is_qualified = score >= 60
 
             # 4. Update Application
             application.match_score = float(score)
@@ -86,21 +88,49 @@ class ScreeningService:
                 
                 # Set 72-hour expiry
                 session.expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
-                application.status = ApplicationStatus.INTERVIEW_INVITED
+                # 6. Send Invitation Email with Retry Logic
+                from src.api.core.config import settings
+                interview_link = f"{settings.FRONTEND_URL}/interview/{session.token}"
                 
-                # 6. Send Invitation Email
-                # In a real app, this URL would be the absolute frontend URL
-                interview_url = f"http://localhost:3000/interview/{session.token}"
+                from starlette.concurrency import run_in_threadpool
                 
-                EmailService.send_interview_invitation(
-                    candidate_email=candidate.email,
-                    candidate_name=candidate.full_name,
-                    job_title=job.title,
-                    interview_url=interview_url
-                )
+                application.email_delivery_status = "PENDING"
+                max_retries = 3
+                sent = False
+                error_msg = ""
+
+                for attempt in range(max_retries):
+                    try:
+                        logger.info(f"📧 Email attempt {attempt + 1} for {candidate.email}...")
+                        sent = await run_in_threadpool(
+                            EmailService.send_interview_invitation,
+                            candidate_email=candidate.email,
+                            candidate_name=candidate.full_name,
+                            job_title=job.title,
+                            interview_link=interview_link
+                        )
+                        if sent:
+                            break
+                        else:
+                            error_msg = f"Attempt {attempt + 1} failed (SMTP return False; check server logs)"
+                    except Exception as e:
+                        error_msg = f"Attempt {attempt + 1} raised Exception: {str(e)}"
+                        logger.error(f"❌ {error_msg}")
+                        if attempt < max_retries - 1:
+                            import asyncio
+                            await asyncio.sleep(2) # Short wait before retry
+                
+                if sent:
+                    application.status = ApplicationStatus.INTERVIEW_INVITED
+                    application.email_delivery_status = "SENT"
+                    application.email_logs = "Email delivered successfully."
+                    logger.info(f"✅ Auto-invitation COMPLETE for {candidate.email}")
+                else:
+                    application.email_delivery_status = "FAILED"
+                    application.email_logs = error_msg or "Unknown SMTP error after retries."
+                    logger.error(f"💀 CRITICAL: Failed to send invitation email to {candidate.email} after {max_retries} attempts.")
             else:
                 # Optional: Handle rejection or just leave as screened
-                # application.status = ApplicationStatus.REJECTED
                 pass
 
             self.db.add(application)
