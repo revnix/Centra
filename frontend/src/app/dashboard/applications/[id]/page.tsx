@@ -344,6 +344,35 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             </Link>
                         </CardContent>
                     </Card>
+
+                    {app.email_delivery_status && (
+                        <Card className="border-border shadow-sm">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm flex items-center justify-between">
+                                    Email Communication
+                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : app.email_delivery_status === 'FAILED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Delivery Status</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs font-bold ${app.email_delivery_status === 'SENT' ? 'text-emerald-600' : app.email_delivery_status === 'FAILED' ? 'text-rose-600' : 'text-amber-600'}`}>
+                                            {app.email_delivery_status}
+                                        </span>
+                                    </div>
+                                </div>
+                                {app.email_logs && (
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Logs / Details</span>
+                                        <p className="text-xs text-muted-foreground bg-slate-50 dark:bg-slate-900 p-2 rounded border border-slate-100 dark:border-slate-800 break-words italic">
+                                            {app.email_logs}
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
             </div>
