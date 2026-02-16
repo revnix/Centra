@@ -107,6 +107,26 @@ class JobService:
         await self.db.refresh(db_job)
         return db_job
 
+    async def generate_draft(self, draft_in: any):
+        from src.flow.prompts.human.jd_prompt import JD_GENERATION_PROMPT
+        from src.flow.model.llm_manager import get_llm
+        from src.flow.model.structure.jd import JobPost
+        from fastapi.concurrency import run_in_threadpool
+        
+        messages = JD_GENERATION_PROMPT.format_messages(
+            job_title=draft_in.title,
+            location=draft_in.location or "Remote",
+            skills="",  # No skills provided for initial draft
+            company_name=draft_in.department or "Our Company",
+            employment_type=draft_in.job_type or "Full-time",
+            experience_level=draft_in.experience_level or "Mid",
+            feedback=""
+        )
+        
+        llm = get_llm().with_structured_output(JobPost)
+        response = await run_in_threadpool(llm.invoke, messages)
+        return response
+
     async def delete_job(self, job_id: int):
         db_job = await self.get_job(job_id)
         if db_job:

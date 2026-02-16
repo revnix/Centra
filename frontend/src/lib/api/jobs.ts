@@ -92,6 +92,19 @@ export const jobsApi = {
     },
 
     /**
+     * Generate an initial AI job draft without creating a record
+     */
+    generateDraft: async (data: {
+        title: string;
+        department?: string;
+        location?: string;
+        experience_level?: string;
+        job_type?: string;
+    }): Promise<any> => {
+        return apiClient.post<any>('/jobs/generate-draft', data);
+    },
+
+    /**
      * Trigger AI generation for job description
      */
     generateDescription: async (jobId: string): Promise<ApiResponse<AIJobDraft>> => {

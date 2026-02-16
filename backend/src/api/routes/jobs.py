@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
 from src.api.services.job_service import JobService
-from src.api.schemas.job import JobResponse, JobCreate, JobUpdate, JobImproveRequest
+from src.api.schemas.job import JobResponse, JobCreate, JobUpdate, JobImproveRequest, JobDraftRequest
 from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 
@@ -58,6 +58,16 @@ async def create_job(
     """Create a new job posting"""
     job_service = JobService(db)
     return await job_service.create_job(job_in=job_data, user_id=current_user.id)
+
+@router.post("/generate-draft")
+async def generate_draft(
+    draft_data: JobDraftRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate a structured job description draft using AI"""
+    job_service = JobService(db)
+    return await job_service.generate_draft(draft_data)
 
 @router.get("/{job_id}", response_model=JobResponse)
 async def read_job(
