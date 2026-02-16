@@ -70,6 +70,7 @@ import { useJobGeneration } from "@/lib/hooks/useJobGeneration";
 import { integrationsApi } from "@/lib/api/integrations";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { jobsApi } from "@/lib/api/jobs";
 
 // --- Schemas ---
 
@@ -78,7 +79,24 @@ const jobBasicSchema = z.object({
     department: z.string().min(2, "Department is required"),
     location: z.string().min(2, "Location is required"),
     type: z.string().min(1, "Job type is required"),
+    responsibilities: z.string().min(10, "Responsibilities are required"),
+    requiredSkills: z.string().min(2, "Required skills are required"),
+    qualifications: z.string().min(10, "Qualifications are required"),
+    experienceLevel: z.string().min(1, "Experience level is required"),
+    salaryMin: z.coerce.number().optional(),
+    salaryMax: z.coerce.number().optional(),
+    salaryCurrency: z.string().min(1, "Currency is required"),
+    salaryPeriod: z.string().min(1, "Period is required"),
+    salaryRange: z.string().optional(),
     description: z.string().min(50, "Description must be at least 50 characters"),
+}).refine((data) => {
+    if (data.salaryMin && data.salaryMax && data.salaryMin > 0 && data.salaryMax > 0) {
+        return data.salaryMin <= data.salaryMax;
+    }
+    return true;
+}, {
+    message: "Min salary cannot be greater than max salary",
+    path: ["salaryMax"],
 });
 
 const aiConfigSchema = z.object({
@@ -102,6 +120,7 @@ export default function CreateJobPage() {
     const router = useRouter();
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
 
     // LangGraph Job Generation Hook
     const jobGeneration = useJobGeneration();
@@ -190,6 +209,15 @@ export default function CreateJobPage() {
             department: "",
             location: "",
             type: "full-time",
+            responsibilities: "",
+            requiredSkills: "",
+            qualifications: "",
+            experienceLevel: "mid",
+            salaryMin: 0,
+            salaryMax: 0,
+            salaryCurrency: "USD",
+            salaryPeriod: "yearly",
+            salaryRange: "",
             description: "",
         },
     });
@@ -205,6 +233,9 @@ export default function CreateJobPage() {
     // Handlers
     const onStep1Submit = (data: Step1Data) => {
         setFormData((prev) => ({ ...prev, ...data }));
+        // Sync Step 2 with Step 1 values
+        form2.setValue("requiredSkills", data.requiredSkills || "");
+        form2.setValue("experienceLevel", data.experienceLevel || "mid");
         setStep(2);
     };
 
@@ -216,6 +247,7 @@ export default function CreateJobPage() {
             'full-time': 'Full-time',
             'part-time': 'Part-time',
             'contract': 'Contract',
+            'freelance': 'Contract',
             'internship': 'Internship',
         };
 
@@ -243,26 +275,112 @@ export default function CreateJobPage() {
     };
 
     // --- AI Logic ---
+    const watchedTitle = form1.watch("title");
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (watchedTitle && watchedTitle.length > 3) {
+                // Auto-generate ONLY if description is empty or very short
+                const currentDesc = form1.getValues("description");
+                if (!currentDesc || currentDesc.length < 50 || currentDesc === "Loading AI suggestion...") {
+                    generateDescription();
+                }
+            }
+        }, 2500);
+        return () => clearTimeout(timer);
+    }, [watchedTitle]);
 
-    const generateDescription = () => {
-        const title = form1.getValues("title");
-        if (!title) return;
+    const generateDescription = async () => {
+        const values = form1.getValues();
+        if (!values.title) return;
 
-        form1.setValue("description", `Loading AI suggestion...`);
-        setTimeout(() => {
-            form1.setValue("description", `We are looking for a talented ${title} to join our dynamic team. 
+        setIsGeneratingDraft(true);
+        form1.setValue("description", "Generating professional job description...");
 
-Key Responsibilities:
-- Design and implement scalable solutions
-- Collaborate with cross-functional teams
-- Ensure high performance and responsiveness
+        try {
+            const draft = await jobsApi.generateDraft({
+                title: values.title,
+                department: values.department,
+                location: values.location,
+                experience_level: values.experienceLevel,
+                job_type: values.type,
+            });
 
-Requirements:
-- 3+ years of experience in relevant technologies
-- Strong problem-solving skills
-- Excellent communication abilities`);
-        }, 1000);
+            if (draft) {
+                const formatList = (list?: string[]) => {
+                    if (!list || list.length === 0) return "";
+                    return list.map(item => `• ${item}`).join('\n');
+                };
+
+                // Format Salary for JD
+                let salaryDisplay = "";
+                const sMin = form1.getValues("salaryMin") || draft.suggested_salary_min;
+                const sMax = form1.getValues("salaryMax") || draft.suggested_salary_max;
+                const sCurr = form1.getValues("salaryCurrency") || draft.suggested_salary_currency || "USD";
+                const sPeriod = form1.getValues("salaryPeriod") || draft.suggested_salary_period || "yearly";
+                const sRange = form1.getValues("salaryRange");
+
+                if (sRange) {
+                    salaryDisplay = `Salary: ${sRange}`;
+                } else if (sMin && sMax) {
+                    salaryDisplay = `Salary Range: ${sCurr} ${sMin.toLocaleString()} – ${sMax.toLocaleString()} per ${sPeriod.replace('ly', '')}`;
+                } else {
+                    salaryDisplay = `Salary: Competitive / Market Standard`;
+                }
+
+                const structuredDesc = `🔹 JOB SUMMARY
+${draft.summary || `We are seeking a talented ${values.title} to join our ${values.department || 'team'}.`}
+
+🔹 KEY RESPONSIBILITIES
+${formatList(draft.responsibilities)}
+
+🔹 REQUIRED SKILLS
+${formatList(draft.skills)}
+
+🔹 QUALIFICATIONS
+${formatList(draft.requirements)}
+
+${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(draft.preferred_qualifications)}\n\n` : ''}${draft.benefits?.length > 0 ? `🔹 BENEFITS\n${formatList(draft.benefits)}\n\n` : ''}🔹 SALARY & COMPENSATION
+- ${salaryDisplay}`;
+
+                form1.setValue("description", structuredDesc);
+
+                // Also update individual fields if they are empty
+                if (!form1.getValues("responsibilities")) {
+                    form1.setValue("responsibilities", draft.responsibilities?.join('\n') || "");
+                }
+                if (!form1.getValues("requiredSkills")) {
+                    form1.setValue("requiredSkills", draft.skills?.join(', ') || "");
+                }
+                if (!form1.getValues("qualifications")) {
+                    form1.setValue("qualifications", draft.requirements?.join('\n') || "");
+                }
+
+                // AI Suggested Salary Range (if currently empty)
+                if (form1.getValues("salaryMin") === 0 && draft.suggested_salary_min) {
+                    form1.setValue("salaryMin", draft.suggested_salary_min);
+                    toast.info(`AI Suggested Salary: ${draft.suggested_salary_currency} ${draft.suggested_salary_min.toLocaleString()} - ${draft.suggested_salary_max.toLocaleString()} (Editable)`);
+                }
+                if (form1.getValues("salaryMax") === 0 && draft.suggested_salary_max) {
+                    form1.setValue("salaryMax", draft.suggested_salary_max);
+                }
+                if (draft.suggested_salary_currency) {
+                    form1.setValue("salaryCurrency", draft.suggested_salary_currency);
+                }
+                if (draft.suggested_salary_period) {
+                    form1.setValue("salaryPeriod", draft.suggested_salary_period);
+                }
+
+                toast.success("AI draft generated professionally!");
+            }
+        } catch (error) {
+            console.error("Draft generation failed:", error);
+            form1.setValue("description", "");
+            toast.error("Failed to generate AI draft");
+        } finally {
+            setIsGeneratingDraft(false);
+        }
     };
+
 
     const generateInitialSocialPost = (title: string) => {
         setSocialPost(`🚀 We are hiring!
@@ -417,8 +535,148 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                         <SelectItem value="full-time">Full-time</SelectItem>
                                                         <SelectItem value="part-time">Part-time</SelectItem>
                                                         <SelectItem value="contract">Contract</SelectItem>
+                                                        <SelectItem value="internship">Internship</SelectItem>
+                                                        <SelectItem value="freelance">Freelance</SelectItem>
+                                                        <SelectItem value="temporary">Temporary</SelectItem>
+                                                        <SelectItem value="volunteer">Volunteer</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form1.control}
+                                        name="experienceLevel"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Experience Required</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="junior">Junior</SelectItem>
+                                                        <SelectItem value="mid">Mid-Level</SelectItem>
+                                                        <SelectItem value="senior">Senior</SelectItem>
+                                                        <SelectItem value="lead">Lead / Principal</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form1.control}
+                                        name="requiredSkills"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Required Skills</FormLabel>
+                                                <FormControl><Input placeholder="e.g. React, Node.js, AWS" {...field} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form1.control}
+                                        name="responsibilities"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Job Responsibilities</FormLabel>
+                                                <FormControl><Textarea placeholder="Describe core tasks..." className="min-h-[100px]" {...field} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form1.control}
+                                        name="qualifications"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Qualifications / Education</FormLabel>
+                                                <FormControl><Textarea placeholder="Required education/certs..." className="min-h-[100px]" {...field} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-100 space-y-4">
+                                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <TrendingUp className="h-4 w-4 text-blue-500" />
+                                        Salary & Compensation
+                                    </h4>
+                                    <div className="grid grid-cols-4 gap-4">
+                                        <FormField
+                                            control={form1.control}
+                                            name="salaryMin"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Min Salary</FormLabel>
+                                                    <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form1.control}
+                                            name="salaryMax"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Max Salary</FormLabel>
+                                                    <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form1.control}
+                                            name="salaryCurrency"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Currency</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="USD">USD</SelectItem>
+                                                            <SelectItem value="PKR">PKR</SelectItem>
+                                                            <SelectItem value="AED">AED</SelectItem>
+                                                            <SelectItem value="EUR">EUR</SelectItem>
+                                                            <SelectItem value="GBP">GBP</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form1.control}
+                                            name="salaryPeriod"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Period</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="hourly">Hourly</SelectItem>
+                                                            <SelectItem value="monthly">Monthly</SelectItem>
+                                                            <SelectItem value="yearly">Annual</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                    <FormField
+                                        control={form1.control}
+                                        name="salaryRange"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Salary Note (Optional)</FormLabel>
+                                                <FormControl><Input placeholder="e.g. Negotiable, Depends on Experience" {...field} /></FormControl>
+                                                <FormDescription>Overwrites range display if provided.</FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -431,13 +689,26 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                         <FormItem>
                                             <FormLabel className="flex justify-between items-center">
                                                 Job Description
-                                                <Button type="button" variant="outline" size="sm" onClick={generateDescription} className="text-blue-600">
-                                                    <Wand2 className="h-3 w-3 mr-2" /> Auto-Generate
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={generateDescription}
+                                                    className="text-blue-600"
+                                                    disabled={isGeneratingDraft}
+                                                >
+                                                    {isGeneratingDraft ? (
+                                                        <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                                    ) : (
+                                                        <Wand2 className="h-3 w-3 mr-2" />
+                                                    )}
+                                                    {isGeneratingDraft ? "Generating..." : "Auto-Generate"}
                                                 </Button>
                                             </FormLabel>
                                             <FormControl>
-                                                <Textarea className="min-h-[200px] font-mono text-sm" {...field} />
+                                                <Textarea className="min-h-[150px] font-mono text-sm" {...field} />
                                             </FormControl>
+                                            <FormDescription>This will be used as a base for AI generation.</FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -808,7 +1079,10 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                                     'full-time': 'FULL_TIME',
                                                                     'part-time': 'PART_TIME',
                                                                     'contract': 'CONTRACT',
+                                                                    'freelance': 'FREELANCE',
                                                                     'internship': 'INTERNSHIP',
+                                                                    'temporary': 'TEMPORARY',
+                                                                    'volunteer': 'VOLUNTEER',
                                                                 };
 
                                                                 // Map experience level to enum format
@@ -822,8 +1096,8 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                                 // Prepare the job data
                                                                 const jobData = {
                                                                     title: jobPost.job_title || formData.title,
-                                                                    description: jobPost.summary || formData.description,
-                                                                    short_description: jobPost.summary,
+                                                                    description: formData.description,
+                                                                    short_description: jobPost.summary || formData.description.substring(0, 200),
                                                                     location: jobPost.location || formData.location,
                                                                     job_type: jobTypeMap[formData.type || 'full-time'] || 'FULL_TIME',
                                                                     experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'MID_SENIOR',
@@ -832,6 +1106,11 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                                     preferred_skills: (jobPost.preferred_qualifications || []).map((s: any) => String(s)),
                                                                     benefits: (jobPost.benefits || []).map((s: any) => String(s)),
                                                                     company_name: formData.department,
+                                                                    salary_min: formData.salaryMin,
+                                                                    salary_max: formData.salaryMax,
+                                                                    salary_currency: formData.salaryCurrency,
+                                                                    salary_period: formData.salaryPeriod,
+                                                                    salary_range: formData.salaryRange,
                                                                 };
 
                                                                 console.log('DEBUG: Sending job data to backend:', JSON.stringify(jobData, null, 2));

@@ -58,3 +58,20 @@ class JobPost(BaseModel):
         default="https://revnix.com/",
         description="URL to apply for the job"
     )
+
+    suggested_salary_min: int = Field(
+        default=0,
+        description="AI suggested minimum salary based on market standards"
+    )
+    suggested_salary_max: int = Field(
+        default=0,
+        description="AI suggested maximum salary based on market standards"
+    )
+    suggested_salary_currency: str = Field(
+        default="USD",
+        description="Currency code for suggested salary"
+    )
+    suggested_salary_period: str = Field(
+        default="yearly",
+        description="Salary period (hourly, monthly, yearly)"
+    )

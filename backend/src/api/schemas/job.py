@@ -14,6 +14,9 @@ class JobBase(BaseModel):
     department: Optional[str] = None
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
+    salary_currency: Optional[str] = "USD"
+    salary_period: Optional[str] = "yearly"
+    salary_range: Optional[str] = None
     required_skills: Optional[List[str]] = None
     preferred_skills: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
@@ -66,10 +69,20 @@ class JobUpdate(BaseModel):
     department: Optional[str] = None
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
+    salary_currency: Optional[str] = None
+    salary_period: Optional[str] = None
+    salary_range: Optional[str] = None
     required_skills: Optional[List[str]] = None
     preferred_skills: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
+
+class JobDraftRequest(BaseModel):
+    title: str
+    department: Optional[str] = None
+    location: Optional[str] = "Remote"
+    experience_level: Optional[str] = "MID_SENIOR"
+    job_type: Optional[str] = "FULL_TIME"
 
 class JobImproveRequest(BaseModel):
     feedback: str

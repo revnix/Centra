@@ -14,7 +14,8 @@ Rules:
 - Do NOT include explanations or markdown
 - Keep language professional, engaging, and concise
 - If FEEDBACK is provided, you MUST incorporate it to improve the job description
-- Address ALL points mentioned in the feedback"""
+- Address ALL points mentioned in the feedback
+- Provide a REALISTIC suggested salary range (min/max/currency/period) based on the title, experience level, and location. If location is remote, use global or target market standards (e.g. USD)."""
     ),
     (
         "human",
