@@ -28,22 +28,22 @@ const applicationSchema = z.object({
     full_name: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Invalid email address"),
     phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
-    resume_file: z.any(),
+    resume_file: z.any().optional(),
     linkedin_url: z.string().optional().or(z.literal("")),
     cover_letter: z.string().optional().or(z.literal("")),
     skills: z.string().min(2, "Please enter at least one skill"),
-    experience_years: z.string().min(1, "Experience is required"),
+    experience_years: z.coerce.number().min(0, "Experience is required"),
 });
 
 type ApplicationFormValues = {
     full_name: string;
     email: string;
     phone_number: string;
-    resume_file: any;
+    resume_file?: any;
     linkedin_url?: string;
     cover_letter?: string;
     skills: string;
-    experience_years: string;
+    experience_years: number;
 };
 
 export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,16 +73,15 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
     }, [searchParams, id]);
 
     const form = useForm<ApplicationFormValues>({
-        resolver: zodResolver(applicationSchema),
+        resolver: zodResolver(applicationSchema) as any,
         defaultValues: {
             full_name: "",
             email: "",
             phone_number: "",
-            resume_file: undefined,
             linkedin_url: "",
             cover_letter: "",
             skills: "",
-            experience_years: "0",
+            experience_years: 0,
         },
     });
 
@@ -117,7 +116,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                 .filter(s => s !== "");
             formData.append('skills', JSON.stringify(skillsArray));
 
-            formData.append('experience_years', data.experience_years);
+            formData.append('experience_years', String(data.experience_years));
 
             await api.applications.guestApply(formData);
 

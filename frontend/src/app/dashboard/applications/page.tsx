@@ -118,6 +118,7 @@ export default function ApplicationsPage() {
                                     <TableHead>Job Role</TableHead>
                                     <TableHead>Applied</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Email Invite</TableHead>
                                     <TableHead className="text-center">AI Score</TableHead>
                                     <TableHead className="text-right pr-6">Action</TableHead>
                                 </TableRow>
@@ -146,6 +147,18 @@ export default function ApplicationsPage() {
                                         </TableCell>
                                         <TableCell>
                                             <StatusBadge status={app.status || "APPLIED"} />
+                                        </TableCell>
+                                        <TableCell>
+                                            {app.email_delivery_status ? (
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : app.email_delivery_status === 'FAILED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                                    <span className="text-xs font-medium uppercase tracking-wider">
+                                                        {app.email_delivery_status}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground italic">Not Shortlisted</span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex justify-center">
