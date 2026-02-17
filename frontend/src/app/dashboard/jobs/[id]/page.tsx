@@ -288,7 +288,11 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                             </div>
                             <div>
                                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Salary Range</h4>
-                                <p className="font-medium">{job.salary_range || "Not specified"}</p>
+                                <p className="font-medium">
+                                    {job.salary_range || (job.salary_min && job.salary_max
+                                        ? `${job.salary_currency || 'PKR'} ${job.salary_min.toLocaleString()} – ${job.salary_max.toLocaleString()} per ${job.salary_period?.replace('ly', '') || 'month'}`
+                                        : "Salary Not Specified")}
+                                </p>
                             </div>
                             <div>
                                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Posted Date</h4>
