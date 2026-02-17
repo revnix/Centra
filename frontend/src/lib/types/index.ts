@@ -73,6 +73,7 @@ export interface Job {
   salary_min?: number;
   salary_max?: number;
   salary_currency?: string;
+  salary_period?: string;
   salary_range?: string;
   required_skills?: string[];
   preferred_skills?: string[];

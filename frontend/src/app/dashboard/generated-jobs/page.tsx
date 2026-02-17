@@ -121,8 +121,8 @@ export default function GeneratedJobsPage() {
                 const jobUrl = `${window.location.origin}/jobs/${selectedJob.id}/apply`;
 
                 if (account?.platform === 'linkedin') {
-                    // Use short description or summary for social post, fallback to title
-                    const text = selectedJob.short_description || selectedJob.description || `We are hiring a ${selectedJob.title}!`;
+                    // Use full description for LinkedIn as per user requirement to preserve formatting and content
+                    const text = selectedJob.description || selectedJob.short_description || `We are hiring a ${selectedJob.title}!`;
                     // Pass the job URL as article_url for clickable link preview
                     return integrationsApi.linkedin.publish(text, jobUrl);
                 } else if (account?.platform === 'indeed') {

@@ -29,6 +29,7 @@ const mapJob = (job: any): Job => ({
     salary_min: job.salary_min,
     salary_max: job.salary_max,
     salary_currency: job.salary_currency,
+    salary_period: job.salary_period,
     salary_range: job.salary_range,
     required_skills: job.required_skills,
     preferred_skills: job.preferred_skills,

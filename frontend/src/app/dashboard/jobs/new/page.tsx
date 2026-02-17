@@ -215,8 +215,8 @@ export default function CreateJobPage() {
             experienceLevel: "mid",
             salaryMin: 0,
             salaryMax: 0,
-            salaryCurrency: "USD",
-            salaryPeriod: "yearly",
+            salaryCurrency: "PKR",
+            salaryPeriod: "monthly",
             salaryRange: "",
             description: "",
         },
@@ -355,20 +355,20 @@ ${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n$
                     form1.setValue("qualifications", draft.requirements?.join('\n') || "");
                 }
 
-                // AI Suggested Salary Range (if currently empty)
-                if (form1.getValues("salaryMin") === 0 && draft.suggested_salary_min) {
-                    form1.setValue("salaryMin", draft.suggested_salary_min);
-                    toast.info(`AI Suggested Salary: ${draft.suggested_salary_currency} ${draft.suggested_salary_min.toLocaleString()} - ${draft.suggested_salary_max.toLocaleString()} (Editable)`);
+                // AI Suggested Salary Range (only if user hasn't entered any salary)
+                const hasUserSalary = (form1.getValues("salaryMin") || 0) > 0 || (form1.getValues("salaryMax") || 0) > 0;
+
+                if (!hasUserSalary) {
+                    if (draft.suggested_salary_min) {
+                        form1.setValue("salaryMin", draft.suggested_salary_min);
+                        toast.info(`AI Suggested Salary: ${draft.suggested_salary_currency || 'PKR'} ${draft.suggested_salary_min?.toLocaleString()} - ${draft.suggested_salary_max?.toLocaleString()} (Editable)`);
+                    }
+                    if (draft.suggested_salary_max) {
+                        form1.setValue("salaryMax", draft.suggested_salary_max);
+                    }
                 }
-                if (form1.getValues("salaryMax") === 0 && draft.suggested_salary_max) {
-                    form1.setValue("salaryMax", draft.suggested_salary_max);
-                }
-                if (draft.suggested_salary_currency) {
-                    form1.setValue("salaryCurrency", draft.suggested_salary_currency);
-                }
-                if (draft.suggested_salary_period) {
-                    form1.setValue("salaryPeriod", draft.suggested_salary_period);
-                }
+                // FIXED: AI should never override currency or period on regeneration.
+                // Defaults are PKR / Monthly. User changes are preserved.
 
                 toast.success("AI draft generated professionally!");
             }
@@ -422,11 +422,15 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
             const publishPromises = selectedAccounts.map(async (accId) => {
                 const account = connectedAccounts.find(a => a.id === accId);
                 if (account?.platform === 'linkedin') {
-                    return integrationsApi.linkedin.publish(socialPost);
+                    // STRICT REQUIREMENT: Use full AI-generated structured JD, not the short social summary.
+                    const fullDescription = form1.getValues("description");
+                    return integrationsApi.linkedin.publish(fullDescription);
                 } else if (account?.platform === 'indeed') {
+                    // Also ensure Indeed uses the full description for consistency
+                    const fullDescription = form1.getValues("description");
                     return integrationsApi.indeed.postJob({
                         title: formData.title || 'Job Opening',
-                        description: socialPost, // Use the social post (or the full description if possible)
+                        description: fullDescription,
                         location: formData.location || 'Remote',
                         company: formData.department || 'Our Company'
                     });
@@ -1094,10 +1098,48 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                                 };
 
                                                                 // Prepare the job data
+                                                                // Helper to format lists for description
+                                                                const formatList = (list?: string[]) => {
+                                                                    if (!list || list.length === 0) return "";
+                                                                    return list.map(item => `• ${item}`).join('\n');
+                                                                };
+
+                                                                // Format Salary for JD
+                                                                let salaryDisplay = "";
+                                                                const sMin = formData.salaryMin || jobPost.suggested_salary_min;
+                                                                const sMax = formData.salaryMax || jobPost.suggested_salary_max;
+                                                                const sCurr = formData.salaryCurrency || jobPost.suggested_salary_currency || "PKR";
+                                                                const sPeriod = formData.salaryPeriod || jobPost.suggested_salary_period || "monthly";
+                                                                const sRange = formData.salaryRange;
+
+                                                                if (sRange) {
+                                                                    salaryDisplay = `Salary: ${sRange}`;
+                                                                } else if (sMin && sMax) {
+                                                                    salaryDisplay = `Salary Range: ${sCurr} ${sMin.toLocaleString()} – ${sMax.toLocaleString()} per ${sPeriod.replace('ly', '')}`;
+                                                                } else {
+                                                                    salaryDisplay = `Salary: Competitive / Market Standard`;
+                                                                }
+
+                                                                const finalFullDescription = `🔹 JOB SUMMARY
+${jobPost.summary}
+
+🔹 KEY RESPONSIBILITIES
+${formatList(jobPost.responsibilities)}
+
+🔹 REQUIRED SKILLS
+${formatList(jobPost.skills)}
+
+🔹 QUALIFICATIONS
+${formatList(jobPost.requirements)}
+
+${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(jobPost.preferred_qualifications)}\n\n` : ''}${jobPost.benefits?.length > 0 ? `🔹 BENEFITS\n${formatList(jobPost.benefits)}\n\n` : ''}🔹 SALARY & COMPENSATION
+- ${salaryDisplay}`;
+
+                                                                // Prepare the job data
                                                                 const jobData = {
                                                                     title: jobPost.job_title || formData.title,
-                                                                    description: formData.description,
-                                                                    short_description: jobPost.summary || formData.description.substring(0, 200),
+                                                                    description: finalFullDescription,
+                                                                    short_description: jobPost.summary || finalFullDescription.substring(0, 200),
                                                                     location: jobPost.location || formData.location,
                                                                     job_type: jobTypeMap[formData.type || 'full-time'] || 'FULL_TIME',
                                                                     experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'MID_SENIOR',
@@ -1106,10 +1148,10 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                                     preferred_skills: (jobPost.preferred_qualifications || []).map((s: any) => String(s)),
                                                                     benefits: (jobPost.benefits || []).map((s: any) => String(s)),
                                                                     company_name: formData.department,
-                                                                    salary_min: formData.salaryMin,
-                                                                    salary_max: formData.salaryMax,
-                                                                    salary_currency: formData.salaryCurrency,
-                                                                    salary_period: formData.salaryPeriod,
+                                                                    salary_min: formData.salaryMin || jobPost.suggested_salary_min,
+                                                                    salary_max: formData.salaryMax || jobPost.suggested_salary_max,
+                                                                    salary_currency: formData.salaryCurrency || jobPost.suggested_salary_currency || "PKR",
+                                                                    salary_period: formData.salaryPeriod || jobPost.suggested_salary_period || "monthly",
                                                                     salary_range: formData.salaryRange,
                                                                 };
 
