@@ -93,7 +93,7 @@ The Hiring Team
             logger.info(f"Offer letter sent successfully to {candidate_email}")
             return True
         except Exception as e:
-            logger.error(f"Failed to send offer letter: {str(e)}")
+            logger.error(f"❌ Failed to send offer letter to {candidate_email}: {str(e)} (Type: {type(e).__name__})")
             return False
     @staticmethod
     def send_interview_invitation(candidate_email: str, candidate_name: str, job_title: str, interview_link: str, expiry_hours: int = 72):

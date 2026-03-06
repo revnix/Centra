@@ -233,9 +233,11 @@ class ApplicationService:
             application.status = ApplicationStatus.INTERVIEW_INVITED
             application.email_delivery_status = "SENT"
             application.email_logs = "Email delivered successfully."
+            print(f"✅ Auto-invitation COMPLETE for {candidate.email}")
         else:
             application.email_delivery_status = "FAILED"
             application.email_logs = error_msg or "Unknown SMTP error after retries."
+            print(f"💀 CRITICAL: Failed to send invitation email to {candidate.email}: {error_msg}")
             
         self.db.add(application)
         await self.db.commit()

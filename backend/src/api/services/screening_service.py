@@ -128,7 +128,7 @@ class ScreeningService:
                 else:
                     application.email_delivery_status = "FAILED"
                     application.email_logs = error_msg or "Unknown SMTP error after retries."
-                    logger.error(f"💀 CRITICAL: Failed to send invitation email to {candidate.email} after {max_retries} attempts.")
+                    logger.error(f"💀 CRITICAL: Failed to send invitation email to {candidate.email} after {max_retries} attempts. Reason: {error_msg}")
             else:
                 # Optional: Handle rejection or just leave as screened
                 pass

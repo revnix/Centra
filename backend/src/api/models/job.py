@@ -5,7 +5,6 @@ from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
 import enum
-from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 
 class JobType(str, enum.Enum):
@@ -76,9 +75,9 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-    required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
-    preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
-    benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
+    required_skills = Column(JSON, nullable=True, comment="Required skills")
+    preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
+    benefits = Column(JSON, nullable=True, comment="Job benefits")
     
     # Status and Publishing
     status = Column(SQLEnum(JobStatus), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
@@ -94,7 +93,7 @@ class Posts(Base):
     slug = Column(String(500), nullable=True, unique=True, index=True, comment="URL-friendly slug")
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
-    tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
+    tags = Column(JSON, nullable=True, comment="Tags for categorization")
     
     # Additional Data
     metadata_json = Column(JSON, nullable=True, comment="Additional metadata including publications history")

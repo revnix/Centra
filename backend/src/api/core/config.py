@@ -19,25 +19,23 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL"
-    )
+    DATABASE_URL: str
 
     # Security
-    SECRET_KEY: str = os.getenv(
-        "SECRET_KEY",
-        "your-secret-key-change-in-production"
-    )
+    SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "http://127.0.0.1:8000",
         "http://172.22.112.1:3000",  # Network IP for frontend
+        "http://172.22.112.1:3001",
         "http://172.22.112.1:2024",  # Network IP for backend
     ]
 
