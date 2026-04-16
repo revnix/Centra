@@ -1,19 +1,29 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from typing import Optional, Any
 from src.api.models.user import UserRole
+from pydantic_core import PydanticCustomError
 
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
+    model_config = ConfigDict(use_enum_values=True)
 
 class UserCreate(UserBase):
     username: Optional[str] = None
     password: str
     role: UserRole = UserRole.GUEST
 
-class UserLogin(BaseModel): # Modified to not inherit from UserBase if email is only field needed, but email is in UserBase.
+    @field_validator("role", mode="before")
+    @classmethod
+    def validate_role(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+class UserLogin(BaseModel): 
     email: EmailStr
     password: str
+    model_config = ConfigDict(use_enum_values=True)
 
 from src.api.schemas.candidate import CandidateProfileResponse
 

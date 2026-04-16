@@ -1,4 +1,4 @@
-# src/api/main.py
+# src/api/main.py 
 
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
@@ -86,7 +86,7 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

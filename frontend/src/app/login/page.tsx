@@ -42,7 +42,7 @@ export default function LoginPage() {
                 throw new Error("Invalid server response: missing access token");
             }
 
-            const role = user.role;
+            const role = user.role?.toLowerCase();
             console.log("User role:", role);
 
             localStorage.setItem("userRole", role);

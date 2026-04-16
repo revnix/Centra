@@ -10,7 +10,7 @@ export * from './langgraph';
 // USER & AUTH TYPES
 // ============================================================================
 
-export type UserRole = 'ADMIN' | 'REVIEWER' | 'CANDIDATE';
+export type UserRole = 'admin' | 'reviewer' | 'candidate' | 'guest';
 
 export interface User {
   id: string;

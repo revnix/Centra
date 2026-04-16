@@ -55,7 +55,7 @@ export default function SignupPage() {
                 email: formData.email,
                 full_name: formData.fullName,
                 password: formData.password,
-                role: 'admin' as UserRole
+                role: 'ADMIN' as any
             });
 
             localStorage.setItem("access_token", response.access_token.access_token);

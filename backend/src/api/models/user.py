@@ -5,10 +5,10 @@ from src.api.db.base import Base
 import enum
 
 class UserRole(str, enum.Enum):
-    ADMIN = "ADMIN"
-    REVIEWER = "REVIEWER"
-    CANDIDATE = "CANDIDATE"
-    GUEST = "GUEST"
+    ADMIN = "admin"
+    REVIEWER = "reviewer"
+    CANDIDATE = "candidate"
+    GUEST = "guest"
 
 class User(Base):
     __tablename__ = "users"
