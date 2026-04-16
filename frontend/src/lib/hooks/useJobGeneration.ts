@@ -4,13 +4,22 @@ import { useStream } from '@langchain/langgraph-sdk/react';
 import type { EvalynState, HITLInterrupt, HITLResponse, JDState } from '@/lib/types/langgraph';
 
 const getLangGraphApiUrl = () => {
+    // NEXT_PUBLIC_API_URL is set in .env.local (e.g. http://127.0.0.1:2024)
+    // langgraph dev hosts the server on port 2024 by default
+    const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
+
     if (typeof window !== "undefined") {
+        if (configuredUrl) {
+            const host = window.location.hostname;
+            if (host !== "localhost" && host !== "127.0.0.1") {
+                return configuredUrl.replace(/127\.0\.0\.1|localhost/, host);
+            }
+            return configuredUrl;
+        }
         const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
-        // LangGraph dev server usually runs on 8123.
-        // Ensure the server is started with --host 0.0.0.0 to be reachable via network IP.
-        return `http://${host}:8123`;
+        return `http://${host}:2024`;
     }
-    return 'http://localhost:8123';
+    return configuredUrl ?? "http://localhost:2024";
 };
 
 const LANGGRAPH_API_URL = getLangGraphApiUrl();

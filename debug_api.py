@@ -2,7 +2,7 @@ import requests
 import json
 
 def test_api():
-    url = "http://localhost:8123/api/v1/integrations"
+    url = "http://localhost:2024/api/v1/integrations"
     print(f"Testing {url}...")
     try:
         # We don't have a real token here, but we want to see the error structure

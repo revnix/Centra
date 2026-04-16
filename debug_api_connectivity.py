@@ -17,6 +17,6 @@ def test_endpoint(url):
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    base_url = "http://localhost:8123/api/v1"
-    test_endpoint("http://localhost:8123/") # Root
+    base_url = "http://localhost:2024/api/v1"
+    test_endpoint("http://localhost:2024/") # Root
     test_endpoint(f"{base_url}/applications/") # Should be 200 now

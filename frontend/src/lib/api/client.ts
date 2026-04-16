@@ -6,14 +6,24 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  */
 
 const getApiBaseUrl = () => {
+    // NEXT_PUBLIC_API_URL is set in .env.local (e.g. http://127.0.0.1:2024)
+    // langgraph dev hosts the FastAPI app on port 2024 by default
+    const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
+
     if (typeof window !== "undefined") {
-        // Direct to backend in development to avoid proxy issues
-        // Use the current hostname to handle network IP access correctly
+        if (configuredUrl) {
+            // If the configured URL uses 127.0.0.1/localhost but user is on a network IP, swap it
+            const host = window.location.hostname;
+            if (host !== "localhost" && host !== "127.0.0.1") {
+                return configuredUrl.replace(/127\.0\.0\.1|localhost/, host) + "/api/v1";
+            }
+            return `${configuredUrl}/api/v1`;
+        }
         const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
-        return `http://${host}:8123/api/v1`;
+        return `http://${host}:2024/api/v1`;
     }
     // Server-side default
-    return "http://127.0.0.1:8123/api/v1";
+    return `${configuredUrl ?? "http://127.0.0.1:2024"}/api/v1`;
 };
 
 const API_BASE_URL = getApiBaseUrl();

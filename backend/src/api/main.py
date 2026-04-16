@@ -34,10 +34,16 @@ import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Create tables (simplistic approach for MVP without Alembic)
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.create_all)
-    print("DEBUG: Application lifespan started (skipping table creation)")
+    # Run Alembic migrations on startup (applies any pending migrations to PostgreSQL)
+    import subprocess, sys
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"WARNING: Alembic migration failed:\n{result.stderr}")
+    else:
+        print(f"INFO: Alembic migrations applied.\n{result.stdout}")
     yield
     # Shutdown
 
@@ -126,4 +132,6 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("src.api.main:app", host="0.0.0.0", port=8123, reload=True)
+    # DEFAULT port is 2024 to match langgraph dev expectations
+    port = int(os.getenv("PORT", "2024"))
+    uvicorn.run("src.api.main:app", host="0.0.0.0", port=port, reload=True)
