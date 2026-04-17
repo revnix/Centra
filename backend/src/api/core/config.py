@@ -67,8 +67,10 @@ class Settings(BaseSettings):
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    EMAILS_FROM_EMAIL: str = os.getenv("EMAILS_FROM_EMAIL", "noreply@evalyn.ai")
+    EMAILS_FROM_EMAIL: str = os.getenv("FROM_EMAIL", os.getenv("EMAILS_FROM_EMAIL", "onboarding@resend.dev"))
     OPERATIONS_MANAGER_EMAIL: str = os.getenv("OPERATIONS_MANAGER_EMAIL", "manager@evalyn.ai")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    HR_EMAIL: str = os.getenv("HR_EMAIL", "hr@evalyn.ai")
 
     # ✅ Pydantic v2 config
     model_config = SettingsConfigDict(

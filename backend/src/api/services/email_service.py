@@ -16,15 +16,10 @@ class EmailService:
             logger.error("SMTP credentials not configured in .env. Cannot send email.")
             return False
 
-        # Debug length (Gmail app passwords are always 16 chars)
-        pwd_len = len(settings.SMTP_PASSWORD)
-        logger.info(f"DEBUG: SMTP_PASSWORD length is {pwd_len}. (Should be 16 for Gmail)")
-
-
         try:
-            logger.info(f"Attempting to send email from {settings.EMAILS_FROM_EMAIL} to {settings.OPERATIONS_MANAGER_EMAIL} using {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+            from_email = getattr(settings, 'FROM_EMAIL', settings.EMAILS_FROM_EMAIL)
             msg = MIMEMultipart()
-            msg['From'] = settings.EMAILS_FROM_EMAIL
+            msg['From'] = from_email
             msg['To'] = settings.OPERATIONS_MANAGER_EMAIL
             msg['Subject'] = f"New Job Post for Review: {job_title}"
 
@@ -35,16 +30,13 @@ class EmailService:
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             text = msg.as_string()
-            server.sendmail(settings.EMAILS_FROM_EMAIL, settings.OPERATIONS_MANAGER_EMAIL, text)
+            server.sendmail(from_email, settings.OPERATIONS_MANAGER_EMAIL, text)
             server.quit()
             
             logger.info(f"Email sent successfully to {settings.OPERATIONS_MANAGER_EMAIL}")
             return True
-        except smtplib.SMTPAuthenticationError:
-            logger.error("SMTP Authentication Failed: Check your username and password (app password required for Gmail).")
-            return False
         except Exception as e:
-            logger.error(f"Failed to send email: {str(e)} (Type: {type(e).__name__})")
+            logger.error(f"Failed to send email: {str(e)}")
             return False
 
     @staticmethod
@@ -57,8 +49,9 @@ class EmailService:
             return False
 
         try:
+            from_email = getattr(settings, 'FROM_EMAIL', settings.EMAILS_FROM_EMAIL)
             msg = MIMEMultipart()
-            msg['From'] = settings.EMAILS_FROM_EMAIL
+            msg['From'] = from_email
             msg['To'] = candidate_email
             msg['Subject'] = f"Offer Letter - {job_title} at {company_name}"
 
@@ -87,7 +80,7 @@ The Hiring Team
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             text = msg.as_string()
-            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
+            server.sendmail(from_email, candidate_email, text)
             server.quit()
             
             logger.info(f"Offer letter sent successfully to {candidate_email}")
@@ -95,64 +88,148 @@ The Hiring Team
         except Exception as e:
             logger.error(f"Failed to send offer letter: {str(e)}")
             return False
+
     @staticmethod
-    def send_interview_invitation(candidate_email: str, candidate_name: str, job_title: str, interview_link: str, expiry_hours: int = 72):
+    def send_shortlist_notification(candidate_email: str, candidate_name: str, job_title: str):
         """
-        Sends an interview invitation email with a unique link and deadline.
+        Sends a professional shortlisting email to the candidate via Resend.
         """
-        logger.info(f"📧 Attempting to send interview invitation to {candidate_email} for {job_title}")
-        
-        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-            logger.error("❌ SMTP credentials NOT configured in .env. Cannot send interview invitation.")
+        import resend
+        if not settings.RESEND_API_KEY:
+            logger.warning("RESEND_API_KEY not set. Skipping shortlist notification.")
             return False
+
+        resend.api_key = settings.RESEND_API_KEY
+        
+        # Professional HTML Template for Candidate
+        html_content = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+            <h2 style="color: #1e40af;">Application Shortlisted – Revnix</h2>
+            <p>Dear {candidate_name},</p>
+            <p>Thank you for your interest in <strong>Revnix</strong>.</p>
+            <p>After reviewing your profile and CV for the <strong>{job_title}</strong> position, we are pleased to inform you that you have been <strong>shortlisted</strong> for the next stage of our recruitment process.</p>
+            <p>We were impressed with your background and skills, and we would like to invite you for an in-person interview to discuss this opportunity further.</p>
+            
+            <div style="background-color: #f8fafc; padding: 15px; border-left: 4px solid #1e40af; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Proposed Interview Details:</strong></p>
+                <p style="margin: 5px 0;">Date: [To be scheduled / Next Week]</p>
+                <p style="margin: 5px 0;">Location: AL Haram Plaza University road Haripur</p>
+            </div>
+            
+            <p>Our team will reach out to you shortly to coordinate a specific time that works for you.</p>
+            <p>We look forward to speaking with you!</p>
+            <br />
+            <p>Best regards,</p>
+            <p><strong>The Hiring Team</strong><br />
+            Revnix Corporation<br />
+            AL Haram Plaza University road Haripur</p>
+        </div>
+        """
 
         try:
-            msg = MIMEMultipart()
-            msg['From'] = settings.EMAILS_FROM_EMAIL
-            msg['To'] = candidate_email
-            msg['Subject'] = f"Interview Invitation: {job_title} - Action Required"
+            from_email = getattr(settings, "FROM_EMAIL", settings.EMAILS_FROM_EMAIL)
+            # Use candidate email by default
+            to_email = [candidate_email]
+            subject = "Application Shortlisted – Revnix"
 
-            body = f"""
-Hello {candidate_name},
+            params = {
+                "from": from_email,
+                "to": to_email,
+                "subject": subject,
+                "html": html_content,
+            }
 
-Thank you for your application for the {job_title} position. We are impressed with your profile and would like to invite you to the next stage of our hiring process.
-
-We have set up an automated interview for you. Please complete it at your earliest convenience.
-
-*** IMPORTANT ***
-This interview link is valid for {expiry_hours} hours only.
-
-Your Interview Link:
-{interview_link}
-
-Instructions:
-1. Ensure you have a stable internet connection.
-2. You will need a working microphone and camera.
-3. The interview includes a coding challenge (if applicable).
-4. Screen sharing will be required.
-
-Good luck!
-
-Best regards,
-The Hiring Team
-"""
-            msg.attach(MIMEText(body, 'plain'))
-
-            logger.info(f"Connecting to SMTP server {settings.SMTP_HOST}:{settings.SMTP_PORT}...")
-            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            logger.info(f"📤 Sending Shortlist Email to {candidate_email} for {job_title}")
             
-            text = msg.as_string()
-            logger.info(f"🔗 Generated Interview Link: {interview_link}")
-            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
-            server.quit()
-            
-            logger.info(f"✅ Interview invitation SUCCESSFULLY sent to {candidate_email}")
-            return True
-        except smtplib.SMTPAuthenticationError:
-            logger.error(f"❌ SMTP Authentication Failed for {settings.SMTP_USER}. Ensure App Password is used.")
+            try:
+                response = resend.Emails.send(params)
+                if response and "id" in response:
+                    logger.info(f"✅ Shortlist notification sent successfully. ID: {response['id']}")
+                    return True
+            except Exception as e:
+                error_msg = str(e)
+                # Handle Resend Sandbox restriction in development
+                if "testing emails" in error_msg.lower() and settings.ENVIRONMENT == "development":
+                    logger.warning(
+                        f"⚠️ Resend Sandbox Restriction: Cannot send to {candidate_email}. "
+                        f"Redirecting to HR email ({settings.HR_EMAIL}) for testing."
+                    )
+                    params["to"] = [settings.HR_EMAIL]
+                    params["subject"] = f"[DEV REDIRECT] {subject} (For: {candidate_email})"
+                    
+                    response = resend.Emails.send(params)
+                    if response and "id" in response:
+                        logger.info(f"✅ Redirected Shortlist Email sent to HR. ID: {response['id']}")
+                        return True
+                
+                # If it's not the sandbox error or not in development, re-raise to be caught by outer block
+                raise e
+
             return False
         except Exception as e:
-            logger.error(f"❌ Failed to send interview invitation to {candidate_email}: {str(e)} (Type: {type(e).__name__})")
+            logger.error(f"❌ Failed to send shortlist email: {str(e)}")
+            return False
+
+    # Legacy method - Disabled per user request (Replacing with shortlisting flow)
+    # @staticmethod
+    # def send_interview_invitation(...):
+    #     pass
+
+    @staticmethod
+    def send_new_application_notification(
+        candidate_name: str,
+        candidate_email: str,
+        job_title: str,
+        source: str,
+        resume_link: str = None
+    ):
+        """
+        Sends a notification email to HR via Resend when a new application is received.
+        """
+        import resend
+        if not settings.RESEND_API_KEY:
+            logger.warning("RESEND_API_KEY not set. Skipping notification.")
+            return False
+
+        resend.api_key = settings.RESEND_API_KEY
+        
+        resume_html = f"<a href='{settings.FRONTEND_URL}{resume_link}'>View Resume</a>" if resume_link else "Not attached"
+        
+        html_content = f"""
+        <div style="font-family: sans-serif; color: #333;">
+            <h2 style="color: #2563eb;">New Application Received</h2>
+            <p>A new candidate has applied for <strong>{job_title}</strong>.</p>
+            <p><strong>Source:</strong> {source.upper()}</p>
+            <hr style="border: none; border-top: 1px solid #eee;" />
+            <h3>Candidate Details:</h3>
+            <table style="width: 100%;">
+                <tr><td><strong>Name:</strong></td><td>{candidate_name}</td></tr>
+                <tr><td><strong>Email:</strong></td><td>{candidate_email}</td></tr>
+                <tr><td><strong>Resume:</strong></td><td>{resume_html}</td></tr>
+            </table>
+            <br />
+            <p style="font-size: 0.9em; color: #666;">View this application in the <a href="{settings.FRONTEND_URL}/dashboard/applications">Admin Dashboard</a>.</p>
+        </div>
+        """
+
+        try:
+            params = {
+                "from": getattr(settings, 'FROM_EMAIL', settings.EMAILS_FROM_EMAIL),
+                "to": [settings.HR_EMAIL],
+                "subject": f"[{source.upper()}] New Application: {candidate_name} for {job_title}",
+                "html": html_content,
+            }
+            
+            logger.info(f"📡 Sending Resend request: From={params['from']}, To={params['to']}, Subject={params['subject']}")
+            
+            response = resend.Emails.send(params)
+            
+            if response and 'id' in response:
+                logger.info(f"✅ Notification SUCCESSFULLY sent to HR. Resend ID: {response['id']}")
+                return True
+            else:
+                logger.error(f"❌ Resend API returned an unexpected response: {response}")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Resend API CRITICAL FAILURE: {str(e)}")
             return False

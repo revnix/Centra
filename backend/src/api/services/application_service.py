@@ -14,9 +14,11 @@ class ApplicationService:
         user_id: int, 
         job_id: int, 
         cover_letter: str = None, 
-        phone_number: str = None
+        phone_number: str = None,
+        source: str = "web",
+        background_tasks = None
     ) -> Application:
-        """Create a new application for a candidate."""
+        """Create a new application and trigger HR notification."""
         # Check if already applied
         existing = await self.get_application_by_user_and_job(user_id, job_id)
         if existing:
@@ -27,12 +29,28 @@ class ApplicationService:
             job_id=job_id,
             status=ApplicationStatus.APPLIED,
             cover_letter=cover_letter,
-            phone_number=phone_number
+            phone_number=phone_number,
+            source=source
         )
         self.db.add(application)
         await self.db.commit()
         await self.db.refresh(application)
+        
+        from src.api.services.email_service import logger
+        logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
+        
+        # Centralized Notification Trigger
+        await self._trigger_new_app_notification(application, background_tasks)
+        
         return application
+
+    async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
+        """Delegates notification to the centralized handler."""
+        from src.api.utils.application_handler import handle_new_application
+        await handle_new_application(self.db, application.id, background_tasks)
+
+
+
 
     async def get_application_by_user_and_job(self, user_id: int, job_id: int) -> Application | None:
         """Check if user has already applied for this job."""
@@ -212,12 +230,10 @@ class ApplicationService:
         for attempt in range(max_retries):
             try:
                 sent = await run_in_threadpool(
-                    EmailService.send_interview_invitation,
+                    EmailService.send_shortlist_notification,
                     candidate_email=candidate.email,
                     candidate_name=candidate.full_name,
-                    job_title=job.title if job else "the position",
-                    interview_link=interview_link,
-                    expiry_hours=72
+                    job_title=job.title if job else "the position"
                 )
                 if sent:
                     break

@@ -77,65 +77,23 @@ class ScreeningService:
             # 4. Update Application
             application.match_score = float(score)
             application.ai_feedback = feedback
-            application.status = ApplicationStatus.SCREENING
+            # Set final status before committing so DB is always consistent
+            application.status = ApplicationStatus.SHORTLISTED if is_qualified else ApplicationStatus.SCREENING
             
-            if is_qualified:
-                application.status = ApplicationStatus.SHORTLISTED
-                
-                # 5. Create Interview Session with Expiry
-                int_service = InterviewService(self.db)
-                session = await int_service.create_session(application.id)
-                
-                # Set 72-hour expiry
-                session.expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
-                # 6. Send Invitation Email with Retry Logic
-                from src.api.core.config import settings
-                interview_link = f"{settings.FRONTEND_URL}/interview/{session.token}"
-                
-                from starlette.concurrency import run_in_threadpool
-                
-                application.email_delivery_status = "PENDING"
-                max_retries = 3
-                sent = False
-                error_msg = ""
+            # Persist score and status to DB FIRST before any downstream handlers
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}")
 
-                for attempt in range(max_retries):
-                    try:
-                        logger.info(f"📧 Email attempt {attempt + 1} for {candidate.email}...")
-                        sent = await run_in_threadpool(
-                            EmailService.send_interview_invitation,
-                            candidate_email=candidate.email,
-                            candidate_name=candidate.full_name,
-                            job_title=job.title,
-                            interview_link=interview_link
-                        )
-                        if sent:
-                            break
-                        else:
-                            error_msg = f"Attempt {attempt + 1} failed (SMTP return False; check server logs)"
-                    except Exception as e:
-                        error_msg = f"Attempt {attempt + 1} raised Exception: {str(e)}"
-                        logger.error(f"❌ {error_msg}")
-                        if attempt < max_retries - 1:
-                            import asyncio
-                            await asyncio.sleep(2) # Short wait before retry
-                
-                if sent:
-                    application.status = ApplicationStatus.INTERVIEW_INVITED
-                    application.email_delivery_status = "SENT"
-                    application.email_logs = "Email delivered successfully."
-                    logger.info(f"✅ Auto-invitation COMPLETE for {candidate.email}")
-                else:
-                    application.email_delivery_status = "FAILED"
-                    application.email_logs = error_msg or "Unknown SMTP error after retries."
-                    logger.error(f"💀 CRITICAL: Failed to send invitation email to {candidate.email} after {max_retries} attempts.")
+            if is_qualified:
+                # Trigger centralized shortlisting: sends the shortlist email to candidate
+                from src.api.utils.application_handler import handle_new_application
+                logger.info(f"Score {score} >= 60 → Triggering shortlist email for application {application_id}")
+                await handle_new_application(self.db, application.id, notify_hr=False)
             else:
                 # Optional: Handle rejection or just leave as screened
                 pass
-
-            self.db.add(application)
-            await self.db.commit()
-            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}")
 
         except Exception as e:
             logger.error(f"Error during screening for application {application_id}: {str(e)}")

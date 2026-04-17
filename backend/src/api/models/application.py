@@ -38,6 +38,7 @@ class Application(Base):
     # Application details
     cover_letter = Column(Text, nullable=True)
     phone_number = Column(String(50), nullable=True)
+    source = Column(String(50), default="web", index=True, comment="Source: web, linkedin, indeed, agent, etc.")
     
     # Email Delivery Status
     email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED")

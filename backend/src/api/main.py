@@ -13,7 +13,7 @@ from src.api.routes import (
     integrations,
     candidates,
     applications,
-    interviews,
+    # interviews,
     indeed,
 )
 from src.api.routes.admin import (
@@ -107,7 +107,7 @@ app.include_router(indeed_integration.router, prefix=f"{settings.API_V1_PREFIX}/
 # Hiring Workflow Routes
 app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["candidates"])
 app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applications", tags=["applications"])
-app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
+# app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 
 
 @app.get("/health")

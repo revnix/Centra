@@ -8,7 +8,9 @@ class ApplicationBase(BaseModel):
     job_id: int
 
 class ApplicationCreate(ApplicationBase):
-    pass
+    cover_letter: Optional[str] = None
+    phone_number: Optional[str] = None
+    source: Optional[str] = "web"
 
 class GuestApplicationCreate(BaseModel):
     """Schema for guest application (no prior login)"""
@@ -30,6 +32,7 @@ class ApplicationResponse(ApplicationBase):
     id: int
     candidate_id: int
     status: ApplicationStatus
+    source: str
     match_score: Optional[float] = None
     email_delivery_status: Optional[str] = "PENDING"
     email_logs: Optional[str] = None

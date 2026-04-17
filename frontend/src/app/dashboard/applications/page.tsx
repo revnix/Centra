@@ -167,6 +167,7 @@ export default function ApplicationsPage() {
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <div className="flex justify-end gap-2">
+                                                {/* Hidden since AI Interview is disabled
                                                 {!['INTERVIEW_COMPLETED', 'HIRED', 'REJECTED'].includes(app.status) && (
                                                     <Button
                                                         variant="outline"
@@ -185,6 +186,8 @@ export default function ApplicationsPage() {
                                                         Interview <Bot className="w-4 h-4 ml-1" />
                                                     </Button>
                                                 )}
+                                                */}
+
                                                 <Link href={`/dashboard/applications/${app.id}`}>
                                                     <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                         Review <Eye className="w-4 h-4 ml-2" />
