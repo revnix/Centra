@@ -275,6 +275,12 @@ class ApplicationService:
         self.db.add(application)
         await self.db.commit()
         await self.db.refresh(application)
+        
+        # Auto-Spawn Onboarding Record
+        from src.api.services.onboarding_service import OnboardingService
+        onb_service = OnboardingService(self.db)
+        await onb_service.initiate_onboarding(application.id)
+        
         return application
 
     async def delete_application(self, application_id: int) -> bool:
