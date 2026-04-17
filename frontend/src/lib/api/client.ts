@@ -24,6 +24,7 @@ class ApiClient {
         this.client = axios.create({
             baseURL: getApiBaseUrl(),
             timeout: 90000,
+            withCredentials: false,  // Must be false when server uses allow_origins=["*"]
             headers: {
                 'Content-Type': 'application/json',
             },
