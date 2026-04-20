@@ -6,6 +6,10 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  */
 
 const getApiBaseUrl = () => {
+    // Check if user has provided an environment variable, otherwise default to port 2024
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl) return envUrl;
+
     if (typeof window !== "undefined") {
         // LangGraph dev server mounts the FastAPI app directly (langgraph.json: http.app)
         // Port must match --port flag used when starting `langgraph dev`
