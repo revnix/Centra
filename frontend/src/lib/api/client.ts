@@ -6,13 +6,15 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  */
 
 const getApiBaseUrl = () => {
+    // Check if user has provided an environment variable, otherwise default to port 2024
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl) return envUrl;
+
     if (typeof window !== "undefined") {
-        // Direct to backend in development to avoid proxy issues
-        // In production, this would be "/api/v1"
-        return "http://localhost:8123/api/v1";
+        return "http://127.0.0.1:2024/api/v1";
     }
     // Server-side default
-    return "http://127.0.0.1:8123/api/v1";
+    return "http://127.0.0.1:2024/api/v1";
 };
 
 const API_BASE_URL = getApiBaseUrl();
