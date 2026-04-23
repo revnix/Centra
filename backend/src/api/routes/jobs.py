@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
@@ -132,37 +133,31 @@ async def publish_job(
     return job
 
 from src.api.services.email_service import EmailService
-
 @router.post("/{job_id}/send-to-manager")
 async def send_to_manager(
     job_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Send job details to Operation Manager via email.
-    """
+    """Send job details to Operation Manager via Resend."""
     job_service = JobService(db)
     job = await job_service.get_job(job_id)
     if not job:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Format job details for the email
-    details = f"Title: {job.title}\n"
-    details += f"Location: {job.location}\n"
-    details += f"Type: {job.job_type}\n"
-    details += f"Experience: {job.experience_level}\n"
-    details += f"Department: {job.department}\n"
-    details += f"\nDescription:\n{job.description}\n"
-    
-    from fastapi.concurrency import run_in_threadpool
-    from fastapi.responses import JSONResponse
-    success = await run_in_threadpool(EmailService.send_job_to_manager, job.title, details)
-    if not success:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Failed to send email. Ensure your SMTP_PASSWORD in .env is exactly 16 characters (Gmail App Password).", "code": "SMTP_ERROR"}
-        )
-    
-    return {"message": "Job details sent to Operation Manager"}
+
+    details = (
+        f"Title: {job.title}\n"
+        f"Location: {job.location}\n"
+        f"Type: {job.job_type}\n"
+        f"Experience: {job.experience_level}\n"
+        f"Department: {job.department}\n"
+        f"\nDescription:\n{job.description}\n"
+    )
+
+    try:
+        await run_in_threadpool(EmailService.send_job_to_manager, job.title, details)
+        return {"message": "Email sent successfully"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

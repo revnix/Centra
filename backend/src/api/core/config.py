@@ -34,8 +34,10 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "http://127.0.0.1:8000",
         "http://172.22.112.1:3000",  # Network IP for frontend
         "http://172.22.112.1:8123",  # Network IP for backend
@@ -62,16 +64,15 @@ class Settings(BaseSettings):
     INDEED_AUTH_URL: str = "https://apis.indeed.com/oauth/v2/authorize"
     INDEED_TOKEN_URL: str = "https://apis.indeed.com/oauth/v2/tokens"
 
-    # Email Settings
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USER: str = os.getenv("SMTP_USER", "")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    EMAILS_FROM_EMAIL: str = os.getenv("FROM_EMAIL", os.getenv("EMAILS_FROM_EMAIL", "onboarding@resend.dev"))
-    OPERATIONS_MANAGER_EMAIL: str = os.getenv("OPERATIONS_MANAGER_EMAIL", "manager@evalyn.ai")
+    # Email Settings (Resend)
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    EMAILS_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", os.getenv("FROM_EMAIL", "onboarding@resend.dev"))
+    EMAILS_FROM_NAME: str = os.getenv("RESEND_FROM_NAME", "Evalyn")
+    OPERATIONS_MANAGER_EMAIL: str = os.getenv("OPERATIONS_MANAGER_EMAIL", "manager@evalyn.ai")
     HR_EMAIL: str = os.getenv("HR_EMAIL", "hr@evalyn.ai")
-
+    # When set, all outgoing emails are redirected to this address (use with Resend test keys)
+    EMAIL_TEST_OVERRIDE: str = os.getenv("EMAIL_TEST_OVERRIDE", "")
+    
     # ✅ Pydantic v2 config
     model_config = SettingsConfigDict(
         env_file=".env",

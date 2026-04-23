@@ -1,3 +1,203 @@
-.venv/
+# =============================================================
+#  EVALYN — Root .gitignore
+#  Covers: Python (FastAPI), Node.js (Next.js), OS, IDE, Secrets
+# =============================================================
+
+
+# ── Environment & Secrets ─────────────────────────────────────
+# Never commit real credentials
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+backend/.env
+frontend/.env.local
+
+# Exception: root template has empty values — safe to commit
+!/.env.local
+
+
+# ── Python — Virtual Environments ─────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+myenv/
+.python-version
+
+
+# ── Python — Bytecode & Cache ─────────────────────────────────
 __pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+
+# ── Python — Distribution & Packaging ─────────────────────────
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+pip-wheel-metadata/
+share/python-wheels/
+
+
+# ── Python — Testing & Coverage ───────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+nosetests.xml
+test-results/
+
+
+# ── Python — Type Checking ────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+pyrightconfig.json
+
+
+# ── Python — Jupyter ─────────────────────────────────────────
+.ipynb_checkpoints
+*.ipynb
+
+
+# ── LangGraph / LangChain Runtime Artifacts ───────────────────
+.langgraph_api/
+*.pckl
+langgraph_checkpoint*
+
+
+# ── Node.js — Dependencies ────────────────────────────────────
+node_modules/
+.pnp
+.pnp.*
+
+
+# ── Next.js — Build Output ────────────────────────────────────
+.next/
+out/
+/build
+
+
+# ── Node.js — Logs ────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+
+# ── Node.js — TypeScript Build ────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+
+# ── Node.js — Testing & Coverage ─────────────────────────────
+/coverage
+.nyc_output
+
+
+# ── Uploads — User Data (keep folder structure, not files) ────
+backend/uploads/resumes/*
+backend/uploads/recordings/*
+!backend/uploads/resumes/.gitkeep
+!backend/uploads/recordings/.gitkeep
+
+
+# ── Database Files ────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+
+# ── Temporary & Output Files ──────────────────────────────────
+*.tmp
+*.temp
+*_output.txt
+output.txt
+db_output.txt
+schema_output.txt
+seed_error.txt
+build_output.txt
+
+
+# ── Certificates & Keys ───────────────────────────────────────
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+
+
+# ── OS — macOS ────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+
+# ── OS — Windows ──────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+
+# ── OS — Linux ────────────────────────────────────────────────
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+
+# ── IDE — VS Code ─────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+
+# ── IDE — JetBrains (PyCharm, WebStorm) ──────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+
+# ── IDE — Vim / Emacs ─────────────────────────────────────────
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+
+# ── Deployment ────────────────────────────────────────────────
+.vercel
+.netlify
+
+
+# ── Archived / Cleanup Backup ─────────────────────────────────
+_archived/

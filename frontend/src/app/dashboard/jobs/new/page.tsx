@@ -75,28 +75,46 @@ import { jobsApi } from "@/lib/api/jobs";
 // --- Schemas ---
 
 const jobBasicSchema = z.object({
-    title: z.string().min(2, "Job title is required"),
-    department: z.string().min(2, "Department is required"),
+    title: z.string(),
+    department: z.string(),
     location: z.string().min(2, "Location is required"),
     type: z.string().min(1, "Job type is required"),
-    responsibilities: z.string().min(10, "Responsibilities are required"),
-    requiredSkills: z.string().min(2, "Required skills are required"),
-    qualifications: z.string().min(10, "Qualifications are required"),
+    responsibilities: z.string(),
+    requiredSkills: z.string(),
+    qualifications: z.string(),
     experienceLevel: z.string().min(1, "Experience level is required"),
     salaryMin: z.coerce.number().optional(),
     salaryMax: z.coerce.number().optional(),
     salaryCurrency: z.string().min(1, "Currency is required"),
     salaryPeriod: z.string().min(1, "Period is required"),
     salaryRange: z.string().optional(),
-    description: z.string().min(50, "Description must be at least 50 characters"),
-}).refine((data) => {
-    if (data.salaryMin && data.salaryMax && data.salaryMin > 0 && data.salaryMax > 0) {
-        return data.salaryMin <= data.salaryMax;
+    aiPrompt: z.string().optional(),
+    description: z.string(),
+}).superRefine((data, ctx) => {
+    const hasPrompt = Boolean(data.aiPrompt?.trim());
+
+    if (!hasPrompt) {
+        // Traditional flow — require all structural fields
+        if (!data.title || data.title.length < 2)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Job title is required", path: ["title"] });
+        if (!data.department || data.department.length < 2)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Department is required", path: ["department"] });
+        if (!data.responsibilities || data.responsibilities.length < 10)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Responsibilities are required", path: ["responsibilities"] });
+        if (!data.requiredSkills || data.requiredSkills.length < 2)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required skills are required", path: ["requiredSkills"] });
+        if (!data.qualifications || data.qualifications.length < 10)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Qualifications are required", path: ["qualifications"] });
+        if (!data.description || data.description.length < 50)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Description must be at least 50 characters", path: ["description"] });
+    } else {
+        // Prompt-first flow — only description is required (it gets filled after generation)
+        if (!data.description || data.description.length < 50)
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Click 'Generate JD' to create the Job Description first", path: ["description"] });
     }
-    return true;
-}, {
-    message: "Min salary cannot be greater than max salary",
-    path: ["salaryMax"],
+
+    if (data.salaryMin && data.salaryMax && data.salaryMin > 0 && data.salaryMax > 0 && data.salaryMin > data.salaryMax)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Min salary cannot be greater than max salary", path: ["salaryMax"] });
 });
 
 const aiConfigSchema = z.object({
@@ -121,6 +139,7 @@ export default function CreateJobPage() {
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
+    const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState(false);
 
     // LangGraph Job Generation Hook
     const jobGeneration = useJobGeneration();
@@ -218,6 +237,7 @@ export default function CreateJobPage() {
             salaryCurrency: "PKR",
             salaryPeriod: "monthly",
             salaryRange: "",
+            aiPrompt: "",
             description: "",
         },
     });
@@ -275,26 +295,15 @@ export default function CreateJobPage() {
     };
 
     // --- AI Logic ---
-    const watchedTitle = form1.watch("title");
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (watchedTitle && watchedTitle.length > 3) {
-                // Auto-generate ONLY if description is empty or very short
-                const currentDesc = form1.getValues("description");
-                if (!currentDesc || currentDesc.length < 50 || currentDesc === "Loading AI suggestion...") {
-                    generateDescription();
-                }
-            }
-        }, 2500);
-        return () => clearTimeout(timer);
-    }, [watchedTitle]);
-
     const generateDescription = async () => {
         const values = form1.getValues();
-        if (!values.title) return;
+        if (!values.title && !values.aiPrompt?.trim()) {
+            toast.error("Enter a job title or AI prompt first.");
+            return;
+        }
 
         setIsGeneratingDraft(true);
-        form1.setValue("description", "Generating professional job description...");
+        form1.setValue("description", "Generating Job Description...");
 
         try {
             const draft = await jobsApi.generateDraft({
@@ -303,6 +312,7 @@ export default function CreateJobPage() {
                 location: values.location,
                 experience_level: values.experienceLevel,
                 job_type: values.type,
+                prompt: values.aiPrompt || undefined,
             });
 
             if (draft) {
@@ -381,6 +391,91 @@ ${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n$
         }
     };
 
+
+    const generateFromPromptOnly = async () => {
+        const prompt = form1.getValues("aiPrompt");
+        if (!prompt?.trim()) {
+            toast.error("Please enter a prompt first, then click Generate JD.");
+            return;
+        }
+
+        setIsGeneratingFromPrompt(true);
+
+        try {
+            const draft = await jobsApi.generateDraft({
+                title: form1.getValues("title") || undefined,
+                department: form1.getValues("department") || undefined,
+                location: form1.getValues("location") || "Remote",
+                experience_level: form1.getValues("experienceLevel"),
+                job_type: form1.getValues("type"),
+                prompt: prompt.trim(),
+            });
+
+            if (draft) {
+                const formatList = (list?: string[]) =>
+                    list?.length ? list.map(i => `• ${i}`).join('\n') : "";
+
+                // Auto-fill extracted fields — always override with AI data in prompt-first mode
+                if (draft.job_title && draft.job_title !== "Unspecified") {
+                    form1.setValue("title", draft.job_title, { shouldValidate: true });
+                }
+                if (draft.department) {
+                    form1.setValue("department", draft.department, { shouldValidate: true });
+                }
+                if (draft.location && draft.location !== "Remote") {
+                    form1.setValue("location", draft.location, { shouldValidate: true });
+                }
+                form1.setValue("requiredSkills", draft.skills?.join(', ') || "");
+                form1.setValue("responsibilities", draft.responsibilities?.join('\n') || "");
+                form1.setValue("qualifications", draft.requirements?.join('\n') || "");
+
+                // Salary — fill only if user hasn't set one
+                const hasUserSalary = (form1.getValues("salaryMin") || 0) > 0;
+                if (!hasUserSalary && draft.suggested_salary_min) {
+                    form1.setValue("salaryMin", draft.suggested_salary_min);
+                    form1.setValue("salaryMax", draft.suggested_salary_max);
+                    toast.info(`AI Suggested Salary: ${draft.suggested_salary_currency || 'USD'} ${draft.suggested_salary_min?.toLocaleString()} – ${draft.suggested_salary_max?.toLocaleString()} (Editable)`);
+                }
+
+                // Build structured description
+                const sMin = form1.getValues("salaryMin") || draft.suggested_salary_min;
+                const sMax = form1.getValues("salaryMax") || draft.suggested_salary_max;
+                const sCurr = form1.getValues("salaryCurrency") || draft.suggested_salary_currency || "USD";
+                const sPeriod = form1.getValues("salaryPeriod") || draft.suggested_salary_period || "yearly";
+                const sRange = form1.getValues("salaryRange");
+
+                const salaryDisplay = sRange
+                    ? `Salary: ${sRange}`
+                    : sMin && sMax
+                        ? `Salary Range: ${sCurr} ${sMin.toLocaleString()} – ${sMax.toLocaleString()} per ${sPeriod.replace('ly', '')}`
+                        : "Salary: Competitive / Market Standard";
+
+                const structuredDesc = `🔹 JOB SUMMARY
+${draft.summary}
+
+🔹 KEY RESPONSIBILITIES
+${formatList(draft.responsibilities)}
+
+🔹 REQUIRED SKILLS
+${formatList(draft.skills)}
+
+🔹 QUALIFICATIONS
+${formatList(draft.requirements)}
+
+${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(draft.preferred_qualifications)}\n\n` : ''}${draft.benefits?.length > 0 ? `🔹 BENEFITS\n${formatList(draft.benefits)}\n\n` : ''}🔹 SALARY & COMPENSATION
+- ${salaryDisplay}`;
+
+                form1.setValue("description", structuredDesc, { shouldValidate: true });
+                toast.success("Job Description generated! Review and edit all fields before saving.");
+            }
+        } catch (error: any) {
+            console.error("Prompt-based generation failed:", error);
+            const msg = error?.message || error?.details || "Unknown error";
+            toast.error(`Generation failed: ${msg}`, { duration: 8000 });
+        } finally {
+            setIsGeneratingFromPrompt(false);
+        }
+    };
 
     const generateInitialSocialPost = (title: string) => {
         setSocialPost(`🚀 We are hiring!
@@ -486,11 +581,75 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                 <Card>
                     <CardHeader>
                         <CardTitle>Job Details</CardTitle>
-                        <CardDescription>Define the role and auto-generate the description.</CardDescription>
+                        <CardDescription>Describe the role in natural language — or fill in the fields below.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form1}>
                             <form onSubmit={form1.handleSubmit(onStep1Submit)} className="space-y-6">
+
+                                {/* ── AI Prompt Section (Primary) ── */}
+                                <div className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-blue-100 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-blue-600 rounded-lg">
+                                            <Wand2 className="h-4 w-4 text-white" />
+                                        </div>
+                                        <h3 className="font-bold text-slate-800 text-base">Generate with AI</h3>
+                                        <span className="ml-auto text-[11px] text-blue-600 font-semibold bg-blue-100 px-2.5 py-0.5 rounded-full">Recommended</span>
+                                    </div>
+                                    <FormField
+                                        control={form1.control}
+                                        name="aiPrompt"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-sm text-slate-600 font-medium">
+                                                    Describe the role in natural language
+                                                </FormLabel>
+                                                <FormControl>
+                                                    <Textarea
+                                                        placeholder='e.g. "Create a job description for a Senior React Developer at a fintech startup. 5+ years experience, TypeScript, system design, remote-friendly, competitive salary..."'
+                                                        className="min-h-[90px] resize-none text-sm bg-white border-blue-200 focus-visible:ring-blue-400"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription className="text-slate-500 text-xs">
+                                                    AI will extract the job title, department, skills and generate a complete JD. All fields below will be auto-filled.
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="flex justify-end">
+                                        <Button
+                                            type="button"
+                                            onClick={generateFromPromptOnly}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 shadow-md shadow-blue-200 rounded-xl font-semibold"
+                                            disabled={isGeneratingFromPrompt || isGeneratingDraft}
+                                        >
+                                            {isGeneratingFromPrompt ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Generating Job Description...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Wand2 className="h-4 w-4 mr-2" />
+                                                    Generate JD
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* ── Separator ── */}
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <span className="w-full border-t border-slate-200" />
+                                    </div>
+                                    <div className="relative flex justify-center text-xs uppercase">
+                                        <span className="bg-white px-3 text-slate-400 font-semibold tracking-wider">or fill in details manually</span>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form1.control}
@@ -698,21 +857,21 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={generateDescription}
-                                                    className="text-blue-600"
-                                                    disabled={isGeneratingDraft}
+                                                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                    disabled={isGeneratingDraft || isGeneratingFromPrompt}
                                                 >
                                                     {isGeneratingDraft ? (
                                                         <Loader2 className="h-3 w-3 mr-2 animate-spin" />
                                                     ) : (
                                                         <Wand2 className="h-3 w-3 mr-2" />
                                                     )}
-                                                    {isGeneratingDraft ? "Generating..." : "Auto-Generate"}
+                                                    {isGeneratingDraft ? "Generating..." : "Regenerate JD"}
                                                 </Button>
                                             </FormLabel>
                                             <FormControl>
                                                 <Textarea className="min-h-[150px] font-mono text-sm" {...field} />
                                             </FormControl>
-                                            <FormDescription>This will be used as a base for AI generation.</FormDescription>
+                                            <FormDescription>Review and edit the generated description before saving.</FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -1141,21 +1300,23 @@ ${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\
                                                                     description: finalFullDescription,
                                                                     short_description: jobPost.summary || finalFullDescription.substring(0, 200),
                                                                     location: jobPost.location || formData.location,
-                                                                    job_type: jobTypeMap[formData.type || 'full-time'] || 'FULL_TIME',
-                                                                    experience_level: experienceLevelMap[form2.getValues("experienceLevel")] || 'MID_SENIOR',
+                                                                    job_type: formData.type || 'FULL_TIME',
+                                                                    experience_level: form2.getValues("experienceLevel") || 'MID_SENIOR',
                                                                     department: formData.department,
                                                                     required_skills: (jobPost.skills || []).map((s: any) => String(s)),
-                                                                    preferred_skills: (jobPost.preferred_qualifications || []).map((s: any) => String(s)),
+                                                                    preferred_skills: (jobPost.preferred_skills || []).map((s: any) => String(s)),
+                                                                    requirements: (jobPost.requirements || []).map((s: any) => String(s)),
+                                                                    preferred_qualifications: (jobPost.preferred_qualifications || []).map((s: any) => String(s)),
                                                                     benefits: (jobPost.benefits || []).map((s: any) => String(s)),
                                                                     company_name: formData.department,
-                                                                    salary_min: formData.salaryMin || jobPost.suggested_salary_min,
-                                                                    salary_max: formData.salaryMax || jobPost.suggested_salary_max,
+                                                                    salary_min: formData.salaryMin || (jobPost.suggested_salary_min > 0 ? jobPost.suggested_salary_min : undefined),
+                                                                    salary_max: formData.salaryMax || (jobPost.suggested_salary_max > 0 ? jobPost.suggested_salary_max : undefined),
                                                                     salary_currency: formData.salaryCurrency || jobPost.suggested_salary_currency || "PKR",
                                                                     salary_period: formData.salaryPeriod || jobPost.suggested_salary_period || "monthly",
                                                                     salary_range: formData.salaryRange,
                                                                 };
 
-                                                                console.log('DEBUG: Sending job data to backend:', JSON.stringify(jobData, null, 2));
+                                                                console.log('STRICT_DATA_LOG: [Frontend] Sending job data to backend:', JSON.stringify(jobData, null, 2));
 
                                                                 // Create job in database using apiClient
                                                                 await apiClient.post('/jobs', jobData);

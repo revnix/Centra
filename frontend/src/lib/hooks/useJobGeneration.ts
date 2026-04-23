@@ -66,6 +66,7 @@ export function useJobGeneration() {
                 location: input.location,
                 experience_level: input.experience_level,
                 job_type: input.employment_type,
+                required_skills: input.skills,
             });
 
             const post = buildPost(input, draft);
@@ -97,6 +98,7 @@ export function useJobGeneration() {
                 location: input?.location,
                 experience_level: input?.experience_level ?? 'Mid',
                 job_type: input?.employment_type ?? 'full-time',
+                required_skills: input?.skills ?? generatedPost?.skills ?? [],
             });
 
             const post = buildPost(

@@ -149,9 +149,9 @@ export default function ApplicationsPage() {
                                             <StatusBadge status={app.status || "APPLIED"} />
                                         </TableCell>
                                         <TableCell>
-                                            {app.email_delivery_status ? (
+                                            {(app.email_delivery_status && app.email_delivery_status !== 'PENDING') ? (
                                                 <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : app.email_delivery_status === 'FAILED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                                     <span className="text-xs font-medium uppercase tracking-wider">
                                                         {app.email_delivery_status}
                                                     </span>

@@ -71,29 +71,50 @@ class ScreeningService:
             score = evaluation.get("match_score", 0)
             feedback = evaluation.get("feedback", "")
             
-            # MANDATORY RULE: Shortlist if score >= 60
-            is_qualified = score >= 60
+            # Shortlist threshold: score >= 70
+            SHORTLIST_THRESHOLD = 70
+            is_qualified = score >= SHORTLIST_THRESHOLD
 
             # 4. Update Application
             application.match_score = float(score)
             application.ai_feedback = feedback
-            # Set final status before committing so DB is always consistent
             application.status = ApplicationStatus.SHORTLISTED if is_qualified else ApplicationStatus.SCREENING
-            
-            # Persist score and status to DB FIRST before any downstream handlers
+
+            # Persist score and status to DB FIRST
             self.db.add(application)
             await self.db.commit()
             await self.db.refresh(application)
             logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}")
 
             if is_qualified:
-                # Trigger centralized shortlisting: sends the shortlist email to candidate
-                from src.api.utils.application_handler import handle_new_application
-                logger.info(f"Score {score} >= 60 → Triggering shortlist email for application {application_id}")
-                await handle_new_application(self.db, application.id, notify_hr=False)
-            else:
-                # Optional: Handle rejection or just leave as screened
-                pass
+                # Prevent duplicate emails — skip if already notified
+                if application.email_delivery_status == "SENT":
+                    logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
+                else:
+                    from src.api.services.scheduling_service import SchedulingService
+                    scheduler = SchedulingService()
+
+                    logger.info(f"[SHORTLIST] ✨ Score {score} >= {SHORTLIST_THRESHOLD} → sending WhatsApp-invite email to {candidate.email}")
+
+                    result = await scheduler.schedule_interview(
+                        candidate_name=candidate.full_name or "Candidate",
+                        candidate_email=candidate.email,
+                        candidate_score=score,
+                        job_title=job.title or "Position at Revnix",
+                    )
+
+                    if result.get("success") and result.get("email_sent"):
+                        application.email_delivery_status = "SENT"
+                        application.email_logs = f"WhatsApp-invite email sent. Score: {score}"
+                        self.db.add(application)
+                        await self.db.commit()
+                        logger.info(f"[SHORTLIST] ✅ Email sent and recorded for application {application_id}")
+                    else:
+                        application.email_delivery_status = "FAILED"
+                        application.email_logs = result.get("message", "Email failed during screening.")
+                        self.db.add(application)
+                        await self.db.commit()
+                        logger.error(f"[SHORTLIST] ❌ Email failed for application {application_id}: {result.get('message')}")
 
         except Exception as e:
             logger.error(f"Error during screening for application {application_id}: {str(e)}")

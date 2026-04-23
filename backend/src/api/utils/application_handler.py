@@ -88,34 +88,4 @@ async def handle_new_application(
         logger.info(f"⏭️ Skipping HR notification (notify_hr=False)")
 
 
-    # 5. Score-Based Shortlisting (ONLY for candidates with high score)
-    score = getattr(application, 'match_score', 0) or 0
-    logger.info(f"📊 Application #{application_id} Score evaluated: {score}")
-    
-    if score >= 60:
-        logger.info(f"✨ Score {score} >= 60. Triggering Shortlist Email for {candidate_email}")
-        if background_tasks:
-            background_tasks.add_task(
-                EmailService.send_shortlist_notification,
-                candidate_email=candidate_email,
-                candidate_name=candidate_name,
-                job_title=job_title
-            )
-        else:
-            email_sent = await run_in_threadpool(
-                EmailService.send_shortlist_notification,
-                candidate_email=candidate_email,
-                candidate_name=candidate_name,
-                job_title=job_title
-            )
-            # Update email delivery status on the application record
-            if application:
-                application.email_delivery_status = "SENT" if email_sent else "FAILED"
-                application.email_logs = "Shortlist email delivered." if email_sent else "Shortlist email failed after retry."
-                db.add(application)
-                await db.commit()
-                logger.info(f"📬 email_delivery_status updated to {'SENT' if email_sent else 'FAILED'} for App #{application_id}")
-    else:
-        logger.info(f"ℹ️ Score {score} < 60. Skipping shortlist email.")
-
     logger.info(f"✅ Handled new application workflow for App #{application_id}")

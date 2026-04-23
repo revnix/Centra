@@ -7,16 +7,16 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
 const getApiBaseUrl = () => {
     // Check if user has provided an environment variable, otherwise default to port 2024
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    const envUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL;
     if (envUrl) return envUrl;
 
     if (typeof window !== "undefined") {
         // LangGraph dev server mounts the FastAPI app directly (langgraph.json: http.app)
         // Port must match --port flag used when starting `langgraph dev`
-        return "http://localhost:2029/api/v1";
+        return "http://127.0.0.1:8123/api/v1";
     }
     // Server-side default
-    return "http://127.0.0.1:2029/api/v1";
+    return "http://127.0.0.1:8123/api/v1";
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -28,7 +28,7 @@ class ApiClient {
         this.client = axios.create({
             baseURL: getApiBaseUrl(),
             timeout: 90000,
-            withCredentials: false,  // Must be false when server uses allow_origins=["*"]
+            withCredentials: true,  // Must match backend allow_credentials: true
             headers: {
                 'Content-Type': 'application/json',
             },
