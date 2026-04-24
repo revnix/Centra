@@ -234,3 +234,113 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send application notification: {e}")
             return False
+    @staticmethod
+    def send_onboarding_welcome(candidate_email: str, candidate_name: str, onboarding_link: str):
+        """
+        Sends an onboarding welcome email with a link to the onboarding portal.
+        """
+        logger.info(f"📧 Attempting to send onboarding welcome to {candidate_email}")
+        
+        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+            logger.error("❌ SMTP credentials NOT configured. Cannot send onboarding email.")
+            return False
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.EMAILS_FROM_EMAIL
+            msg['To'] = candidate_email
+            msg['Subject'] = "Welcome Aboard! Your Onboarding Journey Begins"
+
+            body = f"""
+Hello {candidate_name},
+
+Congratulations on joining the team! We are thrilled to have you with us.
+
+To get started with your onboarding process, we have set up a dedicated portal for you. Please use the link below to provide your joining details and upload the required documents.
+
+Your Onboarding Link:
+{onboarding_link}
+
+Required Documents for Upload:
+1. Professional Photo (for ID card)
+2. Government ID (CNIC/Passport)
+3. Educational Documents
+4. Experience Letter(s)
+5. Last 3 Months Salary Slips
+6. Police Clearance Certificate
+
+Please complete these steps at your earliest convenience so we can prepare for your first day.
+
+If you have any questions, feel free to reach out to the HR team.
+
+Welcome to the family!
+
+Best regards,
+The Hiring Team
+Evalyn AI
+"""
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            
+            text = msg.as_string()
+            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
+            server.quit()
+            
+            logger.info(f"✅ Onboarding email SUCCESSFULLY sent to {candidate_email}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to send onboarding email to {candidate_email}: {str(e)}")
+            return False
+
+    @staticmethod
+    def send_password_reset_email(email: str, reset_link: str):
+        """
+        Sends a password reset email with a link to the reset page.
+        """
+        logger.info(f"📧 Attempting to send password reset email to {email}")
+        
+        # Fallback for development: Always log the link
+        logger.info(f"🔑 PASSWORD RESET LINK: {reset_link}")
+
+        if not settings.SMTP_USER or not settings.SMTP_PASSWORD or settings.SMTP_USER == "your-email@gmail.com":
+            logger.warning("⚠️ SMTP credentials NOT configured. Link has been logged above for development.")
+            return True # Return true so the flow doesn't break in dev
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.EMAILS_FROM_EMAIL
+            msg['To'] = email
+            msg['Subject'] = "Reset Your Evalyn Password"
+
+            body = f"""
+Hello,
+
+We received a request to reset your password for your Evalyn account.
+
+Please click the link below to set a new password:
+
+{reset_link}
+
+This link will expire in 1 hour. If you did not request a password reset, you can safely ignore this email.
+
+Best regards,
+The Evalyn Team
+"""
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            
+            text = msg.as_string()
+            server.sendmail(settings.EMAILS_FROM_EMAIL, email, text)
+            server.quit()
+            
+            logger.info(f"✅ Password reset email SUCCESSFULLY sent to {email}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to send password reset email to {email}: {str(e)}")
+            return False

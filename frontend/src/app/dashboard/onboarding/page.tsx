@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onboardingApi, OnboardingResponse } from "@/lib/api/onboarding";
+import { motion, AnimatePresence } from "framer-motion";
+import { onboardingApi, OnboardingResponse, getDocumentViewUrl } from "@/lib/api/onboarding";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, CheckCircle, Search, Clock, ShieldCheck, MonitorCheck, MapPin, UserCheck, Briefcase } from "lucide-react";
@@ -59,14 +60,41 @@ export default function AdminOnboardingDashboard() {
         }
     };
 
+    const handleItSetupToggle = async (id: number, current: OnboardingResponse, field: string) => {
+        try {
+            const data = { [field]: !(current as any)[field] };
+            await onboardingApi.itSetupUpdate(id, data);
+            await fetchOnboardings();
+        } catch (err: any) {
+            alert("IT Update failed: " + err.message);
+        }
+    };
+
     return (
         <div className="p-6 space-y-6 max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-2xl text-white shadow-xl">
-                <div>
-                    <h1 className="text-3xl font-bold">Onboarding Command Center</h1>
-                    <p className="text-slate-300 mt-2">Manage Candidate Documents & IT Provisions</p>
+            <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-900 p-8 rounded-2xl text-white shadow-2xl relative overflow-hidden"
+            >
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-indigo-200">
+                            Onboarding Command Center
+                        </h1>
+                        <div className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </div>
+                    </div>
+                    <p className="text-indigo-200/80 mt-2 font-medium tracking-wide">
+                        Enterprise Grade Candidate Provisioning & Induction
+                    </p>
                 </div>
-            </div>
+                {/* Decorative background elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-500/10 rounded-full -ml-10 -mb-10 blur-2xl"></div>
+            </motion.div>
 
             {error && <div className="text-red-500 p-4 bg-red-50 rounded-lg">{error}</div>}
             
@@ -80,8 +108,16 @@ export default function AdminOnboardingDashboard() {
                         </div>
                     )}
                     
-                    {onboardings.map(o => (
-                        <Card key={o.id} className={`overflow-hidden shadow-md transition-all hover:shadow-lg ${o.status === 'COMPLETED' ? 'border-l-4 border-green-500 opacity-60' : 'border-l-4 border-blue-500'}`}>
+                    <AnimatePresence>
+                        {onboardings.map((o, idx) => (
+                            <motion.div
+                                key={o.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: idx * 0.1 }}
+                            >
+                                <Card className={`overflow-hidden shadow-lg border-0 bg-white/80 backdrop-blur-sm transition-all hover:shadow-xl ${o.status === 'COMPLETED' ? 'opacity-70 ring-1 ring-emerald-500/30' : 'ring-1 ring-slate-200'}`}>
+                                    <div className={`h-1.5 w-full ${o.status === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`} />
                             <CardHeader className="bg-slate-50/50 pb-4 border-b">
                                 <div className="flex justify-between items-center">
                                     <div>
@@ -111,15 +147,63 @@ export default function AdminOnboardingDashboard() {
                                         <div className="space-y-2 text-sm bg-white border rounded-lg p-4 shadow-sm">
                                             <div className="flex justify-between items-center py-1 border-b">
                                                 <span className="text-slate-600">Front Picture:</span>
-                                                <a href={o.doc_front_picture_url || "#"} target="_blank" className="text-blue-600 hover:underline truncate max-w-[150px]">
-                                                    {o.doc_front_picture_url ? "View Link" : "Pending"}
-                                                </a>
+                                                {o.doc_front_picture_url ? (
+                                                    <a href={getDocumentViewUrl(o.doc_front_picture_url) || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[150px]">
+                                                        View File
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Pending</span>
+                                                )}
                                             </div>
                                             <div className="flex justify-between items-center py-1 border-b">
-                                                <span className="text-slate-600">ID Card:</span>
-                                                <a href={o.doc_id_card_url || "#"} target="_blank" className="text-blue-600 hover:underline truncate max-w-[150px]">
-                                                    {o.doc_id_card_url ? "View Link" : "Pending"}
-                                                </a>
+                                                <span className="text-slate-600">ID Card (CNIC):</span>
+                                                {o.doc_id_card_url ? (
+                                                    <a href={getDocumentViewUrl(o.doc_id_card_url) || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[150px]">
+                                                        View File
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Pending</span>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between items-center py-1 border-b">
+                                                <span className="text-slate-600">Educational Docs:</span>
+                                                {o.doc_educational_documents_url ? (
+                                                    <a href={getDocumentViewUrl(o.doc_educational_documents_url) || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[150px]">
+                                                        View File
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Pending</span>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between items-center py-1 border-b">
+                                                <span className="text-slate-600">Police Clearance:</span>
+                                                {o.doc_police_clearance_url ? (
+                                                    <a href={getDocumentViewUrl(o.doc_police_clearance_url) || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[150px]">
+                                                        View File
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Pending</span>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between items-center py-1 border-b">
+                                                <span className="text-slate-600">Experience Letter:</span>
+                                                {o.doc_experience_letter_url ? (
+                                                    <a href={getDocumentViewUrl(o.doc_experience_letter_url) || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[150px]">
+                                                        View File
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Pending</span>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between items-center py-1 border-b">
+                                                <span className="text-slate-600">Last Salary Slip:</span>
+                                                {o.doc_salary_slip_url ? (
+                                                    <a href={getDocumentViewUrl(o.doc_salary_slip_url) || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[150px]">
+                                                        View File
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Pending</span>
+                                                )}
                                             </div>
                                             
                                             <div className="pt-4">
@@ -296,9 +380,11 @@ export default function AdminOnboardingDashboard() {
                                 </div>
                             </CardContent>
                         </Card>
-                    ))}
-                </div>
-            )}
+                    </motion.div>
+                ))}
+            </AnimatePresence>
         </div>
+    )}
+</div>
     );
 }

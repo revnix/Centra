@@ -107,6 +107,10 @@ class OnboardingService:
             onboarding.doc_salary_slip_url = data.doc_salary_slip_url
         if data.doc_experience_letter_url is not None:
             onboarding.doc_experience_letter_url = data.doc_experience_letter_url
+        if data.doc_educational_documents_url is not None:
+            onboarding.doc_educational_documents_url = data.doc_educational_documents_url
+        if data.doc_police_clearance_url is not None:
+            onboarding.doc_police_clearance_url = data.doc_police_clearance_url
             
         # If mandatory docs are present and candidate info is there, transition to PENDING_HR_DOCS
         if onboarding.doc_front_picture_url and onboarding.doc_id_card_url:

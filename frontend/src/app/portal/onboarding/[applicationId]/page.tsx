@@ -18,7 +18,7 @@ import { InductionTracker } from "@/components/onboarding/InductionTracker";
 
 const STEPS = [
     { id: 1, name: "Joining Data", description: "Set your start date" },
-    { id: 2, name: "Documentation", description: "Official ID & Salary Info" },
+    { id: 2, name: "Documentation", description: "All required documents" },
     { id: 3, name: "Prep & Access", description: "HR & IT verification" },
     { id: 4, name: "Day 1 Induction", description: "Team & Tool setup" },
 ];
@@ -258,22 +258,34 @@ export default function CandidateOnboardingPage() {
                                                 onUpload={(u) => handleUpdateDoc('doc_front_picture_url', u)}
                                             />
                                             <DocumentUploader 
-                                                label="Government ID" 
-                                                description="Scan of passport or ID"
+                                                label="Government ID (CNIC)" 
+                                                description="Scan of CNIC or passport"
                                                 value={onboarding?.doc_id_card_url}
                                                 onUpload={(u) => handleUpdateDoc('doc_id_card_url', u)}
                                             />
                                             <DocumentUploader 
-                                                label="Salary Slips" 
-                                                description="Last 3 months required"
-                                                value={onboarding?.doc_salary_slip_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_salary_slip_url', u)}
+                                                label="Educational Documents" 
+                                                description="Degree, transcript & certificates"
+                                                value={onboarding?.doc_educational_documents_url}
+                                                onUpload={(u) => handleUpdateDoc('doc_educational_documents_url', u)}
                                             />
                                             <DocumentUploader 
-                                                label="Exp. Letter" 
+                                                label="Police Clearance" 
+                                                description="Police clearance certificate"
+                                                value={onboarding?.doc_police_clearance_url}
+                                                onUpload={(u) => handleUpdateDoc('doc_police_clearance_url', u)}
+                                            />
+                                            <DocumentUploader 
+                                                label="Experience Letter" 
                                                 description="From previous employer"
                                                 value={onboarding?.doc_experience_letter_url}
                                                 onUpload={(u) => handleUpdateDoc('doc_experience_letter_url', u)}
+                                            />
+                                            <DocumentUploader 
+                                                label="Last Salary Slip" 
+                                                description="Last 3 months required"
+                                                value={onboarding?.doc_salary_slip_url}
+                                                onUpload={(u) => handleUpdateDoc('doc_salary_slip_url', u)}
                                             />
                                         </CardContent>
                                     </Card>
