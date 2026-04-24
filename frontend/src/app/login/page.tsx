@@ -49,8 +49,9 @@ export default function LoginPage() {
             localStorage.setItem("userEmail", email);
             localStorage.setItem("access_token", access_token);
 
-            // Set cookie for middleware
+            // Set cookies for middleware
             document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
+            document.cookie = `user_role=${role}; path=/; max-age=86400; SameSite=Lax`;
 
             // Redirect based on role
             // Use safe navigation

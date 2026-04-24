@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { onboardingApi } from "@/lib/api/onboarding";
 
 interface DocumentUploaderProps {
     label: string;
@@ -18,34 +19,49 @@ export function DocumentUploader({ label, description, value, onUpload }: Docume
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Simulate upload
+        // Validate file size (10MB max)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error("File too large. Maximum size is 10MB.");
+            return;
+        }
+
         setUploading(true);
         setProgress(0);
         
+        // Progress animation
         const interval = setInterval(() => {
             setProgress(prev => {
-                if (prev >= 95) {
+                if (prev >= 90) {
                     clearInterval(interval);
-                    return 95;
+                    return 90;
                 }
-                return prev + 5;
+                return prev + 10;
             });
-        }, 100);
+        }, 200);
 
-        setTimeout(() => {
+        try {
+            const result = await onboardingApi.uploadDocument(file);
             clearInterval(interval);
             setProgress(100);
+            
             setTimeout(() => {
                 setUploading(false);
-                const mockUrl = `https://evalyn-storage.mock/${file.name.replace(/\s/g, '_')}`;
-                onUpload(mockUrl);
+                onUpload(result.url);
                 toast.success(`${label} uploaded successfully`);
-            }, 500);
-        }, 2500);
+            }, 400);
+        } catch (err: any) {
+            clearInterval(interval);
+            setUploading(false);
+            setProgress(0);
+            toast.error(err?.message || `Failed to upload ${label}`);
+        }
+
+        // Reset the input so the same file can be re-selected
+        e.target.value = "";
     };
 
     return (
@@ -65,7 +81,7 @@ export function DocumentUploader({ label, description, value, onUpload }: Docume
                             type="file"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                             onChange={handleFileChange}
-                            accept=".pdf,.jpg,.jpeg,.png"
+                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                         />
                         <Button variant="outline" size="sm" className="gap-2">
                             <Upload className="w-3.5 h-3.5" />
@@ -84,7 +100,7 @@ export function DocumentUploader({ label, description, value, onUpload }: Docume
                         className="mt-4 pt-4 border-t space-y-2 overflow-hidden"
                     >
                         <div className="flex justify-between text-[10px] font-medium text-slate-500">
-                            <span>Processing document...</span>
+                            <span>Uploading document...</span>
                             <span>{progress}%</span>
                         </div>
                         <Progress value={progress} className="h-1" />

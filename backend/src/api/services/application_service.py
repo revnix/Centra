@@ -71,6 +71,19 @@ class ApplicationService:
         )
         return result.scalars().all()
 
+    async def get_applications_by_user_id(self, user_id: int) -> list[Application]:
+        """Get all applications for a specific candidate."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                joinedload(Application.job),
+                joinedload(Application.interview_session)
+            )
+            .where(Application.candidate_id == user_id)
+            .order_by(Application.created_at.desc())
+        )
+        return result.scalars().all()
+
     async def reject_application(self, application_id: int) -> Application:
         """Reject an application."""
         application = await self.get_application_by_id(application_id)

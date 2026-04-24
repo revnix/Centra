@@ -15,7 +15,8 @@ import {
     Link2,
     Sparkles,
     ChevronRight,
-    Users
+    Users,
+    ClipboardCheck
 } from 'lucide-react';
 
 /**
@@ -53,6 +54,7 @@ export default function DashboardLayout({
         { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
         { name: 'Applications', href: '/dashboard/applications', icon: Users },
         { name: 'Generated Jobs', href: '/dashboard/generated-jobs', icon: Sparkles },
+        { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
         { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
     ];
 
