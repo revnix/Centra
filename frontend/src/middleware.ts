@@ -30,10 +30,14 @@ export function middleware(request: NextRequest) {
     const authRoutes = ['/login', '/signup', '/'];
     const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
 
+    const userRole = request.cookies.get('user_role')?.value;
+
     if (token && authRoutes.includes(pathname) && !skipRedirect) {
-        // TODO: Decode token to get user role and redirect appropriately
-        // For now, default to /dashboard
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        if (userRole === 'candidate') {
+            return NextResponse.redirect(new URL('/portal/status', request.url));
+        }
+        // Default to /dashboard for admin/reviewer
+        return NextResponse.redirect(new URL('/dashboard/jobs', request.url));
     }
 
     // Role-based access control

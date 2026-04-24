@@ -39,6 +39,8 @@ class Onboarding(Base):
     doc_id_card_url = Column(String, nullable=True)
     doc_salary_slip_url = Column(String, nullable=True)
     doc_experience_letter_url = Column(String, nullable=True)
+    doc_educational_documents_url = Column(String, nullable=True)
+    doc_police_clearance_url = Column(String, nullable=True)
     
     # HR verification
     hr_verified = Column(Boolean, default=False)

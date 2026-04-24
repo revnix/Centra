@@ -28,6 +28,13 @@ export const applicationsApi = {
     },
 
     /**
+     * Get applications for the current candidate
+     */
+    getMyApplications: async (): Promise<any[]> => {
+        return apiClient.get<any[]>("/applications/me");
+    },
+
+    /**
      * Get a specific application by ID
      */
     get: async (id: string): Promise<any> => {

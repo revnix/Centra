@@ -20,6 +20,8 @@ class CandidateDocumentUpload(BaseModel):
     doc_id_card_url: Optional[str] = None
     doc_salary_slip_url: Optional[str] = None
     doc_experience_letter_url: Optional[str] = None
+    doc_educational_documents_url: Optional[str] = None
+    doc_police_clearance_url: Optional[str] = None
 
 class HROnboardingVerify(BaseModel):
     hr_verified: bool
@@ -61,6 +63,8 @@ class OnboardingResponse(BaseModel):
     doc_id_card_url: Optional[str] = None
     doc_salary_slip_url: Optional[str] = None
     doc_experience_letter_url: Optional[str] = None
+    doc_educational_documents_url: Optional[str] = None
+    doc_police_clearance_url: Optional[str] = None
     
     hr_verified: bool
     

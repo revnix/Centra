@@ -1,5 +1,7 @@
 import { apiClient } from './client';
 
+const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:2024';
+
 export interface OnboardingResponse {
     id: number;
     application_id: number;
@@ -14,6 +16,8 @@ export interface OnboardingResponse {
     doc_id_card_url?: string;
     doc_salary_slip_url?: string;
     doc_experience_letter_url?: string;
+    doc_educational_documents_url?: string;
+    doc_police_clearance_url?: string;
     
     hr_verified: boolean;
     
@@ -31,6 +35,19 @@ export interface OnboardingResponse {
     ind_it_security_induction: boolean;
     ind_manager_buddy_assigned: boolean;
     ind_manager_team_intro: boolean;
+}
+
+export interface UploadResponse {
+    url: string;
+    filename: string;
+    size: number;
+}
+
+/** Convert a relative /uploads/... URL to a full backend URL for viewing */
+export function getDocumentViewUrl(relativeUrl: string | undefined): string | null {
+    if (!relativeUrl) return null;
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+    return `${BACKEND_BASE}${relativeUrl}`;
 }
 
 export const onboardingApi = {
@@ -62,4 +79,12 @@ export const onboardingApi = {
 
     managerInductionUpdate: (applicationId: number, data: any) => 
         apiClient.put<OnboardingResponse>(`/onboarding/${applicationId}/induction/manager`, data),
+
+    /** Upload a document file and return the URL */
+    uploadDocument: async (file: File): Promise<UploadResponse> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return apiClient.post<UploadResponse>('/uploads/onboarding-document', formData);
+    },
 };
+

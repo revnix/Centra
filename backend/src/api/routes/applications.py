@@ -149,6 +149,16 @@ async def apply(
     
     return application
 
+@router.get("/me", response_model=List[ApplicationResponse])
+async def list_my_applications(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all applications for the current candidate."""
+    app_service = ApplicationService(db)
+    applications = await app_service.get_applications_by_user_id(current_user.id)
+    return applications
+
 @router.get("", response_model=List[ApplicationResponse])
 async def list_applications(
     skip: int = 0,
