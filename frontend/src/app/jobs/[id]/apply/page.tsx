@@ -33,6 +33,7 @@ const applicationSchema = z.object({
     cover_letter: z.string().optional().or(z.literal("")),
     skills: z.string().min(2, "Please enter at least one skill"),
     experience_years: z.coerce.number().min(0, "Experience is required"),
+    expected_salary: z.coerce.number().min(0).optional().or(z.literal("")),
 });
 
 type ApplicationFormValues = {
@@ -44,6 +45,7 @@ type ApplicationFormValues = {
     cover_letter?: string;
     skills: string;
     experience_years: number;
+    expected_salary?: number | "";
 };
 
 export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
@@ -82,6 +84,7 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             cover_letter: "",
             skills: "",
             experience_years: 0,
+            expected_salary: "",
         },
     });
 
@@ -117,6 +120,10 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('skills', JSON.stringify(skillsArray));
 
             formData.append('experience_years', String(data.experience_years));
+
+            if (data.expected_salary !== "" && data.expected_salary !== undefined) {
+                formData.append('expected_salary', String(data.expected_salary));
+            }
 
             await api.applications.guestApply(formData);
 
@@ -308,6 +315,26 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                                         )}
                                     />
                                 </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="expected_salary"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Expected Salary (Optional)</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="e.g. 80000"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormDescription>Annual salary in your local currency. Leave blank if flexible.</FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
                                 <FormField
                                     control={form.control}

@@ -13,13 +13,14 @@ class ApplicationService:
         self.db = db
 
     async def create_application(
-        self, 
-        user_id: int, 
-        job_id: int, 
-        cover_letter: str = None, 
+        self,
+        user_id: int,
+        job_id: int,
+        cover_letter: str = None,
         phone_number: str = None,
         source: str = "web",
-        background_tasks = None
+        background_tasks = None,
+        expected_salary: float = None,
     ) -> Application:
         """Create a new application and trigger HR notification."""
         # Check if already applied
@@ -33,7 +34,8 @@ class ApplicationService:
             status=ApplicationStatus.APPLIED,
             cover_letter=cover_letter,
             phone_number=phone_number,
-            source=source
+            source=source,
+            expected_salary=expected_salary,
         )
         self.db.add(application)
         await self.db.commit()

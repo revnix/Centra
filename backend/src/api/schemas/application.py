@@ -11,6 +11,7 @@ class ApplicationCreate(ApplicationBase):
     cover_letter: Optional[str] = None
     phone_number: Optional[str] = None
     source: Optional[str] = "web"
+    expected_salary: Optional[float] = None
 
 class GuestApplicationCreate(BaseModel):
     """Schema for guest application (no prior login)"""
@@ -23,6 +24,7 @@ class GuestApplicationCreate(BaseModel):
     linkedin_url: Optional[str] = None
     skills: list[str] = []
     experience_years: int = 0
+    expected_salary: Optional[float] = None
 
 from src.api.schemas.user import UserResponse
 from src.api.schemas.job import JobResponse
@@ -34,6 +36,8 @@ class ApplicationResponse(ApplicationBase):
     status: ApplicationStatus
     source: str
     match_score: Optional[float] = None
+    expected_salary: Optional[float] = None
+    salary_filter_status: Optional[str] = None
     email_delivery_status: Optional[str] = "PENDING"
     email_logs: Optional[str] = None
     created_at: datetime
