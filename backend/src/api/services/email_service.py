@@ -1,345 +1,246 @@
-import requests
+import resend
 import logging
 from src.api.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_RESEND_URL = "https://api.resend.com/emails"
+# Initialize Resend client once
+if settings.RESEND_API_KEY:
+    resend.api_key = settings.RESEND_API_KEY
 
-
-def _send_via_resend(to_email: str, subject: str, html: str) -> dict:
-    """Core Resend REST call. Raises RuntimeError on any failure."""
+async def send_email(to_email: str, subject: str, html_content: str) -> bool:
+    """
+    Centralized email sending function using Resend API.
+    Does NOT crash on failure, logs errors instead.
+    """
     if not settings.RESEND_API_KEY:
-        raise RuntimeError("RESEND_API_KEY is not configured in .env.")
+        logger.warning("RESEND_API_KEY is not configured. Email not sent.")
+        # In development, we log the content
+        logger.info(f"Dev Email Log [To: {to_email} | Subject: {subject}]:\n{html_content}")
+        return True
 
-    # Redirect all mail to a single address when using a Resend test key
+    # Redirect for testing if configured
     effective_to = settings.EMAIL_TEST_OVERRIDE or to_email
     if settings.EMAIL_TEST_OVERRIDE and settings.EMAIL_TEST_OVERRIDE != to_email:
         subject = f"[TEST → {to_email}] {subject}"
 
-    from_field = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
-
-    payload = {
-        "from": from_field,
-        "to": [effective_to],
-        "subject": subject,
-        "html": html,
-    }
-
-    print(f"Sending email via Resend → from={from_field!r}  to={effective_to!r}  subject={subject!r}")
-
-    response = requests.post(
-        _RESEND_URL,
-        headers={
-            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=15,
-    )
-
-    print(f"Resend response: {response.status_code} {response.text}")
-    logger.info(f"Resend {response.status_code}: {response.text}")
-
-    if response.status_code not in (200, 201):
-        raise RuntimeError(f"Resend API error {response.status_code}: {response.text}")
-
-    return response.json()
-
+    try:
+        params = {
+            "from": f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>",
+            "to": [effective_to],
+            "subject": subject,
+            "html": html_content,
+        }
+        
+        logger.info(f"Sending email via Resend to {effective_to}...")
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(resend.Emails.send, params)
+        logger.info(f"Email successfully sent to {effective_to}")
+        return True
+    except Exception as e:
+        logger.error(f"FAILED to send email via Resend to {to_email}: {str(e)}")
+        return False
 
 class EmailService:
+    """
+    Service for handling all application email flows.
+    """
 
     @staticmethod
-    def send_job_to_manager(job_title: str, job_details: str) -> bool:
+    async def send_interview_invite(candidate_email: str, candidate_name: str, job_title: str, interview_link: str) -> bool:
+        """
+        Informs candidate they are shortlisted and provides next steps.
+        """
+        subject = f"Good News! You've been shortlisted for {job_title}"
+        
         html = f"""
-        <div style="font-family:Arial,sans-serif;color:#333;max-width:600px;">
-            <h2 style="color:#1e40af;">New Job Post for Review</h2>
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; color: #2d3748; line-height: 1.6;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #2b6cb0; font-size: 26px; margin: 0;">You're Shortlisted!</h1>
+            </div>
+            <p>Dear <strong>{candidate_name}</strong>,</p>
+            <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Evalyn AI.</p>
+            <p>Our recruitment team was impressed with your application and we'd like to move forward to the next stage of our hiring process.</p>
+            
+            <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #2b6cb0;">
+                <h3 style="margin-top: 0; color: #2d3748; font-size: 18px;">What's Next?</h3>
+                <p style="margin-bottom: 0;">Please click the link below to schedule your technical interview.</p>
+                <a href="{interview_link}" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #2b6cb0; color: white; text-decoration: none; border-radius: 5px;">Schedule Interview</a>
+            </div>
+            
+            <p>We look forward to speaking with you soon!</p>
+            
+            <p style="margin-top: 30px;">Best regards,<br/>
+            <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
+            Evalyn AI</p>
+            
+            <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
+            <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
+        </div>
+        """
+        return await send_email(candidate_email, subject, html)
+
+    @staticmethod
+    async def send_shortlist_email(candidate_email: str, candidate_name: str, job_title: str) -> bool:
+        """
+        Informs candidate they are shortlisted and provides next steps.
+        """
+        subject = f"Good News! You've been shortlisted for {job_title}"
+        
+        html = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; color: #2d3748; line-height: 1.6;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #2b6cb0; font-size: 26px; margin: 0;">You're Shortlisted!</h1>
+            </div>
+            <p>Dear <strong>{candidate_name}</strong>,</p>
+            <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Evalyn AI.</p>
+            <p>Our recruitment team was impressed with your application and we'd like to move forward to the next stage of our hiring process.</p>
+            
+            <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #2b6cb0;">
+                <h3 style="margin-top: 0; color: #2d3748; font-size: 18px;">What's Next?</h3>
+                <p style="margin-bottom: 0;">One of our HR representatives will be in touch with you shortly via phone or email to schedule a technical interview and discuss the role in more detail.</p>
+            </div>
+            
+            <p>We look forward to speaking with you soon!</p>
+            
+            <p style="margin-top: 30px;">Best regards,<br/>
+            <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
+            Evalyn AI</p>
+            
+            <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
+            <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
+        </div>
+        """
+        return await send_email(candidate_email, subject, html)
+
+    @staticmethod
+    async def send_hire_email(candidate_email: str, candidate_name: str, job_title: str, company_name: str, salary: str, joining_date: str, onboarding_link: str) -> bool:
+        """
+        Sends professional offer letter and onboarding instructions.
+        """
+        subject = f"Congratulations! You've been selected for {job_title}"
+        
+        html = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; color: #2d3748; line-height: 1.6;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div style="font-size: 50px; margin-bottom: 10px;">🎊</div>
+                <h1 style="color: #2c5282; font-size: 30px; margin: 0;">Congratulations, {candidate_name}!</h1>
+            </div>
+            
+            <p>We are absolutely thrilled to offer you the position of <strong>{job_title}</strong> at <strong>{company_name}</strong>!</p>
+            <p>After reviewing your technical skills and interview performance, we are confident that you will be a valuable asset to our team and help us achieve our goals.</p>
+            
+            <div style="background-color: #ebf8ff; padding: 25px; border-radius: 10px; margin: 25px 0;">
+                <h3 style="margin-top: 0; color: #2b6cb0; font-size: 20px; border-bottom: 1px solid #bee3f8; padding-bottom: 10px;">Offer Summary</h3>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                    <tr><td style="padding: 10px 0; color: #4a5568; width: 40%;"><strong>Role:</strong></td><td style="color: #2d3748;">{job_title}</td></tr>
+                    <tr><td style="padding: 10px 0; color: #4a5568;"><strong>Compensation:</strong></td><td style="color: #2d3748;">{salary}</td></tr>
+                    <tr><td style="padding: 10px 0; color: #4a5568;"><strong>Joining Date:</strong></td><td style="color: #2d3748;">{joining_date}</td></tr>
+                </table>
+            </div>
+
+            <div style="background-color: #fffaf0; padding: 25px; border-radius: 10px; margin: 25px 0; border: 1px solid #fbd38d; text-align: center;">
+                <h3 style="margin-top: 0; color: #c05621; font-size: 20px;">Next Step: Onboarding</h3>
+                <p>To officially accept this offer and begin your onboarding, please click the button below to access our candidate portal.</p>
+                <p style="font-size: 14px; color: #7b341e;">You'll be asked to provide additional details and upload required documents.</p>
+                <div style="margin-top: 25px;">
+                    <a href="{onboarding_link}" style="background-color: #3182ce; color: #ffffff; padding: 14px 35px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(49, 130, 206, 0.2);">Complete Your Onboarding</a>
+                </div>
+            </div>
+            
+            <p>Welcome to the family! We can't wait to see what we'll build together.</p>
+            
+            <p style="margin-top: 40px;">Best regards,<br/>
+            <strong style="color: #2c5282;">The Hiring Team</strong><br/>
+            {company_name}</p>
+        </div>
+        """
+        return await send_email(candidate_email, subject, html)
+
+    @staticmethod
+    async def send_onboarding_welcome(candidate_email: str, candidate_name: str, onboarding_link: str) -> bool:
+        """
+        Direct onboarding welcome email.
+        """
+        subject = "Welcome Aboard! Your Onboarding Journey Begins"
+        html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <h2 style="color: #2b6cb0;">Welcome to the Team!</h2>
+            <p>Hello {candidate_name},</p>
+            <p>We are excited to have you join us. To get started with the onboarding process, please click the button below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{onboarding_link}" style="background-color: #2b6cb0; color: white; padding: 12px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">Start Onboarding</a>
+            </div>
+            <p>If you have any questions, feel free to contact HR.</p>
+        </div>
+        """
+        return await send_email(candidate_email, subject, html)
+
+    @staticmethod
+    async def send_password_reset_email(email: str, reset_link: str) -> bool:
+        """
+        Sends password reset link.
+        """
+        subject = "Reset Your Evalyn Password"
+        html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <h2 style="color: #2b6cb0;">Password Reset Request</h2>
+            <p>We received a request to reset your password. Click the button below to proceed:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{reset_link}" style="background-color: #2b6cb0; color: white; padding: 12px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">Reset Password</a>
+            </div>
+            <p style="color: #718096; font-size: 14px;">This link will expire in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+        </div>
+        """
+        return await send_email(email, subject, html)
+
+    @staticmethod
+    async def send_job_to_manager(job_title: str, job_details: str) -> bool:
+        """
+        Internal notification to manager for job review.
+        """
+        subject = f"New Job Post for Review: {job_title}"
+        html = f"""
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; padding: 20px; border: 1px solid #eee;">
+            <h2 style="color: #1e40af;">New Job Post for Review</h2>
             <p>A new job post has been generated and is ready for your review.</p>
-            <hr style="border:none;border-top:1px solid #eee;" />
-            <pre style="background:#f5f5f5;padding:16px;border-radius:4px;
-                        white-space:pre-wrap;font-size:13px;">{job_details}</pre>
-            <p>Best regards,<br/><strong>Evalyn AI</strong></p>
+            <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; white-space: pre-wrap;">{job_details}</pre>
         </div>
         """
-        _send_via_resend(
-            to_email=settings.OPERATIONS_MANAGER_EMAIL,
-            subject=f"New Job Post for Review: {job_title}",
-            html=html,
-        )
-        logger.info(f"Job email sent to {settings.OPERATIONS_MANAGER_EMAIL}")
-        return True
+        return await send_email(settings.OPERATIONS_MANAGER_EMAIL, subject, html)
 
     @staticmethod
-    def send_offer_letter(
-        candidate_email: str,
-        candidate_name: str,
-        job_title: str,
-        company_name: str,
-        salary: str,
-        joining_date: str,
-    ) -> bool:
-        html = f"""
-        <div style="font-family:Arial,sans-serif;color:#333;max-width:600px;">
-            <h2>Offer Letter – {job_title} at {company_name}</h2>
-            <p>Dear {candidate_name},</p>
-            <p>Congratulations! We are pleased to offer you the position of
-               <strong>{job_title}</strong> at <strong>{company_name}</strong>.</p>
-            <h3>Offer Details</h3>
-            <ul>
-                <li><strong>Role:</strong> {job_title}</li>
-                <li><strong>Company:</strong> {company_name}</li>
-                <li><strong>Annual Compensation:</strong> {salary}</li>
-                <li><strong>Joining Date:</strong> {joining_date}</li>
-            </ul>
-            <p>Please reply to this email with your decision.</p>
-            <p>Best regards,<br/>The Hiring Team<br/>{company_name}</p>
-        </div>
+    async def send_new_application_notification(candidate_name: str, candidate_email: str, job_title: str, source: str, resume_link: str = None) -> bool:
         """
-        try:
-            _send_via_resend(
-                to_email=candidate_email,
-                subject=f"Offer Letter – {job_title} at {company_name}",
-                html=html,
-            )
-            logger.info(f"Offer letter sent to {candidate_email}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send offer letter to {candidate_email}: {e}")
-            return False
-
-    @staticmethod
-    def send_offer_letter(candidate_email: str, candidate_name: str, job_title: str, company_name: str, salary: str, joining_date: str, onboarding_link: str):
+        Internal notification to HR for new application.
         """
-        Sends a professional offer letter email to the candidate.
-        """
-        if not settings.SMTP_USER or not settings.SMTP_PASSWORD or settings.SMTP_USER == "your-email@gmail.com":
-            logger.error("SMTP credentials not configured in .env. Cannot send email.")
-            return False
-
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = settings.EMAILS_FROM_EMAIL
-            msg['To'] = candidate_email
-            msg['Subject'] = f"Offer Letter - {job_title} at {company_name}"
-
-            body = f"""
-Hello {candidate_name},
-
-Congratulations! We are pleased to offer you the position of {job_title} at {company_name}.
-
-Based on your interview performance and technical skills, we believe you will be a great addition to our team.
-
-Offer Details:
-- Role: {job_title}
-- Company: {company_name}
-- Annual Compensation: {salary}
-- Joining Date: {joining_date}
-
-Please let us know your decision by replying to this email. 
-
-*** NEXT STEPS ***
-To get started with your onboarding, please visit our candidate portal to provide your details and upload the required documents:
-{onboarding_link}
-
-We look forward to having you onboard!
-
-Best regards,
-The Hiring Team
-{company_name}
-"""
-            msg.attach(MIMEText(body, 'plain'))
-
-            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            text = msg.as_string()
-            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
-            server.quit()
-            
-            logger.info(f"Offer letter sent successfully to {candidate_email}")
-            return True
-        except Exception as e:
-            logger.error(f"[SHORTLIST] ❌ Failed to send email to {candidate_email}: {e}")
-            return False
-
-    @staticmethod
-    def send_automated_interview_invitation(
-        candidate_email: str,
-        candidate_name: str,
-        interview_date: str,
-        interview_time: str,
-    ) -> bool:
-        html = f"""
-        <div style="font-family:Arial,sans-serif;color:#333;max-width:600px;">
-            <h2>Interview Invitation</h2>
-            <p>Dear {candidate_name},</p>
-            <p>Congratulations! Based on your assessment, you have been shortlisted for an interview.</p>
-            <h3>Interview Schedule</h3>
-            <ul>
-                <li><strong>Date:</strong> {interview_date}</li>
-                <li><strong>Time:</strong> {interview_time}</li>
-            </ul>
-            <p>Please be available at the scheduled time.</p>
-            <p>Best regards,<br/>HR Team</p>
-        </div>
-        """
-        try:
-            _send_via_resend(
-                to_email=candidate_email,
-                subject="Interview Invitation",
-                html=html,
-            )
-            logger.info(f"Interview invitation sent to {candidate_email}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send interview invitation to {candidate_email}: {e}")
-            return False
-
-    @staticmethod
-    def send_new_application_notification(
-        candidate_name: str,
-        candidate_email: str,
-        job_title: str,
-        source: str,
-        resume_link: str = None,
-    ) -> bool:
-        resume_html = (
-            f"<a href='{settings.FRONTEND_URL}{resume_link}'>View Resume</a>"
-            if resume_link
-            else "Not attached"
-        )
-        html = f"""
-        <div style="font-family:sans-serif;color:#333;max-width:600px;">
-            <h2 style="color:#2563eb;">New Application Received</h2>
-            <p>A new candidate has applied for <strong>{job_title}</strong>.</p>
-            <p><strong>Source:</strong> {source.upper()}</p>
-            <hr style="border:none;border-top:1px solid #eee;" />
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;"><strong>Name</strong></td><td>{candidate_name}</td></tr>
-                <tr><td style="padding:4px 0;"><strong>Email</strong></td><td>{candidate_email}</td></tr>
-                <tr><td style="padding:4px 0;"><strong>Resume</strong></td><td>{resume_html}</td></tr>
-            </table>
-            <br/>
-            <p><a href="{settings.FRONTEND_URL}/dashboard/applications">View in Dashboard →</a></p>
-        </div>
-        """
-        try:
-            _send_via_resend(
-                to_email=settings.HR_EMAIL,
-                subject=f"[{source.upper()}] New Application: {candidate_name} for {job_title}",
-                html=html,
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send application notification: {e}")
-            return False
-    @staticmethod
-    def send_onboarding_welcome(candidate_email: str, candidate_name: str, onboarding_link: str):
-        """
-        Sends an onboarding welcome email with a link to the onboarding portal.
-        """
-        logger.info(f"📧 Attempting to send onboarding welcome to {candidate_email}")
+        subject = f"New Application: {candidate_name} for {job_title}"
+        resume_html = f"<a href='{settings.FRONTEND_URL}{resume_link}'>View Resume</a>" if resume_link else "No resume attached"
         
-        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-            logger.error("❌ SMTP credentials NOT configured. Cannot send onboarding email.")
-            return False
+        html = f"""
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee;">
+            <h2 style="color: #2b6cb0;">New Application Received</h2>
+            <p><strong>Candidate:</strong> {candidate_name}</p>
+            <p><strong>Job:</strong> {job_title}</p>
+            <p><strong>Source:</strong> {source}</p>
+            <p><strong>Resume:</strong> {resume_html}</p>
+            <p><a href="{settings.FRONTEND_URL}/dashboard/applications">View in Dashboard</a></p>
+        </div>
+        """
+        return await send_email(settings.HR_EMAIL, subject, html)
 
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = settings.EMAILS_FROM_EMAIL
-            msg['To'] = candidate_email
-            msg['Subject'] = "Welcome Aboard! Your Onboarding Journey Begins"
-
-            body = f"""
-Hello {candidate_name},
-
-Congratulations on joining the team! We are thrilled to have you with us.
-
-To get started with your onboarding process, we have set up a dedicated portal for you. Please use the link below to provide your joining details and upload the required documents.
-
-Your Onboarding Link:
-{onboarding_link}
-
-Required Documents for Upload:
-1. Professional Photo (for ID card)
-2. Government ID (CNIC/Passport)
-3. Educational Documents
-4. Experience Letter(s)
-5. Last 3 Months Salary Slips
-6. Police Clearance Certificate
-
-Please complete these steps at your earliest convenience so we can prepare for your first day.
-
-If you have any questions, feel free to reach out to the HR team.
-
-Welcome to the family!
-
-Best regards,
-The Hiring Team
-Evalyn AI
-"""
-            msg.attach(MIMEText(body, 'plain'))
-
-            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            
-            text = msg.as_string()
-            server.sendmail(settings.EMAILS_FROM_EMAIL, candidate_email, text)
-            server.quit()
-            
-            logger.info(f"✅ Onboarding email SUCCESSFULLY sent to {candidate_email}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to send onboarding email to {candidate_email}: {str(e)}")
-            return False
+    # Legacy method names for backward compatibility
+    @staticmethod
+    async def send_offer_letter(*args, **kwargs):
+        """Wrapper for send_hire_email for legacy calls."""
+        return await EmailService.send_hire_email(*args, **kwargs)
 
     @staticmethod
-    def send_password_reset_email(email: str, reset_link: str):
-        """
-        Sends a password reset email with a link to the reset page.
-        """
-        logger.info(f"📧 Attempting to send password reset email to {email}")
-        
-        # Fallback for development: Always log the link
-        logger.info(f"🔑 PASSWORD RESET LINK: {reset_link}")
+    async def send_shortlist_notification(*args, **kwargs):
+        """Wrapper for send_shortlist_email for legacy calls."""
+        return await EmailService.send_shortlist_email(*args, **kwargs)
 
-        if not settings.SMTP_USER or not settings.SMTP_PASSWORD or settings.SMTP_USER == "your-email@gmail.com":
-            logger.warning("⚠️ SMTP credentials NOT configured. Link has been logged above for development.")
-            return True # Return true so the flow doesn't break in dev
-
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = settings.EMAILS_FROM_EMAIL
-            msg['To'] = email
-            msg['Subject'] = "Reset Your Evalyn Password"
-
-            body = f"""
-Hello,
-
-We received a request to reset your password for your Evalyn account.
-
-Please click the link below to set a new password:
-
-{reset_link}
-
-This link will expire in 1 hour. If you did not request a password reset, you can safely ignore this email.
-
-Best regards,
-The Evalyn Team
-"""
-            msg.attach(MIMEText(body, 'plain'))
-
-            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            
-            text = msg.as_string()
-            server.sendmail(settings.EMAILS_FROM_EMAIL, email, text)
-            server.quit()
-            
-            logger.info(f"✅ Password reset email SUCCESSFULLY sent to {email}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to send password reset email to {email}: {str(e)}")
-            return False
+    @staticmethod
+    async def send_automated_interview_invitation(*args, **kwargs):
+        """Wrapper for send_shortlist_email for legacy calls."""
+        return await EmailService.send_shortlist_email(*args, **kwargs)

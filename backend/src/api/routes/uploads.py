@@ -38,7 +38,8 @@ async def upload_onboarding_document(
     
     # Create onboarding uploads directory
     upload_dir = os.path.join(settings.UPLOAD_DIR, "onboarding")
-    os.makedirs(upload_dir, exist_ok=True)
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(os.makedirs, upload_dir, exist_ok=True)
     
     # Generate unique filename to avoid collisions
     unique_name = f"{current_user.id}_{uuid.uuid4().hex[:8]}_{file.filename}"
@@ -48,8 +49,11 @@ async def upload_onboarding_document(
     file_path = os.path.join(upload_dir, unique_name)
     
     # Write file to disk
-    with open(file_path, "wb") as f:
-        f.write(content)
+    def save_file(path, data):
+        with open(path, "wb") as f:
+            f.write(data)
+            
+    await run_in_threadpool(save_file, file_path, content)
     
     # Return the URL that can be used to access this file
     # The /uploads path is served by StaticFiles in main.py

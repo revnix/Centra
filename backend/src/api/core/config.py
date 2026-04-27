@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
     EMAILS_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", os.getenv("FROM_EMAIL", "onboarding@resend.dev"))
     EMAILS_FROM_NAME: str = os.getenv("RESEND_FROM_NAME", "Evalyn")
+    
+    # Aliases for easier access if needed by prompt instructions
+    FROM_EMAIL: str = EMAILS_FROM_EMAIL
+    
     OPERATIONS_MANAGER_EMAIL: str = os.getenv("OPERATIONS_MANAGER_EMAIL", "manager@evalyn.ai")
     HR_EMAIL: str = os.getenv("HR_EMAIL", "hr@evalyn.ai")
     # When set, all outgoing emails are redirected to this address (use with Resend test keys)

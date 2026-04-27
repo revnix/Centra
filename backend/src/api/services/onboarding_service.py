@@ -1,11 +1,14 @@
 import logging
+import secrets
+from typing import Optional
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import HTTPException
 from src.api.models.onboarding import Onboarding, OnboardingStatus
 from src.api.models.application import Application, ApplicationStatus
 from src.api.core.config import settings
 from src.api.services.email_service import EmailService
+from src.api.models.user import User, UserRole
 from sqlalchemy.orm import selectinload
 from src.api.schemas.onboarding import (
     CandidateOnboardingUpdate, 
@@ -31,8 +34,56 @@ class OnboardingService:
         return result.scalars().first()
 
     async def get_all_onboardings(self) -> list[Onboarding]:
-        result = await self.db.execute(select(Onboarding))
-        return list(result.scalars().all())
+        result = await self.db.execute(
+            select(Onboarding)
+            .options(selectinload(Onboarding.application).selectinload(Application.candidate))
+            .options(selectinload(Onboarding.application).selectinload(Application.job))
+        )
+        onboardings = result.scalars().all()
+        
+        for o in onboardings:
+            if o.application:
+                o.candidate_name = o.application.candidate.full_name if o.application.candidate else "N/A"
+                o.email = o.application.candidate.email if o.application.candidate else "N/A"
+                o.job_title = o.application.job.title if o.application.job else "N/A"
+        
+        return list(onboardings)
+
+    async def get_hr_onboarding_details(self, application_id: int) -> dict:
+        from src.api.models.application import Application
+        from src.api.models.onboarding import OnboardingDocument
+        
+        # Fetch application with candidate and job info
+        result = await self.db.execute(
+            select(Application)
+            .where(Application.id == application_id)
+            .options(selectinload(Application.candidate), selectinload(Application.job))
+        )
+        app = result.scalars().first()
+        if not app:
+            raise HTTPException(status_code=404, detail="Application not found")
+            
+        # Fetch uploaded documents
+        doc_result = await self.db.execute(
+            select(OnboardingDocument).where(OnboardingDocument.application_id == application_id)
+        )
+        documents = doc_result.scalars().all()
+        
+        return {
+            "candidate_name": app.candidate.full_name if app.candidate else "N/A",
+            "email": app.candidate.email if app.candidate else "N/A",
+            "job_title": app.job.title if app.job else "N/A",
+            "status": app.status,
+            "documents": [
+                {
+                    "id": doc.id,
+                    "file_name": doc.file_name,
+                    "file_url": doc.file_url,
+                    "file_type": doc.file_type,
+                    "uploaded_at": doc.uploaded_at
+                } for doc in documents
+            ]
+        }
 
     async def initiate_onboarding(self, application_id: int) -> Onboarding:
         # First ensure application exists and is in correct state
@@ -48,25 +99,59 @@ class OnboardingService:
         # Check if onboarding already exists
         existing = await self.get_by_application(application_id)
         if existing:
+            # Backfill token if missing
+            if not existing.onboarding_token:
+                existing.onboarding_token = secrets.token_urlsafe(32)
+                await self.db.commit()
+                await self.db.refresh(existing)
             return existing
 
         db_obj = Onboarding(
             application_id=application_id,
             user_id=app.candidate_id,
-            status=OnboardingStatus.PENDING_CANDIDATE_JOINING
+            status=OnboardingStatus.PENDING_CANDIDATE_JOINING,
+            onboarding_token=secrets.token_urlsafe(32)
         )
         self.db.add(db_obj)
         await self.db.commit()
         await self.db.refresh(db_obj)
         return db_obj
 
-    async def update_candidate_joining_date(self, application_id: int, user_id: int, data: CandidateOnboardingUpdate) -> Onboarding:
+    async def _check_auth(self, onboarding: Onboarding, user: User | None = None, token: str | None = None):
+        # If token is provided and matches, allow access
+        if token and onboarding.onboarding_token and token == onboarding.onboarding_token:
+            return
+        if token and onboarding.onboarding_token and token != onboarding.onboarding_token:
+            logger.warning(
+                f"TOKEN MISMATCH for app_id={onboarding.application_id}: "
+                f"provided={token[:10]}... stored={onboarding.onboarding_token[:10]}..."
+            )
+
+        if not user:
+            logger.warning(f"AUTH DENIED: No user and invalid/missing token for onboarding app_id={onboarding.application_id}")
+            raise HTTPException(status_code=403, detail="Not authorized to access this onboarding record")
+
+        # Admins and Reviewers can access any onboarding record
+        if user.role in [UserRole.ADMIN, UserRole.REVIEWER]:
+            return
+            
+        # Candidates can only access their own onboarding record
+        if onboarding.user_id != user.id:
+            logger.warning(
+                f"AUTH DENIED: onboarding.user_id={onboarding.user_id} "
+                f"vs current user.id={user.id} (role={user.role})"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Not authorized to update this onboarding record"
+            )
+
+    async def update_candidate_joining_date(self, application_id: int, current_user: User | None, data: CandidateOnboardingUpdate, token: str | None = None) -> Onboarding:
         onboarding = await self.get_by_application(application_id)
         if not onboarding:
             raise HTTPException(status_code=404, detail="Onboarding record not found")
             
-        if onboarding.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not authorized to update this onboarding record")
+        await self._check_auth(onboarding, current_user, token)
 
         onboarding.joining_date = data.joining_date
         
@@ -101,13 +186,12 @@ class OnboardingService:
         await self.db.refresh(onboarding)
         return onboarding
 
-    async def update_candidate_documents(self, application_id: int, user_id: int, data: CandidateDocumentUpload) -> Onboarding:
+    async def update_candidate_documents(self, application_id: int, current_user: User | None, data: CandidateDocumentUpload, token: str | None = None) -> Onboarding:
         onboarding = await self.get_by_application(application_id)
         if not onboarding:
             raise HTTPException(status_code=404, detail="Onboarding record not found")
             
-        if onboarding.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not authorized to update this onboarding record")
+        await self._check_auth(onboarding, current_user, token)
             
         if data.doc_front_picture_url is not None:
             onboarding.doc_front_picture_url = data.doc_front_picture_url
@@ -121,10 +205,78 @@ class OnboardingService:
             onboarding.doc_educational_documents_url = data.doc_educational_documents_url
         if data.doc_police_clearance_url is not None:
             onboarding.doc_police_clearance_url = data.doc_police_clearance_url
+        if data.doc_resume_url is not None:
+            onboarding.doc_resume_url = data.doc_resume_url
+        if data.doc_additional_files_json is not None:
+            onboarding.doc_additional_files_json = data.doc_additional_files_json
             
         # If mandatory docs are present and candidate info is there, transition to PENDING_HR_DOCS
         if onboarding.doc_front_picture_url and onboarding.doc_id_card_url:
             onboarding.status = OnboardingStatus.PENDING_HR_DOCS
+
+        await self.db.commit()
+        await self.db.refresh(onboarding)
+        return onboarding
+
+    async def upload_onboarding_documents(
+        self, 
+        application_id: int, 
+        current_user: User | None, 
+        cnic: Optional[UploadFile] = None,
+        resume: Optional[UploadFile] = None,
+        degree: Optional[UploadFile] = None,
+        front_picture: Optional[UploadFile] = None,
+        salary_slip: Optional[UploadFile] = None,
+        experience_letter: Optional[UploadFile] = None,
+        police_clearance: Optional[UploadFile] = None,
+        token: Optional[str] = None
+    ) -> Onboarding:
+        """
+        Handles physical file uploads for onboarding documents.
+        """
+        onboarding = await self.get_by_application(application_id)
+        if not onboarding:
+            raise HTTPException(status_code=404, detail="Onboarding record not found")
+            
+        await self._check_auth(onboarding, current_user, token)
+
+        from src.api.services.file_service import FileService
+        
+        # Mapping of upload arguments to document types and model fields
+        uploads = [
+            (cnic, "cnic", "doc_id_card_url"),
+            (resume, "resume", "doc_resume_url"),
+            (degree, "degree", "doc_educational_documents_url"),
+            (front_picture, "front_pic", "doc_front_picture_url"),
+            (salary_slip, "salary", "doc_salary_slip_url"),
+            (experience_letter, "experience", "doc_experience_letter_url"),
+            (police_clearance, "police", "doc_police_clearance_url")
+        ]
+
+        from src.api.models.onboarding import OnboardingDocument
+        
+        for file_obj, doc_type, field_name in uploads:
+            if file_obj:
+                try:
+                    url = await FileService.save_onboarding_document(file_obj, application_id, doc_type)
+                    setattr(onboarding, field_name, url)
+                    
+                    # Save metadata to onboarding_documents table
+                    file_ext = file_obj.filename.split('.')[-1].lower() if file_obj.filename else "file"
+                    doc_meta = OnboardingDocument(
+                        application_id=application_id,
+                        file_name=file_obj.filename,
+                        file_url=url,
+                        file_type=file_ext
+                    )
+                    self.db.add(doc_meta)
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+
+        # Check for state transition (mandatory: ID and Picture)
+        if onboarding.doc_front_picture_url and onboarding.doc_id_card_url:
+            if onboarding.status == OnboardingStatus.PENDING_CANDIDATE_DOCS:
+                onboarding.status = OnboardingStatus.PENDING_HR_DOCS
 
         await self.db.commit()
         await self.db.refresh(onboarding)
@@ -252,11 +404,12 @@ class OnboardingService:
         if not candidate or not candidate.email:
             raise HTTPException(status_code=400, detail="Candidate email not found")
             
-        # Generate onboarding link
-        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application_id}"
+        # Generate onboarding link with token
+        token_param = f"?token={onboarding.onboarding_token}" if onboarding.onboarding_token else ""
+        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application_id}{token_param}"
         
         # Send email
-        success = EmailService.send_onboarding_welcome(
+        success = await EmailService.send_onboarding_welcome(
             candidate_email=candidate.email,
             candidate_name=candidate.full_name or candidate.email,
             onboarding_link=onboarding_link

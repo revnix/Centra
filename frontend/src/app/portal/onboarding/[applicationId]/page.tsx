@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onboardingApi, OnboardingResponse } from "@/lib/api/onboarding";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,14 +18,16 @@ import { InductionTracker } from "@/components/onboarding/InductionTracker";
 
 const STEPS = [
     { id: 1, name: "Joining Data", description: "Set your start date" },
-    { id: 2, name: "Documentation", description: "All required documents" },
-    { id: 3, name: "Prep & Access", description: "HR & IT verification" },
-    { id: 4, name: "Day 1 Induction", description: "Team & Tool setup" },
+    { id: 2, name: "Documents", description: "Upload required documents" },
 ];
 
-export default function CandidateOnboardingPage() {
+import { Suspense } from "react";
+
+function OnboardingContent() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const token = searchParams.get("token");
     const applicationId = Number(params.applicationId);
     
     const [onboarding, setOnboarding] = useState<OnboardingResponse | null>(null);
@@ -35,6 +37,16 @@ export default function CandidateOnboardingPage() {
     
     // Form States
     const [joiningDate, setJoiningDate] = useState("");
+    const [isSubmittingDocs, setIsSubmittingDocs] = useState(false);
+    const [docFiles, setDocFiles] = useState<Record<string, File | null>>({
+        front_picture: null,
+        cnic: null,
+        resume: null,
+        degree: null,
+        police_clearance: null,
+        experience_letter: null,
+        salary_slip: null,
+    });
     
     useEffect(() => {
         if (applicationId) {
@@ -45,7 +57,7 @@ export default function CandidateOnboardingPage() {
     const fetchOnboarding = async () => {
         try {
             setLoading(true);
-            const data = await onboardingApi.get(applicationId);
+            const data = await onboardingApi.get(applicationId, token);
             setOnboarding(data);
             if (data.joining_date) setJoiningDate(data.joining_date.split('T')[0]);
         } catch (err: any) {
@@ -59,13 +71,9 @@ export default function CandidateOnboardingPage() {
     const currentStepIndex = useMemo(() => {
         if (!onboarding) return 0;
         if (onboarding.status === "PENDING_CANDIDATE_JOINING") return 0;
-        if (onboarding.status === "PENDING_HR_DETAILS") return 0; // Waiting for HR
+        if (onboarding.status === "PENDING_HR_DETAILS") return 0;
         if (onboarding.status === "PENDING_CANDIDATE_DOCS") return 1;
-        if (onboarding.status === "PENDING_HR_DOCS") return 2;
-        if (onboarding.status === "PENDING_IT_SETUP") return 2;
-        if (onboarding.status === "PENDING_INDUCTION") return 3;
-        if (onboarding.status === "COMPLETED") return 4;
-        return 0;
+        return 1; // All other states show docs tab
     }, [onboarding]);
 
     const handleSaveJoiningDate = async (e: React.FormEvent) => {
@@ -74,7 +82,7 @@ export default function CandidateOnboardingPage() {
             setIsSaving(true);
             await onboardingApi.updateCandidateInfo(applicationId, {
                 joining_date: joiningDate ? new Date(joiningDate).toISOString() : new Date().toISOString()
-            });
+            }, token);
             toast.success("Joining date updated");
             await fetchOnboarding();
         } catch (err: any) {
@@ -84,14 +92,30 @@ export default function CandidateOnboardingPage() {
         }
     };
 
-    const handleUpdateDoc = async (key: string, url: string) => {
+    const handleUpdateDoc = (updatedOnboarding: OnboardingResponse) => {
+        setOnboarding(updatedOnboarding);
+    };
+
+    const handleFileSelect = (type: string, file: File | null) => {
+        setDocFiles(prev => ({ ...prev, [type]: file }));
+    };
+
+    const handleSubmitDocuments = async () => {
+        const hasFiles = Object.values(docFiles).some(f => f !== null);
+        if (!hasFiles) {
+            toast.error("Please select at least one document to upload.");
+            return;
+        }
         try {
-            await onboardingApi.updateCandidateDocs(applicationId, {
-                [key]: url
-            });
-            await fetchOnboarding();
+            setIsSubmittingDocs(true);
+            const result = await onboardingApi.uploadDocuments(applicationId, docFiles, token);
+            setOnboarding(result);
+            setDocFiles({ front_picture: null, cnic: null, resume: null, degree: null, police_clearance: null, experience_letter: null, salary_slip: null });
+            toast.success("Documents submitted successfully!");
         } catch (err: any) {
-            toast.error("Failed to save document");
+            toast.error(err?.message || "Failed to submit documents");
+        } finally {
+            setIsSubmittingDocs(false);
         }
     };
 
@@ -247,46 +271,73 @@ export default function CandidateOnboardingPage() {
                                                 Required Documents
                                             </CardTitle>
                                             <CardDescription className="text-base">
-                                                Securely upload your documentation for HR verification.
+                                                Select your files below, then click <strong>Submit Documents</strong> to upload them all at once.
                                             </CardDescription>
                                         </CardHeader>
-                                        <CardContent className="p-8 pt-4 grid gap-4 sm:grid-cols-2">
-                                            <DocumentUploader 
-                                                label="Professional Photo" 
-                                                description="For your digital ID card"
-                                                value={onboarding?.doc_front_picture_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_front_picture_url', u)}
-                                            />
-                                            <DocumentUploader 
-                                                label="Government ID (CNIC)" 
-                                                description="Scan of CNIC or passport"
-                                                value={onboarding?.doc_id_card_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_id_card_url', u)}
-                                            />
-                                            <DocumentUploader 
-                                                label="Educational Documents" 
-                                                description="Degree, transcript & certificates"
-                                                value={onboarding?.doc_educational_documents_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_educational_documents_url', u)}
-                                            />
-                                            <DocumentUploader 
-                                                label="Police Clearance" 
-                                                description="Police clearance certificate"
-                                                value={onboarding?.doc_police_clearance_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_police_clearance_url', u)}
-                                            />
-                                            <DocumentUploader 
-                                                label="Experience Letter" 
-                                                description="From previous employer"
-                                                value={onboarding?.doc_experience_letter_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_experience_letter_url', u)}
-                                            />
-                                            <DocumentUploader 
-                                                label="Last Salary Slip" 
-                                                description="Last 3 months required"
-                                                value={onboarding?.doc_salary_slip_url}
-                                                onUpload={(u) => handleUpdateDoc('doc_salary_slip_url', u)}
-                                            />
+                                        <CardContent className="p-8 pt-4 space-y-6">
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                {[
+                                                    { type: "front_picture", label: "Professional Photo", description: "For your digital ID card", uploaded: onboarding?.doc_front_picture_url },
+                                                    { type: "cnic", label: "Government ID (CNIC)", description: "Scan of CNIC or passport", uploaded: onboarding?.doc_id_card_url },
+                                                    { type: "resume", label: "Updated Resume", description: "Latest professional CV", uploaded: onboarding?.doc_resume_url },
+                                                    { type: "degree", label: "Educational Documents", description: "Degree, transcript & certificates", uploaded: onboarding?.doc_educational_documents_url },
+                                                    { type: "police_clearance", label: "Police Clearance", description: "Police clearance certificate", uploaded: onboarding?.doc_police_clearance_url },
+                                                    { type: "experience_letter", label: "Experience Letter", description: "From previous employer", uploaded: onboarding?.doc_experience_letter_url },
+                                                    { type: "salary_slip", label: "Last Salary Slip", description: "Last 3 months required", uploaded: onboarding?.doc_salary_slip_url },
+                                                ].map(({ type, label, description, uploaded }) => (
+                                                    <div key={type} className="p-4 border rounded-xl bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                                                    {(uploaded || docFiles[type]) ? (
+                                                                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                                                                    ) : (
+                                                                        <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0" />
+                                                                    )}
+                                                                    {label}
+                                                                </h4>
+                                                                <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+                                                                {docFiles[type] && (
+                                                                    <p className="text-xs text-blue-600 mt-1 font-medium truncate">{docFiles[type]!.name}</p>
+                                                                )}
+                                                                {uploaded && !docFiles[type] && (
+                                                                    <p className="text-xs text-green-600 mt-1 font-medium">Already uploaded</p>
+                                                                )}
+                                                            </div>
+                                                            <label className="cursor-pointer shrink-0">
+                                                                <input
+                                                                    type="file"
+                                                                    className="hidden"
+                                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                                    onChange={(e) => handleFileSelect(type, e.target.files?.[0] || null)}
+                                                                />
+                                                                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                                                                    {docFiles[type] ? "Change" : "Select"}
+                                                                </span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Submit Button */}
+                                            <div className="pt-4 border-t flex items-center justify-between gap-4">
+                                                <p className="text-sm text-slate-500">
+                                                    {Object.values(docFiles).filter(Boolean).length} file(s) selected
+                                                </p>
+                                                <Button
+                                                    size="lg"
+                                                    onClick={handleSubmitDocuments}
+                                                    disabled={isSubmittingDocs || !Object.values(docFiles).some(Boolean)}
+                                                    className="px-8 h-12 bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-600/20 transition-all"
+                                                >
+                                                    {isSubmittingDocs ? (
+                                                        <><Clock className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
+                                                    ) : (
+                                                        <><CheckCircle2 className="w-4 h-4 mr-2" /> Submit Documents</>
+                                                    )}
+                                                </Button>
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 </div>
@@ -341,3 +392,16 @@ export default function CandidateOnboardingPage() {
 function Building2Icon() { return <Building2 className="w-4 h-4 text-blue-600" />; }
 function ClockIcon() { return <Clock className="w-4 h-4 text-blue-600" />; }
 function Building2({ className }: { className?: string }) { return <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>; }
+
+export default function CandidateOnboardingPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-slate-500 font-medium animate-pulse">Loading...</p>
+            </div>
+        }>
+            <OnboardingContent />
+        </Suspense>
+    );
+}

@@ -155,7 +155,7 @@ async def send_to_manager(
     )
 
     try:
-        await run_in_threadpool(EmailService.send_job_to_manager, job.title, details)
+        await EmailService.send_job_to_manager(job.title, details)
         return {"message": "Email sent successfully"}
     except Exception as e:
         import traceback

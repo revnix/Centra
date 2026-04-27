@@ -60,9 +60,15 @@ async def guest_apply(
         unique_filename = f"{uuid.uuid4()}{file_ext}"
         file_path = os.path.join(settings.UPLOAD_DIR, "resumes", unique_filename)
         
-        with open(file_path, "wb") as buffer:
-            content = await resume_file.read()
-            buffer.write(content)
+        # Write file to disk
+        from starlette.concurrency import run_in_threadpool
+        content = await resume_file.read()
+        
+        def save_resume(path, data):
+            with open(path, "wb") as buffer:
+                buffer.write(data)
+                
+        await run_in_threadpool(save_resume, file_path, content)
         
         resume_url = f"/uploads/resumes/{unique_filename}"
     

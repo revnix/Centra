@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login', '/signup', '/jobs', '/interview', '/'];
+    const publicRoutes = ['/login', '/signup', '/jobs', '/interview', '/portal/onboarding', '/'];
     const isPublicRoute = pathname === '/' || publicRoutes.some(route => route !== '/' && (pathname === route || pathname.startsWith(route + '/')));
 
     // Get token from cookie (NextAuth will set this)

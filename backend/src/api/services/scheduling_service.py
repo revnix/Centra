@@ -31,8 +31,7 @@ class SchedulingService:
             f"— triggering WhatsApp-invite email for {candidate_email}"
         )
 
-        email_sent = await run_in_threadpool(
-            EmailService.send_shortlist_notification,
+        email_sent = await EmailService.send_shortlist_notification(
             candidate_email=candidate_email,
             candidate_name=candidate_name,
             job_title=job_title,

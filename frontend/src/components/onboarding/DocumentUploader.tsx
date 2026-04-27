@@ -11,11 +11,14 @@ import { onboardingApi } from "@/lib/api/onboarding";
 interface DocumentUploaderProps {
     label: string;
     description: string;
+    applicationId: number;
+    type: string;
     value?: string;
-    onUpload: (url: string) => void;
+    token?: string | null;
+    onUpload: (data: any) => void;
 }
 
-export function DocumentUploader({ label, description, value, onUpload }: DocumentUploaderProps) {
+export function DocumentUploader({ label, description, applicationId, type, value, token, onUpload }: DocumentUploaderProps) {
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
 
@@ -44,13 +47,13 @@ export function DocumentUploader({ label, description, value, onUpload }: Docume
         }, 200);
 
         try {
-            const result = await onboardingApi.uploadDocument(file);
+            const result = await onboardingApi.uploadDocument(applicationId, type, file, token);
             clearInterval(interval);
             setProgress(100);
             
             setTimeout(() => {
                 setUploading(false);
-                onUpload(result.url);
+                onUpload(result);
                 toast.success(`${label} uploaded successfully`);
             }, 400);
         } catch (err: any) {

@@ -72,7 +72,7 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
     frontend_url = settings.FRONTEND_URL if hasattr(settings, "FRONTEND_URL") else "http://localhost:3000"
     reset_link = f"{frontend_url}/reset-password?token={token}"
     
-    EmailService.send_password_reset_email(user.email, reset_link)
+    await EmailService.send_password_reset_email(user.email, reset_link)
     
     return {"message": "If an account with that email exists, we have sent a reset link."}
 

@@ -274,13 +274,18 @@ class ApplicationService:
         
         # Trigger Email
         from src.api.services.email_service import EmailService
+        from src.api.services.onboarding_service import OnboardingService
         from starlette.concurrency import run_in_threadpool
         from src.api.core.config import settings
         
-        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application.id}"
+        # Initiate onboarding to generate token
+        onboarding_service = OnboardingService(self.db)
+        onboarding = await onboarding_service.initiate_onboarding(application_id)
         
-        await run_in_threadpool(
-            EmailService.send_offer_letter,
+        token_param = f"?token={onboarding.onboarding_token}" if onboarding.onboarding_token else ""
+        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application.id}{token_param}"
+        
+        await EmailService.send_offer_letter(
             candidate_email=candidate.email,
             candidate_name=candidate.full_name,
             job_title=job.title,
@@ -306,6 +311,17 @@ class ApplicationService:
         application = await self.get_application_by_id(application_id)
         if not application:
             return False
+        
+        # Explicitly delete the onboarding record first to avoid FK constraint errors
+        from src.api.models.onboarding import Onboarding
+        from sqlalchemy.future import select
+        onboarding_result = await self.db.execute(
+            select(Onboarding).where(Onboarding.application_id == application_id)
+        )
+        onboarding = onboarding_result.scalars().first()
+        if onboarding:
+            await self.db.delete(onboarding)
+            await self.db.flush()
         
         await self.db.delete(application)
         await self.db.commit()
