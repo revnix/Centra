@@ -39,9 +39,14 @@ class Application(Base):
     # Application details
     cover_letter = Column(Text, nullable=True)
     phone_number = Column(String(50), nullable=True)
+    source = Column(String(50), default="web", index=True, comment="Source: web, linkedin, indeed, agent, etc.")
     
+    # Salary
+    expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
+    salary_filter_status = Column(String(50), nullable=True, comment="within_budget | above_budget | not_checked")
+
     # Email Delivery Status
-    email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED")
+    email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(Text, nullable=True, comment="Failure reasons or SMTP logs")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

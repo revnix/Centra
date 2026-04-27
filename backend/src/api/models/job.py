@@ -31,8 +31,12 @@ class JobStatus(str, enum.Enum):
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
     ENTRY_LEVEL = "ENTRY_LEVEL"
+    JUNIOR = "JUNIOR"
     ASSOCIATE = "ASSOCIATE"
+    MID = "MID"
     MID_SENIOR = "MID_SENIOR"
+    SENIOR = "SENIOR"
+    LEAD = "LEAD"
     DIRECTOR = "DIRECTOR"
     EXECUTIVE = "EXECUTIVE"
 
@@ -78,6 +82,8 @@ class Posts(Base):
     # Skills and Requirements
     required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
     preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
+    requirements = Column(ARRAY(String), nullable=True, comment="Mandatory requirements/qualifications")
+    preferred_qualifications = Column(ARRAY(String), nullable=True, comment="Preferred qualifications")
     benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
     
     # Status and Publishing
@@ -137,6 +143,8 @@ class Posts(Base):
             "application_deadline": self.application_deadline.isoformat() if self.application_deadline else None,
             "required_skills": self.required_skills,
             "preferred_skills": self.preferred_skills,
+            "requirements": self.requirements,
+            "preferred_qualifications": self.preferred_qualifications,
             "benefits": self.benefits,
             "status": self.status.value if self.status else None,
             "published_at": self.published_at.isoformat() if self.published_at else None,

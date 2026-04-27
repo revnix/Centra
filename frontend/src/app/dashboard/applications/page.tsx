@@ -119,6 +119,7 @@ export default function ApplicationsPage() {
                                     <TableHead>Applied</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Email Invite</TableHead>
+                                    <TableHead>Salary</TableHead>
                                     <TableHead className="text-center">AI Score</TableHead>
                                     <TableHead className="text-right pr-6">Action</TableHead>
                                 </TableRow>
@@ -149,15 +150,36 @@ export default function ApplicationsPage() {
                                             <StatusBadge status={app.status || "APPLIED"} />
                                         </TableCell>
                                         <TableCell>
-                                            {app.email_delivery_status ? (
+                                            {(app.email_delivery_status && app.email_delivery_status !== 'PENDING') ? (
                                                 <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : app.email_delivery_status === 'FAILED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                                     <span className="text-xs font-medium uppercase tracking-wider">
                                                         {app.email_delivery_status}
                                                     </span>
                                                 </div>
                                             ) : (
                                                 <span className="text-xs text-muted-foreground italic">Not Shortlisted</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {app.expected_salary ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-xs font-medium">
+                                                        {Number(app.expected_salary).toLocaleString()}
+                                                    </span>
+                                                    {app.salary_filter_status === 'within_budget' && (
+                                                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 w-fit">
+                                                            Within Budget
+                                                        </span>
+                                                    )}
+                                                    {app.salary_filter_status === 'above_budget' && (
+                                                        <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 w-fit">
+                                                            Above Budget
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground italic">—</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -167,6 +189,7 @@ export default function ApplicationsPage() {
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <div className="flex justify-end gap-2">
+                                                {/* Hidden since AI Interview is disabled
                                                 {!['INTERVIEW_COMPLETED', 'HIRED', 'REJECTED'].includes(app.status) && (
                                                     <Button
                                                         variant="outline"
@@ -185,6 +208,8 @@ export default function ApplicationsPage() {
                                                         Interview <Bot className="w-4 h-4 ml-1" />
                                                     </Button>
                                                 )}
+                                                */}
+
                                                 <Link href={`/dashboard/applications/${app.id}`}>
                                                     <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                         Review <Eye className="w-4 h-4 ml-2" />
@@ -209,7 +234,7 @@ export default function ApplicationsPage() {
 
                                 {filteredApps.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                                             No applications found.
                                         </TableCell>
                                     </TableRow>

@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload
@@ -5,18 +6,23 @@ from src.api.models.application import Application, ApplicationStatus
 from src.api.models.candidate import CandidateProfile
 from src.api.models.user import User, UserRole
 
+logger = logging.getLogger(__name__)
+
 class ApplicationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def create_application(
-        self, 
-        user_id: int, 
-        job_id: int, 
-        cover_letter: str = None, 
-        phone_number: str = None
+        self,
+        user_id: int,
+        job_id: int,
+        cover_letter: str = None,
+        phone_number: str = None,
+        source: str = "web",
+        background_tasks = None,
+        expected_salary: float = None,
     ) -> Application:
-        """Create a new application for a candidate."""
+        """Create a new application and trigger HR notification."""
         # Check if already applied
         existing = await self.get_application_by_user_and_job(user_id, job_id)
         if existing:
@@ -27,12 +33,29 @@ class ApplicationService:
             job_id=job_id,
             status=ApplicationStatus.APPLIED,
             cover_letter=cover_letter,
-            phone_number=phone_number
+            phone_number=phone_number,
+            source=source,
+            expected_salary=expected_salary,
         )
         self.db.add(application)
         await self.db.commit()
         await self.db.refresh(application)
+        
+        from src.api.services.email_service import logger
+        logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
+        
+        # Centralized Notification Trigger
+        await self._trigger_new_app_notification(application, background_tasks)
+        
         return application
+
+    async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
+        """Delegates notification to the centralized handler."""
+        from src.api.utils.application_handler import handle_new_application
+        await handle_new_application(self.db, application.id, background_tasks)
+
+
+
 
     async def get_application_by_user_and_job(self, user_id: int, job_id: int) -> Application | None:
         """Check if user has already applied for this job."""
@@ -200,55 +223,33 @@ class ApplicationService:
         application.status = ApplicationStatus.SHORTLISTED
         self.db.add(application)
         await self.db.commit()
-        
-        # 2. Create Interview Session
-        from src.api.services.interview_service import InterviewService
-        int_service = InterviewService(self.db)
-        
-        # 72 hours expiry
-        session = await int_service.create_session(application.id, expiry_hours=72)
-        
-        # 3. Send Email with Retry logic
-        from src.api.services.email_service import EmailService
-        from src.api.core.config import settings
-        from starlette.concurrency import run_in_threadpool
-        
-        interview_link = f"{settings.FRONTEND_URL}/interview/{session.token}"
+
+        # 2. Send WhatsApp-invite email (duplicate guard)
+        if application.email_delivery_status == "SENT":
+            logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
+            await self.db.refresh(application)
+            return application
+
+        from src.api.services.scheduling_service import SchedulingService
+        sched_service = SchedulingService()
+
         candidate = application.candidate
         job = application.job
-        
-        application.email_delivery_status = "PENDING"
-        max_retries = 3
-        sent = False
-        error_msg = ""
 
-        for attempt in range(max_retries):
-            try:
-                sent = await run_in_threadpool(
-                    EmailService.send_interview_invitation,
-                    candidate_email=candidate.email,
-                    candidate_name=candidate.full_name,
-                    job_title=job.title if job else "the position",
-                    interview_link=interview_link,
-                    expiry_hours=72
-                )
-                if sent:
-                    break
-                else:
-                    error_msg = f"Attempt {attempt + 1} failed (SMTP return False; check server logs)"
-            except Exception as e:
-                error_msg = f"Attempt {attempt + 1} raised Exception: {str(e)}"
-                if attempt < max_retries - 1:
-                    import asyncio
-                    await asyncio.sleep(2)
-        
-        if sent:
+        result = await sched_service.schedule_interview(
+            candidate_name=candidate.full_name or "Candidate",
+            candidate_email=candidate.email,
+            candidate_score=application.match_score or 0,
+            job_title=job.title or "Position at Revnix",
+        )
+
+        if result["success"] and result.get("email_sent"):
             application.status = ApplicationStatus.INTERVIEW_INVITED
             application.email_delivery_status = "SENT"
-            application.email_logs = "Email delivered successfully."
+            application.email_logs = f"WhatsApp-invite email sent. Score: {application.match_score}"
         else:
             application.email_delivery_status = "FAILED"
-            application.email_logs = error_msg or "Unknown SMTP error after retries."
+            application.email_logs = result.get("message", "Email failed or score below threshold.")
             
         self.db.add(application)
         await self.db.commit()

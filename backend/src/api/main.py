@@ -86,7 +86,8 @@ os.makedirs(os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
-# CORS
+# CORS — allow all origins in dev to prevent browser "Network Error"
+# CORS — allow all origins in dev to prevent browser "Network Error"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,

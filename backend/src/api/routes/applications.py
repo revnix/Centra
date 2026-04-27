@@ -36,6 +36,7 @@ async def guest_apply(
     skills: str = Form("[]"),
     experience_years: int = Form(0),
     cover_letter: Optional[str] = Form(None),
+    expected_salary: Optional[float] = Form(None),
     resume_file: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
@@ -108,15 +109,18 @@ async def guest_apply(
         db.add(profile)
         # We don't need a separate commit here as there's one in service or end of request
         
-    # 4. Create Application
+    # 4. Create Application (Handles Notification internally)
     application = await app_service.create_application(
-        user.id, 
+        user.id,
         job_id,
         phone_number=phone_number,
-        cover_letter=cover_letter
+        cover_letter=cover_letter,
+        source="guest_web",
+        background_tasks=background_tasks,
+        expected_salary=expected_salary,
     )
     
-    # 5. Trigger AI Screening (Background Task)
+    # 5. Trigger AI Screening (Background Tasks)
     background_tasks.add_task(run_screening, application.id)
     
     return {
@@ -133,7 +137,15 @@ async def apply(
 ):
     """Authenticated user application."""
     app_service = ApplicationService(db)
-    application = await app_service.create_application(current_user.id, apply_data.job_id)
+    application = await app_service.create_application(
+        current_user.id,
+        apply_data.job_id,
+        cover_letter=apply_data.cover_letter,
+        phone_number=apply_data.phone_number,
+        source=apply_data.source or "web",
+        background_tasks=background_tasks,
+        expected_salary=apply_data.expected_salary,
+    )
     
     # Trigger AI Screening
     background_tasks.add_task(run_screening, application.id)
