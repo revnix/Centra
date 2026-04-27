@@ -4,6 +4,9 @@ from sqlalchemy.future import select
 from fastapi import HTTPException
 from src.api.models.onboarding import Onboarding, OnboardingStatus
 from src.api.models.application import Application, ApplicationStatus
+from src.api.core.config import settings
+from src.api.services.email_service import EmailService
+from sqlalchemy.orm import selectinload
 from src.api.schemas.onboarding import (
     CandidateOnboardingUpdate, 
     HRJoiningDetailsUpdate,
@@ -80,12 +83,19 @@ class OnboardingService:
         if not onboarding:
             raise HTTPException(status_code=404, detail="Onboarding record not found")
 
-        onboarding.reporting_time = data.reporting_time
-        onboarding.office_location = data.office_location
-        onboarding.shift_timing = data.shift_timing
+        if data.reporting_time is not None:
+            onboarding.reporting_time = data.reporting_time
+        if data.office_location is not None:
+            onboarding.office_location = data.office_location
+        if data.shift_timing is not None:
+            onboarding.shift_timing = data.shift_timing
         
-        if onboarding.status == OnboardingStatus.PENDING_HR_DETAILS:
-            onboarding.status = OnboardingStatus.PENDING_CANDIDATE_DOCS
+        # Advance status only if all joining details are now present
+        if (onboarding.reporting_time and 
+            onboarding.office_location and 
+            onboarding.shift_timing):
+            if onboarding.status == OnboardingStatus.PENDING_HR_DETAILS:
+                onboarding.status = OnboardingStatus.PENDING_CANDIDATE_DOCS
 
         await self.db.commit()
         await self.db.refresh(onboarding)
@@ -222,3 +232,34 @@ class OnboardingService:
         await self.db.commit()
         await self.db.refresh(onboarding)
         return onboarding
+
+    async def send_welcome_email(self, application_id: int) -> bool:
+        """
+        Sends an onboarding welcome email to the candidate.
+        """
+        # Fetch onboarding with user (candidate) details
+        result = await self.db.execute(
+            select(Onboarding)
+            .where(Onboarding.application_id == application_id)
+            .options(selectinload(Onboarding.user))
+        )
+        onboarding = result.scalars().first()
+        
+        if not onboarding:
+            raise HTTPException(status_code=404, detail="Onboarding record not found")
+            
+        candidate = onboarding.user
+        if not candidate or not candidate.email:
+            raise HTTPException(status_code=400, detail="Candidate email not found")
+            
+        # Generate onboarding link
+        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application_id}"
+        
+        # Send email
+        success = EmailService.send_onboarding_welcome(
+            candidate_email=candidate.email,
+            candidate_name=candidate.full_name or candidate.email,
+            onboarding_link=onboarding_link
+        )
+        
+        return success

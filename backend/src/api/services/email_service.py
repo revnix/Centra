@@ -48,7 +48,7 @@ class EmailService:
             return False
 
     @staticmethod
-    def send_offer_letter(candidate_email: str, candidate_name: str, job_title: str, company_name: str, salary: str, joining_date: str):
+    def send_offer_letter(candidate_email: str, candidate_name: str, job_title: str, company_name: str, salary: str, joining_date: str, onboarding_link: str):
         """
         Sends a professional offer letter email to the candidate.
         """
@@ -75,7 +75,13 @@ Offer Details:
 - Annual Compensation: {salary}
 - Joining Date: {joining_date}
 
-Please let us know your decision by replying to this email. We look forward to having you onboard!
+Please let us know your decision by replying to this email. 
+
+*** NEXT STEPS ***
+To get started with your onboarding, please visit our candidate portal to provide your details and upload the required documents:
+{onboarding_link}
+
+We look forward to having you onboard!
 
 Best regards,
 The Hiring Team

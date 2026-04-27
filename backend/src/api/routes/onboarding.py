@@ -164,3 +164,18 @@ async def induction_manager_update(
     """
     service = OnboardingService(db)
     return await service.manager_induction_update(application_id, data)
+
+@router.post("/{application_id}/send-welcome-email")
+async def send_welcome_email(
+    application_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin_or_reviewer)
+):
+    """
+    Send welcome email to candidate with onboarding link.
+    """
+    service = OnboardingService(db)
+    success = await service.send_welcome_email(application_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send email")
+    return {"message": "Onboarding email sent successfully"}

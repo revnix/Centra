@@ -274,6 +274,9 @@ class ApplicationService:
         # Trigger Email
         from src.api.services.email_service import EmailService
         from starlette.concurrency import run_in_threadpool
+        from src.api.core.config import settings
+        
+        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application.id}"
         
         await run_in_threadpool(
             EmailService.send_offer_letter,
@@ -282,7 +285,8 @@ class ApplicationService:
             job_title=job.title,
             company_name=job.company_name or "Evalyn AI",
             salary=salary_str,
-            joining_date=joining_date
+            joining_date=joining_date,
+            onboarding_link=onboarding_link
         )
         
         self.db.add(application)

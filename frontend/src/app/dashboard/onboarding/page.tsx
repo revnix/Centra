@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { onboardingApi, OnboardingResponse, getDocumentViewUrl } from "@/lib/api/onboarding";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle, Search, Clock, ShieldCheck, MonitorCheck, MapPin, UserCheck, Briefcase } from "lucide-react";
+import { AlertCircle, CheckCircle, Search, Clock, ShieldCheck, MonitorCheck, MapPin, UserCheck, Briefcase, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -45,6 +45,15 @@ export default function AdminOnboardingDashboard() {
             await fetchOnboardings();
         } catch (err: any) {
             alert("Update failed: " + err.message);
+        }
+    };
+    
+    const handleSendWelcomeEmail = async (id: number) => {
+        try {
+            await onboardingApi.sendWelcomeEmail(id);
+            alert("Welcome email sent to candidate!");
+        } catch (err: any) {
+            alert("Failed to send email: " + err.message);
         }
     };
 
@@ -133,6 +142,17 @@ export default function AdminOnboardingDashboard() {
                                                 </span>
                                             )}
                                         </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            className="text-xs flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                            onClick={() => handleSendWelcomeEmail(o.application_id)}
+                                        >
+                                            <Mail className="w-3.5 h-3.5" />
+                                            Send Welcome Email
+                                        </Button>
                                     </div>
                                 </div>
                             </CardHeader>

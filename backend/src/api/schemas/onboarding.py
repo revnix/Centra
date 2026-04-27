@@ -10,9 +10,9 @@ class CandidateOnboardingUpdate(BaseModel):
     joining_date: datetime
 
 class HRJoiningDetailsUpdate(BaseModel):
-    reporting_time: str
-    office_location: str
-    shift_timing: ShiftTiming
+    reporting_time: Optional[str] = None
+    office_location: Optional[str] = None
+    shift_timing: Optional[ShiftTiming] = None
 
 # Schemas for dealing with document URLs
 class CandidateDocumentUpload(BaseModel):

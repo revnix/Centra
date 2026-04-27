@@ -79,6 +79,9 @@ export const onboardingApi = {
 
     managerInductionUpdate: (applicationId: number, data: any) => 
         apiClient.put<OnboardingResponse>(`/onboarding/${applicationId}/induction/manager`, data),
+        
+    sendWelcomeEmail: (applicationId: number) => 
+        apiClient.post<{ message: string }>(`/onboarding/${applicationId}/send-welcome-email`),
 
     /** Upload a document file and return the URL */
     uploadDocument: async (file: File): Promise<UploadResponse> => {
