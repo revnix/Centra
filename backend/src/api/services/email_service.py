@@ -4,6 +4,12 @@ from src.api.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Initialize Resend client once
+if settings.RESEND_API_KEY:
+    resend.api_key = settings.RESEND_API_KEY
+
+HR_PHONE_NUMBER = "03125932632"
+
 async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
     Centralized email sending function using Resend API.
