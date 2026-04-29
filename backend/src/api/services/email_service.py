@@ -21,6 +21,9 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
         logger.info(f"Dev Email Log [To: {to_email} | Subject: {subject}]:\n{html_content}")
         return True
 
+    # Ensure API key is set
+    resend.api_key = settings.RESEND_API_KEY
+
     # Redirect for testing if configured
     effective_to = settings.EMAIL_TEST_OVERRIDE or to_email
     if settings.EMAIL_TEST_OVERRIDE and settings.EMAIL_TEST_OVERRIDE != to_email:
@@ -28,7 +31,7 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
 
     try:
         params = {
-            "from": f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>",
+            "from": f"{settings.RESEND_FROM_NAME} <{settings.RESEND_FROM_EMAIL}>",
             "to": [effective_to],
             "subject": subject,
             "html": html_content,
@@ -36,8 +39,8 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
         
         logger.info(f"Sending email via Resend to {effective_to}...")
         from starlette.concurrency import run_in_threadpool
-        await run_in_threadpool(resend.Emails.send, params)
-        logger.info(f"Email successfully sent to {effective_to}")
+        result = await run_in_threadpool(resend.Emails.send, params)
+        logger.info(f"Email successfully sent to {effective_to}. Response: {result}")
         return True
     except Exception as e:
         logger.error(f"FAILED to send email via Resend to {to_email}: {str(e)}")
@@ -203,16 +206,42 @@ class EmailService:
         return await send_email(email, subject, html)
 
     @staticmethod
-    async def send_job_to_manager(job_title: str, job_details: str) -> bool:
+    async def send_job_to_manager(job_title: str, job_details: str, review_url: str = None) -> bool:
         """
         Internal notification to manager for job review.
         """
-        subject = f"New Job Post for Review: {job_title}"
+        subject = f"Review Required: New Job Post - {job_title}"
+        
+        review_section = ""
+        if review_url:
+            review_section = f"""
+            <div style="margin: 30px 0; text-align: center;">
+                <a href="{review_url}" style="background-color: #1e40af; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Review Job Post</a>
+            </div>
+            """
+
         html = f"""
-        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; padding: 20px; border: 1px solid #eee;">
-            <h2 style="color: #1e40af;">New Job Post for Review</h2>
-            <p>A new job post has been generated and is ready for your review.</p>
-            <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; white-space: pre-wrap;">{job_details}</pre>
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #1e40af; font-size: 24px; margin: 0;">Job Post Review Request</h1>
+            </div>
+            
+            <p>Hello,</p>
+            <p>A new job post for <strong>{job_title}</strong> has been generated and requires your review and approval before it can be published.</p>
+            
+            <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; border-left: 4px solid #1e40af; margin: 25px 0;">
+                <h3 style="margin-top: 0; font-size: 16px; color: #1e40af;">Job Details</h3>
+                <pre style="white-space: pre-wrap; font-family: inherit; font-size: 14px; margin: 0;">{job_details}</pre>
+            </div>
+            
+            {review_section}
+            
+            <p>Please click the button above to approve the post or request specific changes.</p>
+            
+            <p style="margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px; font-size: 14px; color: #718096;">
+                Best regards,<br/>
+                <strong>Evalyn AI Recruitment Team</strong>
+            </p>
         </div>
         """
         return await send_email(settings.OPERATIONS_MANAGER_EMAIL, subject, html)

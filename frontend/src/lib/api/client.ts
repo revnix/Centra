@@ -6,16 +6,24 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  */
 
 const getApiBaseUrl = () => {
-    // Check if user has provided an environment variable, otherwise default to port 2024
-    const envUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL;
-    if (envUrl) return envUrl;
-
-    if (typeof window !== "undefined") {
-        // LangGraph dev server mounts the FastAPI app directly (langgraph.json: http.app)
-        // Port must match --port flag used when starting `langgraph dev`
-        return "http://127.0.0.1:8123/api/v1";
+    // 1. Use the dedicated API base URL if provided (e.g., "/api/v1" for proxying)
+    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+        return process.env.NEXT_PUBLIC_API_BASE_URL;
     }
-    // Server-side default
+
+    // 2. Fallback to LangGraph API URL if provided
+    const langgraphUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL;
+    if (langgraphUrl) {
+        // If it's a direct backend URL, ensure it has the /api/v1 prefix
+        return langgraphUrl.includes('/api/v1') ? langgraphUrl : `${langgraphUrl}/api/v1`;
+    }
+
+    // 3. Browser-side relative path (uses Next.js proxy)
+    if (typeof window !== "undefined") {
+        return "/api/v1";
+    }
+    
+    // 4. Server-side default
     return "http://127.0.0.1:8123/api/v1";
 };
 

@@ -34,10 +34,10 @@ interface ConnectedAccount {
 
 export default function GeneratedJobsPage() {
     const router = useRouter();
-    const { data: jobsResponse, isLoading } = useJobs({ status: 'DRAFT' });
+    const { data: jobsResponse, isLoading } = useJobs();
     const publishJob = usePublishJob();
 
-    const jobs = jobsResponse || [];
+    const jobs = jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED'].includes(j.status)) || [];
 
     // Publish Dialog State
     const [showPublishDialog, setShowPublishDialog] = useState(false);
@@ -45,6 +45,10 @@ export default function GeneratedJobsPage() {
     const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
     const [isPublishing, setIsPublishing] = useState(false);
+    
+    // Feedback Dialog State
+    const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+    const [feedbackToShow, setFeedbackToShow] = useState("");
 
     // Fetch integrations on mount
     useEffect(() => {
@@ -205,9 +209,28 @@ export default function GeneratedJobsPage() {
                                         </h3>
                                         {/* Status Badge */}
                                         <div className="flex gap-2">
-                                            <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">
-                                                AI Generated
+                                            <Badge 
+                                                variant={
+                                                    job.status === "APPROVED" ? "outline" : 
+                                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
+                                                    "secondary"
+                                                } 
+                                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                                            >
+                                                {job.status.toLowerCase().replace('_', ' ')}
                                             </Badge>
+                                            {job.manager_feedback && (
+                                                <Badge 
+                                                    variant="outline" 
+                                                    className="bg-orange-50 text-orange-700 border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
+                                                    onClick={() => {
+                                                        setFeedbackToShow(job.manager_feedback);
+                                                        setShowFeedbackDialog(true);
+                                                    }}
+                                                >
+                                                    Feedback Available
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
 
@@ -353,6 +376,44 @@ export default function GeneratedJobsPage() {
                                     Publish to {selectedAccounts.length} Account{selectedAccounts.length !== 1 ? 's' : ''}
                                 </>
                             )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Manager Feedback Dialog */}
+            <Dialog open={showFeedbackDialog} onOpenChange={setShowFeedbackDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Share2 className="h-5 w-5 text-orange-600" />
+                            Manager Feedback
+                        </DialogTitle>
+                        <DialogDescription>
+                            Suggestions and changes requested by the Operation Manager.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-6">
+                        <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 text-slate-700 leading-relaxed whitespace-pre-wrap">
+                            {feedbackToShow || "No feedback provided."}
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowFeedbackDialog(false)}>
+                            Close
+                        </Button>
+                        <Button 
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                            onClick={() => {
+                                setShowFeedbackDialog(false);
+                                // Redirect to edit/review details
+                                const jobId = jobs.find(j => j.manager_feedback === feedbackToShow)?.id;
+                                if (jobId) router.push(`/dashboard/jobs/${jobId}`);
+                            }}
+                        >
+                            View & Edit Job
                         </Button>
                     </DialogFooter>
                 </DialogContent>

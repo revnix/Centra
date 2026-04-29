@@ -9,7 +9,7 @@ from src.api.models.application import Application, ApplicationStatus
 from src.api.core.config import settings
 from src.api.services.email_service import EmailService
 from src.api.models.user import User, UserRole
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from src.api.schemas.onboarding import (
     CandidateOnboardingUpdate, 
     HRJoiningDetailsUpdate,
@@ -33,35 +33,105 @@ class OnboardingService:
         )
         return result.scalars().first()
 
-    async def get_all_onboardings(self) -> list[Onboarding]:
-        result = await self.db.execute(
-            select(Onboarding)
-            .options(selectinload(Onboarding.application).selectinload(Application.candidate))
-            .options(selectinload(Onboarding.application).selectinload(Application.job))
-        )
-        onboardings = result.scalars().all()
+    async def get_all_onboardings(self) -> list[dict]:
+        from src.api.models.application import Application
+        from src.api.models.job import Posts
         
-        for o in onboardings:
-            if o.application:
-                o.candidate_name = o.application.candidate.full_name if o.application.candidate else "N/A"
-                o.email = o.application.candidate.email if o.application.candidate else "N/A"
-                o.job_title = o.application.job.title if o.application.job else "N/A"
-        
-        return list(onboardings)
+        try:
+            # Use explicit joins to fetch all required data in one query.
+            # This is the most robust way to avoid MissingGreenlet errors in async environments.
+            stmt = (
+                select(
+                    Onboarding,
+                    User.full_name.label("cand_name"),
+                    User.email.label("cand_email"),
+                    Posts.title.label("job_title_val")
+                )
+                .outerjoin(Application, Onboarding.application_id == Application.id)
+                .outerjoin(User, Application.candidate_id == User.id)
+                .outerjoin(Posts, Application.job_id == Posts.id)
+                .order_by(Onboarding.created_at.desc())
+            )
+            
+            result = await self.db.execute(stmt)
+            rows = result.all()
+            
+            logger.info(f"Retrieved {len(rows)} onboarding records with explicit joins")
+            
+            final_results = []
+            for row in rows:
+                o = row.Onboarding
+                
+                # Construct dictionary matching OnboardingResponse schema
+                d = {
+                    "id": o.id,
+                    "application_id": o.application_id,
+                    "user_id": o.user_id,
+                    "status": o.status,
+                    "candidate_name": row.cand_name or "N/A",
+                    "email": row.cand_email or "N/A",
+                    "job_title": row.job_title_val or "N/A",
+                    "joining_date": o.joining_date,
+                    "reporting_time": o.reporting_time,
+                    "office_location": o.office_location,
+                    "shift_timing": o.shift_timing,
+                    "doc_front_picture_url": o.doc_front_picture_url,
+                    "doc_id_card_url": o.doc_id_card_url,
+                    "doc_salary_slip_url": o.doc_salary_slip_url,
+                    "doc_experience_letter_url": o.doc_experience_letter_url,
+                    "doc_educational_documents_url": o.doc_educational_documents_url,
+                    "doc_police_clearance_url": o.doc_police_clearance_url,
+                    "doc_resume_url": o.doc_resume_url,
+                    "doc_additional_files_json": o.doc_additional_files_json,
+                    "hr_verified": bool(o.hr_verified),
+                    "it_slack_setup": bool(o.it_slack_setup),
+                    "it_gmail_setup": bool(o.it_gmail_setup),
+                    "it_browser_extensions": bool(o.it_browser_extensions),
+                    "it_gmail_signature": bool(o.it_gmail_signature),
+                    "it_bordio_access": bool(o.it_bordio_access),
+                    "it_office365_access": bool(o.it_office365_access),
+                    "ind_hr_welcome_session": bool(o.ind_hr_welcome_session),
+                    "ind_hr_handbook_shared": bool(o.ind_hr_handbook_shared),
+                    "ind_hr_policies_explained": bool(o.ind_hr_policies_explained),
+                    "ind_it_credentials_provided": bool(o.ind_it_credentials_provided),
+                    "ind_it_security_induction": bool(o.ind_it_security_induction),
+                    "ind_manager_buddy_assigned": bool(o.ind_manager_buddy_assigned),
+                    "ind_manager_team_intro": bool(o.ind_manager_team_intro),
+                    "created_at": o.created_at,
+                    "updated_at": o.updated_at
+                }
+                final_results.append(d)
+            
+            return final_results
+        except Exception as e:
+            logger.error(f"FATAL error in get_all_onboardings: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Internal database mapping error: {str(e)}")
 
     async def get_hr_onboarding_details(self, application_id: int) -> dict:
         from src.api.models.application import Application
         from src.api.models.onboarding import OnboardingDocument
+        from src.api.models.job import Posts
         
-        # Fetch application with candidate and job info
-        result = await self.db.execute(
-            select(Application)
+        # Fetch application with candidate and job info using explicit join for safety
+        stmt = (
+            select(
+                Application,
+                User.full_name.label("cand_name"),
+                User.email.label("cand_email"),
+                Posts.title.label("job_title_val")
+            )
+            .outerjoin(User, Application.candidate_id == User.id)
+            .outerjoin(Posts, Application.job_id == Posts.id)
             .where(Application.id == application_id)
-            .options(selectinload(Application.candidate), selectinload(Application.job))
         )
-        app = result.scalars().first()
-        if not app:
+        
+        result = await self.db.execute(stmt)
+        row = result.first()
+        
+        if not row:
             raise HTTPException(status_code=404, detail="Application not found")
+            
+        app = row.Application
             
         # Fetch uploaded documents
         doc_result = await self.db.execute(
@@ -70,9 +140,9 @@ class OnboardingService:
         documents = doc_result.scalars().all()
         
         return {
-            "candidate_name": app.candidate.full_name if app.candidate else "N/A",
-            "email": app.candidate.email if app.candidate else "N/A",
-            "job_title": app.job.title if app.job else "N/A",
+            "candidate_name": row.cand_name or "N/A",
+            "email": row.cand_email or "N/A",
+            "job_title": row.job_title_val or "N/A",
             "status": app.status,
             "documents": [
                 {

@@ -31,7 +31,7 @@ async def initiate_onboarding(
     service = OnboardingService(db)
     return await service.initiate_onboarding(application_id)
 
-@router.get("/", response_model=list[OnboardingResponse])
+@router.get("", response_model=list[OnboardingResponse])
 async def get_all_onboardings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_or_reviewer)
@@ -39,8 +39,13 @@ async def get_all_onboardings(
     """
     Get all onboarding records for HR/IT dashboard.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"GET /onboarding/ called by user {current_user.email}")
     service = OnboardingService(db)
-    return await service.get_all_onboardings()
+    result = await service.get_all_onboardings()
+    logger.info(f"GET /onboarding/ returning {len(result)} records")
+    return result
 
 @router.get("/hr/{application_id}")
 async def get_hr_onboarding_view(
@@ -72,7 +77,10 @@ async def get_onboarding(
     # Check authorization using service layer
     await service._check_auth(onboarding, current_user, token)
         
-    return onboarding
+    # Return as dict to avoid any serialization issues with lazy relationships
+    # Use the same logic as get_all_onboardings but for a single object
+    # For simplicity, we can reuse the schema validation here since we are not loading nested relationships
+    return OnboardingResponse.model_validate(onboarding)
 
 @router.put("/{application_id}/candidate-date", response_model=OnboardingResponse)
 async def update_candidate_date(

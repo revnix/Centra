@@ -215,7 +215,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             <CardContent className="p-0">
                                 <div className="aspect-video bg-black flex items-center justify-center">
                                     <video
-                                        src={`http://localhost:2029/${app.interview_session.recording_path}`}
+                                        src={app.interview_session.recording_path.startsWith('http') 
+                                            ? app.interview_session.recording_path 
+                                            : `${process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || ''}${app.interview_session.recording_path}`}
                                         controls
                                         className="w-full h-full"
                                         poster="/video-poster.png"

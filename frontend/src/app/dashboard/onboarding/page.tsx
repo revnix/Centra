@@ -149,16 +149,16 @@ export default function AdminOnboardingDashboard() {
                                         <div className="flex justify-between items-start">
                                             <div className="space-y-1">
                                                 <CardTitle className="text-xl font-bold text-slate-900">
-                                                    {(o as any).candidate_name || `Application #${o.application_id}`}
+                                                    {o.candidate_name || `Application #${o.application_id}`}
                                                 </CardTitle>
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100/80 px-2 py-1 rounded-md border border-slate-200/50">
                                                         <Mail className="w-3 h-3" />
-                                                        {(o as any).email || "No email"}
+                                                        {o.email || "No email"}
                                                     </div>
                                                     <div className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100/50">
                                                         <Briefcase className="w-3 h-3" />
-                                                        {(o as any).job_title || "Position Pending"}
+                                                        {o.job_title || "Position Pending"}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-3">
