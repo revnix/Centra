@@ -82,6 +82,7 @@ class JobUpdate(BaseModel):
     preferred_qualifications: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
+    manager_feedback: Optional[str] = None
 
 class JobDraftRequest(BaseModel):
     title: Optional[str] = None
@@ -94,6 +95,10 @@ class JobDraftRequest(BaseModel):
 
 class JobImproveRequest(BaseModel):
     feedback: str
+
+class JobReviewRequest(BaseModel):
+    status: JobStatus
+    feedback: Optional[str] = None
     
 class JobResponse(JobBase):
     id: int
@@ -102,6 +107,7 @@ class JobResponse(JobBase):
     updated_at: Optional[datetime] = None
     status: Optional[JobStatus] = None
     published_at: Optional[datetime] = None
+    manager_feedback: Optional[str] = None
 
     class Config:
         from_attributes = True

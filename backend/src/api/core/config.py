@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         "your-secret-key-change-in-production"
     )
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 Days
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [
@@ -65,17 +65,17 @@ class Settings(BaseSettings):
     INDEED_TOKEN_URL: str = "https://apis.indeed.com/oauth/v2/tokens"
 
     # Email Settings (Resend)
-    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
-    EMAILS_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", os.getenv("FROM_EMAIL", "onboarding@resend.dev"))
-    EMAILS_FROM_NAME: str = os.getenv("RESEND_FROM_NAME", "Evalyn")
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
+    RESEND_FROM_NAME: str = "Evalyn"
     
-    # Aliases for easier access if needed by prompt instructions
-    FROM_EMAIL: str = EMAILS_FROM_EMAIL
-    
-    OPERATIONS_MANAGER_EMAIL: str = os.getenv("OPERATIONS_MANAGER_EMAIL", "manager@evalyn.ai")
-    HR_EMAIL: str = os.getenv("HR_EMAIL", "hr@evalyn.ai")
-    # When set, all outgoing emails are redirected to this address (use with Resend test keys)
-    EMAIL_TEST_OVERRIDE: str = os.getenv("EMAIL_TEST_OVERRIDE", "")
+    # Aliases for compatibility (populated from .env or defaults)
+    EMAILS_FROM_EMAIL: str = "onboarding@resend.dev"
+    EMAILS_FROM_NAME: str = "Evalyn"
+
+    OPERATIONS_MANAGER_EMAIL: str = "manager@evalyn.ai"
+    HR_EMAIL: str = "hr@evalyn.ai"
+    EMAIL_TEST_OVERRIDE: str = ""
     
     # ✅ Pydantic v2 config
     model_config = SettingsConfigDict(

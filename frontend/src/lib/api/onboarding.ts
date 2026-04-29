@@ -19,6 +19,11 @@ export interface OnboardingResponse {
     office_location?: string;
     shift_timing?: string;
     
+    // Virtual fields from backend
+    candidate_name?: string;
+    email?: string;
+    job_title?: string;
+    
     doc_front_picture_url?: string;
     doc_id_card_url?: string;
     doc_salary_slip_url?: string;
@@ -60,7 +65,7 @@ export function getDocumentViewUrl(relativeUrl: string | undefined): string | nu
 }
 
 export const onboardingApi = {
-    getAll: () => apiClient.get<OnboardingResponse[]>('/onboarding/'),
+    getAll: () => apiClient.get<OnboardingResponse[]>('/onboarding'),
     get: (applicationId: number, token?: string | null) => 
         apiClient.get<OnboardingResponse>(`/onboarding/${applicationId}${token ? `?token=${token}` : ''}`),
     

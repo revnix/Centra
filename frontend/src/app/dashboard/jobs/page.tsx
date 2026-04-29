@@ -31,6 +31,16 @@ export default function JobsPage() {
                 text: 'text-indigo-700',
                 border: 'border-indigo-200'
             },
+            APPROVED: {
+                bg: 'bg-gradient-to-r from-green-100 to-emerald-100',
+                text: 'text-green-700',
+                border: 'border-green-200'
+            },
+            CHANGES_REQUESTED: {
+                bg: 'bg-gradient-to-r from-red-100 to-rose-100',
+                text: 'text-red-700',
+                border: 'border-red-200'
+            },
             INTERVIEWING: {
                 bg: 'bg-gradient-to-r from-amber-100 to-orange-100',
                 text: 'text-amber-700',
@@ -72,12 +82,12 @@ export default function JobsPage() {
         },
         {
             title: 'Needs Review',
-            value: jobs.filter((j: Job) => j.status === 'DRAFT').length,
+            value: jobs.filter((j: Job) => ['DRAFT', 'CHANGES_REQUESTED'].includes(j.status)).length,
             icon: Clock,
             gradient: 'from-amber-500 to-orange-600',
             iconBg: 'bg-amber-100',
             iconColor: 'text-amber-600',
-            highlight: jobs.some((j: Job) => j.status === 'DRAFT')
+            highlight: jobs.some((j: Job) => ['DRAFT', 'CHANGES_REQUESTED'].includes(j.status))
         },
     ];
 

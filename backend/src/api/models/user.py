@@ -38,4 +38,4 @@ class User(Base):
         lazy="select"
     )
 
-    candidate_profile = relationship("CandidateProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    candidate_profile = relationship("CandidateProfile", back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="selectin")

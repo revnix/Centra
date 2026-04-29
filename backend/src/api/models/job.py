@@ -24,6 +24,8 @@ class JobStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PENDING = "PENDING"
     PUBLISHED = "PUBLISHED"
+    APPROVED = "APPROVED"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
     CLOSED = "CLOSED"
     ARCHIVED = "ARCHIVED"
 
@@ -102,6 +104,8 @@ class Posts(Base):
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
     tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
     
+    manager_feedback = Column(Text, nullable=True, comment="Feedback from Operation Manager")
+    
     # Additional Data
     metadata_json = Column(JSON, nullable=True, comment="Additional metadata including publications history")
     
@@ -157,6 +161,7 @@ class Posts(Base):
             "meta_description": self.meta_description,
             "tags": self.tags,
             "metadata_json": self.metadata_json,
+            "manager_feedback": self.manager_feedback,
             "view_count": self.view_count,
             "application_count": self.application_count,
             "created_by": self.created_by,
