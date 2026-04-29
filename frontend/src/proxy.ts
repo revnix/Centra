@@ -8,7 +8,7 @@ import type { NextRequest } from 'next/server';
  * For now, this uses simplified token checking from localStorage
  */
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public routes that don't require authentication

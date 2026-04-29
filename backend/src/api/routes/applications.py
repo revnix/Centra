@@ -37,6 +37,8 @@ async def guest_apply(
     experience_years: int = Form(0),
     cover_letter: Optional[str] = Form(None),
     expected_salary: Optional[float] = Form(None),
+    city: str = Form(...),
+    qualification: str = Form(...),
     resume_file: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
@@ -124,6 +126,8 @@ async def guest_apply(
         source="guest_web",
         background_tasks=background_tasks,
         expected_salary=expected_salary,
+        city=city,
+        qualification=qualification,
     )
     
     # 5. Trigger AI Screening (Background Tasks)
@@ -151,6 +155,8 @@ async def apply(
         source=apply_data.source or "web",
         background_tasks=background_tasks,
         expected_salary=apply_data.expected_salary,
+        city=apply_data.city,
+        qualification=apply_data.qualification,
     )
     
     # Trigger AI Screening

@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 if settings.RESEND_API_KEY:
     resend.api_key = settings.RESEND_API_KEY
 
+HR_PHONE_NUMBER = "03125932632"
+
 async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
     Centralized email sending function using Resend API.
@@ -100,7 +102,13 @@ class EmailService:
                 <h3 style="margin-top: 0; color: #2d3748; font-size: 18px;">What's Next?</h3>
                 <p style="margin-bottom: 0;">One of our HR representatives will be in touch with you shortly via phone or email to schedule a technical interview and discuss the role in more detail.</p>
             </div>
-            
+
+            <div style="background-color: #f0fff4; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #38a169;">
+                <h3 style="margin-top: 0; color: #2d3748; font-size: 18px;">Contact HR for Interview Scheduling</h3>
+                <p>To proceed further, please contact our HR team on WhatsApp to schedule your interview:</p>
+                <p style="font-size: 18px; font-weight: bold; color: #2d3748; margin-bottom: 0;">WhatsApp Number: {HR_PHONE_NUMBER}</p>
+            </div>
+
             <p>We look forward to speaking with you soon!</p>
             
             <p style="margin-top: 30px;">Best regards,<br/>

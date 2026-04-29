@@ -21,6 +21,8 @@ class ApplicationService:
         source: str = "web",
         background_tasks = None,
         expected_salary: float = None,
+        city: str = None,
+        qualification: str = None,
     ) -> Application:
         """Create a new application and trigger HR notification."""
         # Check if already applied
@@ -36,6 +38,8 @@ class ApplicationService:
             phone_number=phone_number,
             source=source,
             expected_salary=expected_salary,
+            city=city.strip().lower() if city else None,
+            qualification=qualification.strip() if qualification else None,
         )
         self.db.add(application)
         await self.db.commit()
@@ -131,6 +135,19 @@ class ApplicationService:
         candidate = application.candidate
         profile = getattr(candidate, 'candidate_profile', None)
         
+        # --- HARIPUR CITY FILTER ---
+        # If city is not Haripur, reject immediately
+        if not application.city or application.city.lower() != "haripur":
+            application.status = ApplicationStatus.REJECTED
+            application.match_score = 0
+            application.ai_feedback = "Filtered out: Location not Haripur"
+            application.email_delivery_status = "SKIPPED"
+            application.email_logs = f"Candidate not from Haripur (City: {application.city})"
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            return application
+        
         # Simple scoring simulation
         score = 0
         feedback = []
@@ -224,7 +241,17 @@ class ApplicationService:
         self.db.add(application)
         await self.db.commit()
 
-        # 2. Send WhatsApp-invite email (duplicate guard)
+        # 2. Check if we should skip email based on city (Safety net)
+        if not application.city or application.city.lower() != "haripur":
+            logger.info(f"[SHORTLIST] Email skipped for application {application_id} - not Haripur.")
+            application.email_delivery_status = "SKIPPED"
+            application.email_logs = f"Email skipped: Candidate not from Haripur (City: {application.city})"
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            return application
+
+        # 3. Send WhatsApp-invite email (duplicate guard)
         if application.email_delivery_status == "SENT":
             logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
             await self.db.refresh(application)

@@ -40,6 +40,8 @@ class Application(Base):
     cover_letter = Column(Text, nullable=True)
     phone_number = Column(String(50), nullable=True)
     source = Column(String(50), default="web", index=True, comment="Source: web, linkedin, indeed, agent, etc.")
+    city = Column(String(100), nullable=True, comment="Candidate's city")
+    qualification = Column(String(200), nullable=True, comment="Highest qualification")
     
     # Salary
     expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
