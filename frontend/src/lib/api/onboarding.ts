@@ -19,6 +19,14 @@ export interface OnboardingResponse {
     office_location?: string;
     shift_timing?: string;
     
+    // Personal Info
+    cnic_number?: string;
+    phone_number?: string;
+    current_address?: string;
+    emergency_contact?: string;
+    bank_name?: string;
+    bank_iban?: string;
+    
     // Virtual fields from backend
     candidate_name?: string;
     email?: string;
@@ -125,5 +133,8 @@ export const onboardingApi = {
         formData.append(type, file);
         return apiClient.post<OnboardingResponse>(`/onboarding/${applicationId}/upload-documents${token ? `?token=${token}` : ''}`, formData);
     },
+    
+    complete: (applicationId: number, token?: string | null) => 
+        apiClient.post<OnboardingResponse>(`/onboarding/${applicationId}/complete${token ? `?token=${token}` : ''}`),
 };
 

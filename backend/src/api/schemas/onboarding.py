@@ -7,7 +7,13 @@ class OnboardingBase(BaseModel):
     pass
 
 class CandidateOnboardingUpdate(BaseModel):
-    joining_date: datetime
+    joining_date: Optional[datetime] = None
+    cnic_number: Optional[str] = None
+    phone_number: Optional[str] = None
+    current_address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_iban: Optional[str] = None
 
 class HRJoiningDetailsUpdate(BaseModel):
     reporting_time: Optional[str] = None
@@ -64,6 +70,14 @@ class OnboardingResponse(BaseModel):
     reporting_time: Optional[str] = None
     office_location: Optional[str] = None
     shift_timing: Optional[ShiftTiming] = None
+    
+    # Personal info
+    cnic_number: Optional[str] = None
+    phone_number: Optional[str] = None
+    current_address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_iban: Optional[str] = None
     
     doc_front_picture_url: Optional[str] = None
     doc_id_card_url: Optional[str] = None
