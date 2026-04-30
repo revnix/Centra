@@ -1,5 +1,6 @@
 import logging
 from src.api.services.email_service import EmailService
+from starlette.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class SchedulingService:
             f"— triggering WhatsApp-invite email for {candidate_email}"
         )
 
-        email_sent = EmailService.send_shortlist_notification(
+        email_sent = await EmailService.send_shortlist_notification(
             candidate_email=candidate_email,
             candidate_name=candidate_name,
             job_title=job_title,

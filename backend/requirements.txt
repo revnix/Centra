@@ -6,6 +6,7 @@ pydantic-settings
 
 sqlalchemy
 asyncpg
+psycopg2-binary
 greenlet
 
 pyjwt
@@ -27,3 +28,4 @@ python-dotenv>=1.0.0
 
 instagrapi
 requests
+resend

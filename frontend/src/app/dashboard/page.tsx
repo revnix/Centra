@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, Briefcase, FileText, ArrowRight, Zap } from "lucide-react";
+import { Users, Briefcase, FileText, ArrowRight, Zap, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -72,6 +72,24 @@ export default function DashboardPage() {
                                 <div className="text-2xl font-bold">5</div>
                                 <p className="text-xs text-muted-foreground">
                                     Ready for review
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                </Link>
+                <Link href="/dashboard/onboarding">
+                    <motion.div whileHover={{ y: -5 }} transition={{ type: "spring", stiffness: 300 }}>
+                        <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-purple-500">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">
+                                    Active Onboardings
+                                </CardTitle>
+                                <ClipboardCheck className="h-4 w-4 text-purple-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">4</div>
+                                <p className="text-xs text-muted-foreground">
+                                    2 ready for induction
                                 </p>
                             </CardContent>
                         </Card>

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sparkles, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
 import { authApi } from "@/lib/api";
 import { UserRole } from "@/lib/types";
@@ -23,6 +23,7 @@ export default function SignupPage() {
     const [acceptTerms, setAcceptTerms] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    const [role, setRole] = useState<UserRole>('candidate');
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
@@ -50,23 +51,28 @@ export default function SignupPage() {
 
         try {
             // Mapping frontend signup to backend register
-            // Note: backend expects 'role' in UserCreate. Defaulting to ADMIN for this flow as per original logic.
             const response = await authApi.register({
                 email: formData.email,
                 full_name: formData.fullName,
                 password: formData.password,
-                role: 'ADMIN' as any
+                role: role.toUpperCase() as any
             });
 
             localStorage.setItem("access_token", response.access_token.access_token);
 
-            // Set cookie for middleware
+            // Set cookies for middleware
+            const userRole = response.user.role.toLowerCase();
             document.cookie = `access_token=${response.access_token.access_token}; path=/; max-age=86400; SameSite=Lax`;
+            document.cookie = `user_role=${userRole}; path=/; max-age=86400; SameSite=Lax`;
 
-            localStorage.setItem("userRole", response.user.role);
+            localStorage.setItem("userRole", userRole);
             localStorage.setItem("userEmail", response.user.email);
 
-            window.location.href = "/dashboard/jobs";
+            if (userRole === "candidate") {
+                window.location.href = "/portal/status";
+            } else {
+                window.location.href = "/dashboard/jobs";
+            }
         } catch (err: any) {
             console.error("Signup failed:", err);
             setError(err.message || "Failed to create account. Please try again.");
@@ -98,6 +104,33 @@ export default function SignupPage() {
                                 <AlertDescription>{error}</AlertDescription>
                             </Alert>
                         )}
+
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            <button
+                                type="button"
+                                onClick={() => setRole('candidate')}
+                                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                    role === 'candidate' 
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md' 
+                                    : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200'
+                                }`}
+                            >
+                                <Users className="h-5 w-5" />
+                                <span className="text-xs font-bold">Job Seeker</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setRole('admin')}
+                                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                    role === 'admin' 
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md' 
+                                    : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200'
+                                }`}
+                            >
+                                <Sparkles className="h-5 w-5" />
+                                <span className="text-xs font-bold">Hiring Manager</span>
+                            </button>
+                        </div>
 
                         <div className="space-y-2">
                             <Label htmlFor="fullName" className="text-sm font-medium">

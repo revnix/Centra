@@ -14,6 +14,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _evaluate_salary(expected_salary: float | None, job_max_salary: int | None) -> str:
+    """
+    Compare candidate's expected salary against the job budget.
+    Returns: 'within_budget' | 'above_budget' | 'not_checked'
+    """
+    if expected_salary is None or job_max_salary is None:
+        return "not_checked"
+    return "above_budget" if expected_salary > job_max_salary else "within_budget"
+
+
 class ScreeningService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -75,18 +86,41 @@ class ScreeningService:
             SHORTLIST_THRESHOLD = 70
             is_qualified = score >= SHORTLIST_THRESHOLD
 
-            # 4. Update Application
+            # 4. Update Application — score, feedback, status
             application.match_score = float(score)
             application.ai_feedback = feedback
             application.status = ApplicationStatus.SHORTLISTED if is_qualified else ApplicationStatus.SCREENING
 
-            # Persist score and status to DB FIRST
+            # 5. Salary Filter
+            salary_status = _evaluate_salary(application.expected_salary, job.salary_max)
+            application.salary_filter_status = salary_status
+            logger.info(
+                f"[SALARY] App {application_id} — expected: {application.expected_salary}, "
+                f"job max: {job.salary_max}, result: {salary_status}"
+            )
+
+            # Persist score, status, and salary filter to DB
             self.db.add(application)
             await self.db.commit()
             await self.db.refresh(application)
-            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}")
+            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}, Salary: {salary_status}")
 
             if is_qualified:
+                # Block email if salary is above budget
+                if salary_status == "above_budget":
+                    application.email_delivery_status = "SKIPPED"
+                    application.email_logs = (
+                        f"Salary out of range — candidate expected "
+                        f"{application.expected_salary:,.0f}, job budget max: {job.salary_max:,.0f}."
+                    )
+                    self.db.add(application)
+                    await self.db.commit()
+                    logger.info(
+                        f"[SALARY FILTER] ⛔ App {application_id} — salary above budget, invite skipped. "
+                        f"Expected: {application.expected_salary}, Max: {job.salary_max}"
+                    )
+                    return
+
                 # Prevent duplicate emails — skip if already notified
                 if application.email_delivery_status == "SENT":
                     logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")

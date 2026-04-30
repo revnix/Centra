@@ -1,0 +1,86 @@
+services:
+  # ─────────────────────────────────────────────
+  # Backend — FastAPI (entry: src.api.main:app)
+  # ─────────────────────────────────────────────
+  - type: web
+    name: evalyn-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: evalyn-db
+          property: connectionString
+      # Set to the frontend service's public URL so CORS allows it
+      - key: FRONTEND_URL
+        fromService:
+          name: evalyn-frontend
+          type: web
+          property: url
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      # Auto-generated secure random value on first deploy
+      - key: SECRET_KEY
+        generateValue: true
+      # ── Set these manually in the Render dashboard ──
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: OPERATIONS_MANAGER_EMAIL
+        sync: false
+      - key: HR_EMAIL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        sync: false
+      - key: INDEED_CLIENT_ID
+        sync: false
+      - key: INDEED_CLIENT_SECRET
+        sync: false
+      - key: INDEED_EMPLOYER_ID
+        sync: false
+      - key: INDEED_REDIRECT_URI
+        sync: false
+
+  # ─────────────────────────────────────────────
+  # Frontend — Next.js standalone
+  # ─────────────────────────────────────────────
+  - type: web
+    name: evalyn-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    envVars:
+      # Primary backend URL — used by the API client and SSE hook.
+      # Render passes envVars as Docker build args, so NEXT_PUBLIC_* vars
+      # are baked into the standalone bundle at build time.
+      - key: NEXT_PUBLIC_LANGGRAPH_API_URL
+        fromService:
+          name: evalyn-backend
+          type: web
+          property: url
+      - key: NEXT_PUBLIC_BACKEND_URL
+        fromService:
+          name: evalyn-backend
+          type: web
+          property: url
+      # NEXT_PUBLIC_API_BASE_URL must include /api/v1 — set manually after
+      # first deploy: https://<evalyn-backend>.onrender.com/api/v1
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+
+databases:
+  - name: evalyn-db
+    databaseName: evalyn_db
+    plan: free

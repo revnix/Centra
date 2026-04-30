@@ -51,6 +51,7 @@ const mapJob = (job: any): Job => ({
     published_at: job.published_at,
     closedAt: job.expires_at,
     expires_at: job.expires_at,
+    manager_feedback: job.manager_feedback,
 });
 
 export const jobsApi = {
@@ -167,6 +168,16 @@ export const jobsApi = {
      */
     sendToManager: async (jobId: string): Promise<{ message: string }> => {
         return apiClient.post<{ message: string }>(`/jobs/${jobId}/send-to-manager`);
+    },
+
+    /**
+     * Submit Operation Manager review
+     */
+    review: async (
+        jobId: string,
+        data: { status: JobStatus; feedback?: string }
+    ): Promise<ApiResponse<Job>> => {
+        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/review`, data);
     },
 };
 

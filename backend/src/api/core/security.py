@@ -1,6 +1,6 @@
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, Union
 
 from src.api.core.config import settings
@@ -18,10 +18,10 @@ def create_access_token(
     role: str,
     expires_delta: Optional[timedelta] = None
 ) -> str:
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta
         if expires_delta
-        else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        else timedelta(minutes=60 * 24 * 7)
     )
 
     to_encode = {"exp": expire, "sub": str(subject), "username": username, "role": role}

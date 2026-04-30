@@ -17,9 +17,26 @@ from src.api.services.auth_service import AuthService
 from src.api.models.user import User, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login", auto_error=False)
 
+async def get_optional_user(token: str = Depends(oauth2_scheme_optional), db: AsyncSession = Depends(get_db)) -> User | None:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if not email:
+            return None
+    except jwt.PyJWTError:
+        return None
+    
+    auth_service = AuthService(db)
+    return await auth_service.get_user_by_email(email)
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
+    import logging
+    logger = logging.getLogger(__name__)
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -31,14 +48,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         username = payload.get("username")
         role = payload.get("role")
         if not email or not username or not role:
+            logger.error(f"Token payload missing fields: email={email}, username={username}, role={role}")
             raise credentials_exception
-    except jwt.PyJWTError: # PyJWT specific error
+    except jwt.PyJWTError as e: # PyJWT specific error
+        logger.error(f"JWT decode error: {str(e)}")
         raise credentials_exception
     
     auth_service = AuthService(db)
     user = await auth_service.get_user_by_email(email)
     if user is None:
+        logger.error(f"User not found for email: {email}")
         raise credentials_exception
+    
+    logger.info(f"Authenticated user: {user.email} (Role: {user.role})")
     return user
     
 

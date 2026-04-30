@@ -10,9 +10,9 @@ class CandidateOnboardingUpdate(BaseModel):
     joining_date: datetime
 
 class HRJoiningDetailsUpdate(BaseModel):
-    reporting_time: str
-    office_location: str
-    shift_timing: ShiftTiming
+    reporting_time: Optional[str] = None
+    office_location: Optional[str] = None
+    shift_timing: Optional[ShiftTiming] = None
 
 # Schemas for dealing with document URLs
 class CandidateDocumentUpload(BaseModel):
@@ -20,6 +20,10 @@ class CandidateDocumentUpload(BaseModel):
     doc_id_card_url: Optional[str] = None
     doc_salary_slip_url: Optional[str] = None
     doc_experience_letter_url: Optional[str] = None
+    doc_educational_documents_url: Optional[str] = None
+    doc_police_clearance_url: Optional[str] = None
+    doc_resume_url: Optional[str] = None
+    doc_additional_files_json: Optional[str] = None
 
 class HROnboardingVerify(BaseModel):
     hr_verified: bool
@@ -52,6 +56,10 @@ class OnboardingResponse(BaseModel):
     user_id: int
     status: OnboardingStatus
     
+    candidate_name: Optional[str] = None
+    email: Optional[str] = None
+    job_title: Optional[str] = None
+    
     joining_date: Optional[datetime] = None
     reporting_time: Optional[str] = None
     office_location: Optional[str] = None
@@ -61,6 +69,10 @@ class OnboardingResponse(BaseModel):
     doc_id_card_url: Optional[str] = None
     doc_salary_slip_url: Optional[str] = None
     doc_experience_letter_url: Optional[str] = None
+    doc_educational_documents_url: Optional[str] = None
+    doc_police_clearance_url: Optional[str] = None
+    doc_resume_url: Optional[str] = None
+    doc_additional_files_json: Optional[str] = None
     
     hr_verified: bool
     
@@ -84,3 +96,20 @@ class OnboardingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class OnboardingDocumentResponse(BaseModel):
+    id: int
+    file_name: str
+    file_url: str
+    file_type: str
+    uploaded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class HRDetailedOnboardingResponse(BaseModel):
+    candidate_name: str
+    email: str
+    job_title: str
+    status: str
+    documents: list[OnboardingDocumentResponse]

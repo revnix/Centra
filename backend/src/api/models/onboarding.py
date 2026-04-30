@@ -25,6 +25,7 @@ class Onboarding(Base):
     
     application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), unique=True, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    onboarding_token = Column(String, unique=True, nullable=True, index=True)
     
     status = Column(SqlEnum(OnboardingStatus), default=OnboardingStatus.PENDING_CANDIDATE_JOINING, nullable=False)
     
@@ -39,6 +40,10 @@ class Onboarding(Base):
     doc_id_card_url = Column(String, nullable=True)
     doc_salary_slip_url = Column(String, nullable=True)
     doc_experience_letter_url = Column(String, nullable=True)
+    doc_educational_documents_url = Column(String, nullable=True)
+    doc_police_clearance_url = Column(String, nullable=True)
+    doc_resume_url = Column(String, nullable=True)
+    doc_additional_files_json = Column(String, nullable=True) # Stores JSON list of URLs
     
     # HR verification
     hr_verified = Column(Boolean, default=False)
@@ -69,5 +74,18 @@ class Onboarding(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    application = relationship("Application", backref="onboarding", uselist=False)
+    application = relationship("Application", backref="onboarding", uselist=False, passive_deletes=True)
     user = relationship("User", backref="onboardings")
+
+class OnboardingDocument(Base):
+    __tablename__ = "onboarding_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    file_name = Column(String(255), nullable=False)
+    file_url = Column(String, nullable=False)
+    file_type = Column(String(50), nullable=False) # pdf, image, doc
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationship
+    application = relationship("Application", backref="uploaded_onboarding_documents")

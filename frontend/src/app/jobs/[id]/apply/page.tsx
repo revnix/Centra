@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useRef } from "react";
+import { use, useState, useEffect, useRef, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -33,6 +33,9 @@ const applicationSchema = z.object({
     cover_letter: z.string().optional().or(z.literal("")),
     skills: z.string().min(2, "Please enter at least one skill"),
     experience_years: z.coerce.number().min(0, "Experience is required"),
+    expected_salary: z.coerce.number().min(0).optional().or(z.literal("")),
+    city: z.string().min(2, "City is required"),
+    qualification: z.string().min(2, "Qualification is required"),
 });
 
 type ApplicationFormValues = {
@@ -44,10 +47,12 @@ type ApplicationFormValues = {
     cover_letter?: string;
     skills: string;
     experience_years: number;
+    expected_salary?: number | "";
+    city: string;
+    qualification: string;
 };
 
-export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params);
+function JobApplicationInner({ id }: { id: string }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: job, isLoading: isJobLoading } = useJob(id);
@@ -82,6 +87,9 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             cover_letter: "",
             skills: "",
             experience_years: 0,
+            expected_salary: "",
+            city: "Haripur",
+            qualification: "",
         },
     });
 
@@ -99,6 +107,8 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('email', data.email);
             formData.append('phone_number', data.phone_number);
             formData.append('cover_letter', data.cover_letter || "");
+            formData.append('city', data.city);
+            formData.append('qualification', data.qualification);
 
             if (data.linkedin_url) {
                 let url = data.linkedin_url;
@@ -117,6 +127,10 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
             formData.append('skills', JSON.stringify(skillsArray));
 
             formData.append('experience_years', String(data.experience_years));
+
+            if (data.expected_salary !== "" && data.expected_salary !== undefined) {
+                formData.append('expected_salary', String(data.expected_salary));
+            }
 
             await api.applications.guestApply(formData);
 
@@ -234,19 +248,47 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                     <CardContent>
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                                <FormField
-                                    control={form.control}
-                                    name="full_name"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Full Name *</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="John Doe" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="full_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Full Name *</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="John Doe" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    
+                                    <FormField
+                                        control={form.control}
+                                        name="city"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>City *</FormLabel>
+                                                <FormControl>
+                                                    <select
+                                                        className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:placeholder:text-slate-400 dark:focus-visible:ring-indigo-600"
+                                                        {...field}
+                                                    >
+                                                        <option value="">Select your city</option>
+                                                        <option value="Haripur">Haripur</option>
+                                                        <option value="Islamabad">Islamabad</option>
+                                                        <option value="Lahore">Lahore</option>
+                                                        <option value="Karachi">Karachi</option>
+                                                        <option value="Rawalpindi">Rawalpindi</option>
+                                                        <option value="Peshawar">Peshawar</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
                                 <div className="grid gap-6 md:grid-cols-2">
                                     <FormField
@@ -303,6 +345,54 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                                                 <FormControl>
                                                     <Input type="number" min="0" {...field} />
                                                 </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="qualification"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Highest Qualification *</FormLabel>
+                                                <FormControl>
+                                                    <select
+                                                        className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:placeholder:text-slate-400 dark:focus-visible:ring-indigo-600"
+                                                        {...field}
+                                                    >
+                                                        <option value="">Select Qualification</option>
+                                                        <option value="Matric">Matric</option>
+                                                        <option value="Intermediate">Intermediate (FA/FSc/ICS)</option>
+                                                        <option value="Bachelors">Bachelors</option>
+                                                        <option value="Masters">Masters</option>
+                                                        <option value="PhD">PhD</option>
+                                                        <option value="Diploma">Diploma</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="expected_salary"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Expected Salary (Optional)</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        placeholder="e.g. 80000"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription>Annual salary. Leave blank if flexible.</FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -397,5 +487,18 @@ export default function JobApplicationPage({ params }: { params: Promise<{ id: s
                 </Card>
             </div>
         </div>
+    );
+}
+
+export default function JobApplicationPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center bg-slate-50">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+        }>
+            <JobApplicationInner id={id} />
+        </Suspense>
     );
 }

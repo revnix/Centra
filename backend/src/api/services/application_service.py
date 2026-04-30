@@ -13,13 +13,16 @@ class ApplicationService:
         self.db = db
 
     async def create_application(
-        self, 
-        user_id: int, 
-        job_id: int, 
-        cover_letter: str = None, 
+        self,
+        user_id: int,
+        job_id: int,
+        cover_letter: str = None,
         phone_number: str = None,
         source: str = "web",
-        background_tasks = None
+        background_tasks = None,
+        expected_salary: float = None,
+        city: str = None,
+        qualification: str = None,
     ) -> Application:
         """Create a new application and trigger HR notification."""
         # Check if already applied
@@ -33,7 +36,10 @@ class ApplicationService:
             status=ApplicationStatus.APPLIED,
             cover_letter=cover_letter,
             phone_number=phone_number,
-            source=source
+            source=source,
+            expected_salary=expected_salary,
+            city=city.strip().lower() if city else None,
+            qualification=qualification.strip() if qualification else None,
         )
         self.db.add(application)
         await self.db.commit()
@@ -92,6 +98,19 @@ class ApplicationService:
         )
         return result.scalars().all()
 
+    async def get_applications_by_user_id(self, user_id: int) -> list[Application]:
+        """Get all applications for a specific candidate."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                joinedload(Application.job),
+                joinedload(Application.interview_session)
+            )
+            .where(Application.candidate_id == user_id)
+            .order_by(Application.created_at.desc())
+        )
+        return result.scalars().all()
+
     async def reject_application(self, application_id: int) -> Application:
         """Reject an application."""
         application = await self.get_application_by_id(application_id)
@@ -115,6 +134,19 @@ class ApplicationService:
             
         candidate = application.candidate
         profile = getattr(candidate, 'candidate_profile', None)
+        
+        # --- HARIPUR CITY FILTER ---
+        # If city is not Haripur, reject immediately
+        if not application.city or application.city.lower() != "haripur":
+            application.status = ApplicationStatus.REJECTED
+            application.match_score = 0
+            application.ai_feedback = "Filtered out: Location not Haripur"
+            application.email_delivery_status = "SKIPPED"
+            application.email_logs = f"Candidate not from Haripur (City: {application.city})"
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            return application
         
         # Simple scoring simulation
         score = 0
@@ -209,7 +241,17 @@ class ApplicationService:
         self.db.add(application)
         await self.db.commit()
 
-        # 2. Send WhatsApp-invite email (duplicate guard)
+        # 2. Check if we should skip email based on city (Safety net)
+        if not application.city or application.city.lower() != "haripur":
+            logger.info(f"[SHORTLIST] Email skipped for application {application_id} - not Haripur.")
+            application.email_delivery_status = "SKIPPED"
+            application.email_logs = f"Email skipped: Candidate not from Haripur (City: {application.city})"
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            return application
+
+        # 3. Send WhatsApp-invite email (duplicate guard)
         if application.email_delivery_status == "SENT":
             logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
             await self.db.refresh(application)
@@ -259,16 +301,25 @@ class ApplicationService:
         
         # Trigger Email
         from src.api.services.email_service import EmailService
+        from src.api.services.onboarding_service import OnboardingService
         from starlette.concurrency import run_in_threadpool
+        from src.api.core.config import settings
         
-        await run_in_threadpool(
-            EmailService.send_offer_letter,
+        # Initiate onboarding to generate token
+        onboarding_service = OnboardingService(self.db)
+        onboarding = await onboarding_service.initiate_onboarding(application_id)
+        
+        token_param = f"?token={onboarding.onboarding_token}" if onboarding.onboarding_token else ""
+        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application.id}{token_param}"
+        
+        await EmailService.send_offer_letter(
             candidate_email=candidate.email,
             candidate_name=candidate.full_name,
             job_title=job.title,
             company_name=job.company_name or "Evalyn AI",
             salary=salary_str,
-            joining_date=joining_date
+            joining_date=joining_date,
+            onboarding_link=onboarding_link
         )
         
         self.db.add(application)
@@ -287,6 +338,17 @@ class ApplicationService:
         application = await self.get_application_by_id(application_id)
         if not application:
             return False
+        
+        # Explicitly delete the onboarding record first to avoid FK constraint errors
+        from src.api.models.onboarding import Onboarding
+        from sqlalchemy.future import select
+        onboarding_result = await self.db.execute(
+            select(Onboarding).where(Onboarding.application_id == application_id)
+        )
+        onboarding = onboarding_result.scalars().first()
+        if onboarding:
+            await self.db.delete(onboarding)
+            await self.db.flush()
         
         await self.db.delete(application)
         await self.db.commit()

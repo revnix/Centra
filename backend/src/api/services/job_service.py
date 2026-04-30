@@ -174,3 +174,15 @@ class JobService:
         await indeed_service.upload_job(db_job, user_id)
         
         return db_job
+
+    async def review_job(self, job_id: int, status: str, feedback: str = None):
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+            
+        db_job.status = status
+        db_job.manager_feedback = feedback
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job

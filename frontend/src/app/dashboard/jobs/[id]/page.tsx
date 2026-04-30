@@ -129,6 +129,19 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
 
     return (
         <div className="max-w-5xl mx-auto space-y-8">
+            {/* Manager Feedback Alert */}
+            {job.manager_feedback && (
+                <Alert className="bg-orange-50 border-orange-200 text-orange-900 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+                    <MessageSquare className="h-5 w-5 text-orange-600" />
+                    <AlertDescription className="ml-2 flex flex-col gap-1">
+                        <span className="font-bold text-orange-800 text-sm uppercase tracking-wider">Operation Manager Feedback:</span>
+                        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                            {job.manager_feedback}
+                        </p>
+                    </AlertDescription>
+                </Alert>
+            )}
+
             {/* Header */}
             <div>
                 <Link href="/dashboard/jobs" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors">
@@ -138,8 +151,16 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                     <div>
                         <h1 className="text-3xl font-bold text-foreground">{job.title}</h1>
                         <div className="flex items-center gap-3 mt-2">
-                            <Badge variant={isActive ? "default" : "secondary"} className="capitalize">
-                                {job.status}
+                            <Badge 
+                                variant={
+                                    job.status === "PUBLISHED" ? "default" : 
+                                    job.status === "APPROVED" ? "outline" : 
+                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
+                                    "secondary"
+                                } 
+                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                            >
+                                {job.status.toLowerCase().replace('_', ' ')}
                             </Badge>
                             <span className="text-muted-foreground text-sm">•</span>
                             <span className="text-muted-foreground text-sm">{job.department || "No Department"}</span>

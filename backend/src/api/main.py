@@ -16,6 +16,7 @@ from src.api.routes import (
     interviews,
     indeed,
     onboarding,
+    uploads,
 )
 from src.api.routes.admin import (
     users as admin_users,
@@ -35,10 +36,14 @@ import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Create tables (simplistic approach for MVP without Alembic)
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.create_all)
-    print("DEBUG: Application lifespan started (skipping table creation)")
+    # Startup: Ensure upload directories exist
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(os.makedirs, settings.UPLOAD_DIR, exist_ok=True)
+    await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
+    await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
+    await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
+    
+    print("DEBUG: Application lifespan started and directories verified")
     yield
     # Shutdown
 
@@ -77,10 +82,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# Ensure upload directory exists
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-os.makedirs(os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
-
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
@@ -111,6 +112,7 @@ app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidat
 app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applications", tags=["applications"])
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboarding", tags=["onboarding"])
+app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
 
 
 @app.get("/health")

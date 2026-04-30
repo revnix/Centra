@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from src.api.core.config import settings
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+import ssl as ssl_module
 
 database_url = settings.DATABASE_URL
 
@@ -8,17 +8,30 @@ database_url = settings.DATABASE_URL
 if database_url.startswith("sqlite:///"):
     database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
 
+# Convert standard postgres:// / postgresql:// to postgresql+asyncpg:// for async support.
+# Render (and many other providers) supply the URL without the driver prefix.
+if database_url.startswith("postgres://"):
+    database_url = "postgresql+asyncpg://" + database_url[len("postgres://"):]
+elif database_url.startswith("postgresql://"):
+    database_url = "postgresql+asyncpg://" + database_url[len("postgresql://"):]
+
 # Asyncpg + Neon SSL handling
 connect_args = {}
 if "asyncpg" in database_url:
     # Strip all query parameters for asyncpg as it handles them via connect_args
     if "?" in database_url:
         database_url = database_url.split("?")[0]
-    
+
 if "neon.tech" in settings.DATABASE_URL:
-    connect_args["ssl"] = "require"
+    # Use a Python SSLContext instead of the "require" string.
+    # asyncpg's string ssl="require" triggers a blocking os.getcwd() call via
+    # pathlib.Path.resolve() when looking for ~/.postgresql/root.crt, which
+    # causes a BlockingError under LangGraph's blockbuster middleware.
+    # Passing an SSLContext directly bypasses that file lookup entirely.
+    _ssl_ctx = ssl_module.create_default_context()
+    connect_args["ssl"] = _ssl_ctx
     # Allow more time for Neon cold starts and PgBouncer queuing
-    connect_args["command_timeout"] = 60 
+    connect_args["command_timeout"] = 60
     # CRITICAL: Disable prepared statement cache for PgBouncer compatibility
     connect_args["statement_cache_size"] = 0
 

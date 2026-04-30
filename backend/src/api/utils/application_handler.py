@@ -79,9 +79,8 @@ async def handle_new_application(
                 **notification_args
             )
         else:
-            logger.info(f"🧵 Sending HR Notification via sync-in-threadpool")
-            await run_in_threadpool(
-                EmailService.send_new_application_notification,
+            logger.info(f"📧 Sending HR Notification directly (awaiting)")
+            await EmailService.send_new_application_notification(
                 **notification_args
             )
     else:
