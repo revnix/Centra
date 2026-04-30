@@ -18,7 +18,7 @@ services:
         fromService:
           name: evalyn-frontend
           type: web
-          property: url
+          property: host
       - key: ENVIRONMENT
         value: production
       - key: DEBUG
@@ -69,12 +69,12 @@ services:
         fromService:
           name: evalyn-backend
           type: web
-          property: url
+          property: host
       - key: NEXT_PUBLIC_BACKEND_URL
         fromService:
           name: evalyn-backend
           type: web
-          property: url
+          property: host
       # NEXT_PUBLIC_API_BASE_URL must include /api/v1 — set manually after
       # first deploy: https://<evalyn-backend>.onrender.com/api/v1
       - key: NEXT_PUBLIC_API_BASE_URL
