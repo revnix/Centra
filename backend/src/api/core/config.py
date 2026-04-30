@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 from typing import List
 import os
 from dotenv import load_dotenv
@@ -77,6 +78,12 @@ class Settings(BaseSettings):
     HR_EMAIL: str = "hr@evalyn.ai"
     EMAIL_TEST_OVERRIDE: str = ""
     
+    @model_validator(mode='after')
+    def add_frontend_url_to_cors(self) -> 'Settings':
+        if self.FRONTEND_URL and self.FRONTEND_URL not in self.ALLOWED_ORIGINS:
+            self.ALLOWED_ORIGINS = self.ALLOWED_ORIGINS + [self.FRONTEND_URL]
+        return self
+
     # ✅ Pydantic v2 config
     model_config = SettingsConfigDict(
         env_file=".env",

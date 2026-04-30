@@ -8,6 +8,13 @@ database_url = settings.DATABASE_URL
 if database_url.startswith("sqlite:///"):
     database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
 
+# Convert standard postgres:// / postgresql:// to postgresql+asyncpg:// for async support.
+# Render (and many other providers) supply the URL without the driver prefix.
+if database_url.startswith("postgres://"):
+    database_url = "postgresql+asyncpg://" + database_url[len("postgres://"):]
+elif database_url.startswith("postgresql://"):
+    database_url = "postgresql+asyncpg://" + database_url[len("postgresql://"):]
+
 # Asyncpg + Neon SSL handling
 connect_args = {}
 if "asyncpg" in database_url:

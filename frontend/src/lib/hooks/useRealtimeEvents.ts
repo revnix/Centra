@@ -6,9 +6,19 @@ import { interviewKeys } from './useInterviews';
 import { codingKeys } from './useCoding';
 import { jobKeys } from './useJobs';
 
-const SSE_ENDPOINT = process.env.NEXT_PUBLIC_API_BASE_URL
-    ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/events/stream`
-    : 'http://localhost:8000/api/events/stream';
+const getSSEEndpoint = () => {
+    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+        return `${process.env.NEXT_PUBLIC_API_BASE_URL}/events/stream`;
+    }
+    const backendUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL
+        ? process.env.NEXT_PUBLIC_LANGGRAPH_API_URL.replace(/\/api\/v[0-9]+\/?$/, '')
+        : null;
+    if (backendUrl) {
+        return `${backendUrl}/api/v1/events/stream`;
+    }
+    return 'http://localhost:8000/api/events/stream';
+};
+const SSE_ENDPOINT = getSSEEndpoint();
 
 /**
  * Hook to subscribe to real-time Server-Sent Events
