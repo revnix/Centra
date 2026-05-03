@@ -77,6 +77,8 @@ class Posts(Base):
     # Skills and Requirements
     required_skills = Column(JSON, nullable=True, comment="Required skills")
     preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
+    requirements = Column(Text, nullable=True, comment="Detailed requirements text")
+    preferred_qualifications = Column(Text, nullable=True, comment="Preferred qualifications text")
     benefits = Column(JSON, nullable=True, comment="Job benefits")
     
     # Status and Publishing
@@ -94,7 +96,8 @@ class Posts(Base):
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
     tags = Column(JSON, nullable=True, comment="Tags for categorization")
-    
+    manager_feedback = Column(Text, nullable=True, comment="Internal feedback from hiring manager")
+
     # Additional Data
     metadata_json = Column(JSON, nullable=True, comment="Additional metadata including publications history")
     
