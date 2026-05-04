@@ -89,7 +89,7 @@ function ResetPasswordForm() {
             )}
 
             <div className="space-y-2">
-                <Label htmlFor="password", className="text-sm font-medium">
+                <Label htmlFor="password" className="text-sm font-medium">
                     New Password
                 </Label>
                 <div className="relative">
