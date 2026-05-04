@@ -1,6 +1,3 @@
-# Exclude frontend entirely
-frontend/
-
 # Exclude backend virtual envs & caches
 backend/venv/
 backend/.venv/
