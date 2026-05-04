@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { api } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor } from "lucide-react";
+import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -215,7 +215,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             <CardContent className="p-0">
                                 <div className="aspect-video bg-black flex items-center justify-center">
                                     <video
-                                        src={`${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1'}/${app.interview_session.recording_path}`}
+                                        src={app.interview_session.recording_path.startsWith('http') 
+                                            ? app.interview_session.recording_path 
+                                            : `${process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || ''}${app.interview_session.recording_path}`}
                                         controls
                                         className="w-full h-full"
                                         poster="/video-poster.png"
@@ -345,19 +347,78 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                         </CardContent>
                     </Card>
 
-                    {app.email_delivery_status && (
+                    {app.expected_salary && (
+                        <Card className="border-border shadow-sm">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <DollarSign className="w-4 h-4 text-muted-foreground" />
+                                    Salary Expectation
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Expected</span>
+                                    <span className="text-lg font-bold">
+                                        {Number(app.expected_salary).toLocaleString()}
+                                    </span>
+                                </div>
+                                {app.job?.salary_max && (
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Job Budget Max</span>
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                            {Number(app.job.salary_max).toLocaleString()}
+                                        </span>
+                                    </div>
+                                )}
+                                <div>
+                                    {app.salary_filter_status === 'within_budget' && (
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                            Within Budget
+                                        </span>
+                                    )}
+                                    {app.salary_filter_status === 'above_budget' && (
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-3 py-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
+                                            Above Budget
+                                        </span>
+                                    )}
+                                    {app.salary_filter_status === 'not_checked' && (
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">
+                                            No budget set on job
+                                        </span>
+                                    )}
+                                </div>
+                                {app.salary_filter_status === 'above_budget' && (
+                                    <p className="text-[11px] text-muted-foreground bg-rose-50 dark:bg-rose-950/20 border border-rose-100 rounded p-2">
+                                        Shortlist email was skipped due to salary. HR can still manually shortlist this candidate.
+                                    </p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {(app.email_delivery_status && app.email_delivery_status !== 'PENDING') && (
                         <Card className="border-border shadow-sm">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm flex items-center justify-between">
                                     Email Communication
-                                    <div className={`w-2 h-2 rounded-full ${app.email_delivery_status === 'SENT' ? 'bg-emerald-500' : app.email_delivery_status === 'FAILED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                    <div className={`w-2 h-2 rounded-full ${
+                                        app.email_delivery_status === 'SENT' ? 'bg-emerald-500' :
+                                        app.email_delivery_status === 'SKIPPED' ? 'bg-amber-400' :
+                                        'bg-rose-500'
+                                    }`} />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Delivery Status</span>
                                     <div className="flex items-center gap-2">
-                                        <span className={`text-xs font-bold ${app.email_delivery_status === 'SENT' ? 'text-emerald-600' : app.email_delivery_status === 'FAILED' ? 'text-rose-600' : 'text-amber-600'}`}>
+                                        <span className={`text-xs font-bold ${
+                                            app.email_delivery_status === 'SENT' ? 'text-emerald-600' :
+                                            app.email_delivery_status === 'SKIPPED' ? 'text-amber-600' :
+                                            'text-rose-600'
+                                        }`}>
                                             {app.email_delivery_status}
                                         </span>
                                     </div>

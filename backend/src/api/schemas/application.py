@@ -8,7 +8,12 @@ class ApplicationBase(BaseModel):
     job_id: int
 
 class ApplicationCreate(ApplicationBase):
-    pass
+    cover_letter: Optional[str] = None
+    phone_number: Optional[str] = None
+    source: Optional[str] = "web"
+    expected_salary: Optional[float] = None
+    city: Optional[str] = None
+    qualification: Optional[str] = None
 
 class GuestApplicationCreate(BaseModel):
     """Schema for guest application (no prior login)"""
@@ -21,6 +26,9 @@ class GuestApplicationCreate(BaseModel):
     linkedin_url: Optional[str] = None
     skills: list[str] = []
     experience_years: int = 0
+    expected_salary: Optional[float] = None
+    city: str
+    qualification: str
 
 from src.api.schemas.user import UserResponse
 from src.api.schemas.job import JobResponse
@@ -30,9 +38,14 @@ class ApplicationResponse(ApplicationBase):
     id: int
     candidate_id: int
     status: ApplicationStatus
+    source: str
     match_score: Optional[float] = None
+    expected_salary: Optional[float] = None
+    salary_filter_status: Optional[str] = None
     email_delivery_status: Optional[str] = "PENDING"
     email_logs: Optional[str] = None
+    city: Optional[str] = None
+    qualification: Optional[str] = None
     created_at: datetime
     
     candidate: Optional[UserResponse] = None

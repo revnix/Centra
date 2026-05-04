@@ -111,6 +111,10 @@ async def seed_all():
             print("Added sample application.")
             await db.commit()
             await db.refresh(application)
+            
+            # Integrated Centralized Handler (Automation Agent / Script Example)
+            from src.api.utils.application_handler import handle_new_application
+            await handle_new_application(db, application.id)
 
         # 5. Seed Interview Session
         result = await db.execute(select(InterviewSession).where(InterviewSession.application_id == application.id))

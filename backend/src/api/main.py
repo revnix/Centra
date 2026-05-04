@@ -1,4 +1,4 @@
-# src/api/main.py
+# src/api/main.py 
 
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +15,8 @@ from src.api.routes import (
     applications,
     interviews,
     indeed,
+    onboarding,
+    uploads,
 )
 from src.api.routes.admin import (
     users as admin_users,
@@ -34,16 +36,14 @@ import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Run Alembic migrations on startup (applies any pending migrations to PostgreSQL)
-    import subprocess, sys
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"WARNING: Alembic migration failed:\n{result.stderr}")
-    else:
-        print(f"INFO: Alembic migrations applied.\n{result.stdout}")
+    # Startup: Ensure upload directories exist
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(os.makedirs, settings.UPLOAD_DIR, exist_ok=True)
+    await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
+    await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
+    await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
+    
+    print("DEBUG: Application lifespan started and directories verified")
     yield
     # Shutdown
 
@@ -82,17 +82,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# Ensure upload directory exists
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-os.makedirs(os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
-
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
-# CORS
+# CORS — allow all origins in dev to prevent browser "Network Error"
+# CORS — allow all origins in dev to prevent browser "Network Error"
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -114,6 +111,8 @@ app.include_router(indeed_integration.router, prefix=f"{settings.API_V1_PREFIX}/
 app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["candidates"])
 app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applications", tags=["applications"])
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
+app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboarding", tags=["onboarding"])
+app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
 
 
 @app.get("/health")
@@ -132,6 +131,4 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    # DEFAULT port is 2024 to match langgraph dev expectations
-    port = int(os.getenv("PORT", "2024"))
-    uvicorn.run("src.api.main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("src.api.main:app", host="0.0.0.0", port=8123, reload=True)

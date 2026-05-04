@@ -42,15 +42,16 @@ export default function LoginPage() {
                 throw new Error("Invalid server response: missing access token");
             }
 
-            const role = user.role;
+            const role = user.role?.toLowerCase();
             console.log("User role:", role);
 
             localStorage.setItem("userRole", role);
             localStorage.setItem("userEmail", email);
             localStorage.setItem("access_token", access_token);
 
-            // Set cookie for middleware
+            // Set cookies for middleware
             document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
+            document.cookie = `user_role=${role}; path=/; max-age=86400; SameSite=Lax`;
 
             // Redirect based on role
             // Use safe navigation

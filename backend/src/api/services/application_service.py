@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload
@@ -5,18 +6,25 @@ from src.api.models.application import Application, ApplicationStatus
 from src.api.models.candidate import CandidateProfile
 from src.api.models.user import User, UserRole
 
+logger = logging.getLogger(__name__)
+
 class ApplicationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def create_application(
-        self, 
-        user_id: int, 
-        job_id: int, 
-        cover_letter: str = None, 
-        phone_number: str = None
+        self,
+        user_id: int,
+        job_id: int,
+        cover_letter: str = None,
+        phone_number: str = None,
+        source: str = "web",
+        background_tasks = None,
+        expected_salary: float = None,
+        city: str = None,
+        qualification: str = None,
     ) -> Application:
-        """Create a new application for a candidate."""
+        """Create a new application and trigger HR notification."""
         # Check if already applied
         existing = await self.get_application_by_user_and_job(user_id, job_id)
         if existing:
@@ -27,12 +35,31 @@ class ApplicationService:
             job_id=job_id,
             status=ApplicationStatus.APPLIED,
             cover_letter=cover_letter,
-            phone_number=phone_number
+            phone_number=phone_number,
+            source=source,
+            expected_salary=expected_salary,
+            city=city.strip().lower() if city else None,
+            qualification=qualification.strip() if qualification else None,
         )
         self.db.add(application)
         await self.db.commit()
         await self.db.refresh(application)
+        
+        from src.api.services.email_service import logger
+        logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
+        
+        # Centralized Notification Trigger
+        await self._trigger_new_app_notification(application, background_tasks)
+        
         return application
+
+    async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
+        """Delegates notification to the centralized handler."""
+        from src.api.utils.application_handler import handle_new_application
+        await handle_new_application(self.db, application.id, background_tasks)
+
+
+
 
     async def get_application_by_user_and_job(self, user_id: int, job_id: int) -> Application | None:
         """Check if user has already applied for this job."""
@@ -71,6 +98,19 @@ class ApplicationService:
         )
         return result.scalars().all()
 
+    async def get_applications_by_user_id(self, user_id: int) -> list[Application]:
+        """Get all applications for a specific candidate."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                joinedload(Application.job),
+                joinedload(Application.interview_session)
+            )
+            .where(Application.candidate_id == user_id)
+            .order_by(Application.created_at.desc())
+        )
+        return result.scalars().all()
+
     async def reject_application(self, application_id: int) -> Application:
         """Reject an application."""
         application = await self.get_application_by_id(application_id)
@@ -94,6 +134,19 @@ class ApplicationService:
             
         candidate = application.candidate
         profile = getattr(candidate, 'candidate_profile', None)
+        
+        # --- HARIPUR CITY FILTER ---
+        # If city is not Haripur, reject immediately
+        if not application.city or application.city.lower() != "haripur":
+            application.status = ApplicationStatus.REJECTED
+            application.match_score = 0
+            application.ai_feedback = "Filtered out: Location not Haripur"
+            application.email_delivery_status = "SKIPPED"
+            application.email_logs = f"Candidate not from Haripur (City: {application.city})"
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            return application
         
         # Simple scoring simulation
         score = 0
@@ -187,57 +240,43 @@ class ApplicationService:
         application.status = ApplicationStatus.SHORTLISTED
         self.db.add(application)
         await self.db.commit()
-        
-        # 2. Create Interview Session
-        from src.api.services.interview_service import InterviewService
-        int_service = InterviewService(self.db)
-        
-        # 72 hours expiry
-        session = await int_service.create_session(application.id, expiry_hours=72)
-        
-        # 3. Send Email with Retry logic
-        from src.api.services.email_service import EmailService
-        from src.api.core.config import settings
-        from starlette.concurrency import run_in_threadpool
-        
-        interview_link = f"{settings.FRONTEND_URL}/interview/{session.token}"
+
+        # 2. Check if we should skip email based on city (Safety net)
+        if not application.city or application.city.lower() != "haripur":
+            logger.info(f"[SHORTLIST] Email skipped for application {application_id} - not Haripur.")
+            application.email_delivery_status = "SKIPPED"
+            application.email_logs = f"Email skipped: Candidate not from Haripur (City: {application.city})"
+            self.db.add(application)
+            await self.db.commit()
+            await self.db.refresh(application)
+            return application
+
+        # 3. Send WhatsApp-invite email (duplicate guard)
+        if application.email_delivery_status == "SENT":
+            logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
+            await self.db.refresh(application)
+            return application
+
+        from src.api.services.scheduling_service import SchedulingService
+        sched_service = SchedulingService()
+
         candidate = application.candidate
         job = application.job
-        
-        application.email_delivery_status = "PENDING"
-        max_retries = 3
-        sent = False
-        error_msg = ""
 
-        for attempt in range(max_retries):
-            try:
-                sent = await run_in_threadpool(
-                    EmailService.send_interview_invitation,
-                    candidate_email=candidate.email,
-                    candidate_name=candidate.full_name,
-                    job_title=job.title if job else "the position",
-                    interview_link=interview_link,
-                    expiry_hours=72
-                )
-                if sent:
-                    break
-                else:
-                    error_msg = f"Attempt {attempt + 1} failed (SMTP return False; check server logs)"
-            except Exception as e:
-                error_msg = f"Attempt {attempt + 1} raised Exception: {str(e)}"
-                if attempt < max_retries - 1:
-                    import asyncio
-                    await asyncio.sleep(2)
-        
-        if sent:
+        result = await sched_service.schedule_interview(
+            candidate_name=candidate.full_name or "Candidate",
+            candidate_email=candidate.email,
+            candidate_score=application.match_score or 0,
+            job_title=job.title or "Position at Revnix",
+        )
+
+        if result["success"] and result.get("email_sent"):
             application.status = ApplicationStatus.INTERVIEW_INVITED
             application.email_delivery_status = "SENT"
-            application.email_logs = "Email delivered successfully."
-            print(f"✅ Auto-invitation COMPLETE for {candidate.email}")
+            application.email_logs = f"WhatsApp-invite email sent. Score: {application.match_score}"
         else:
             application.email_delivery_status = "FAILED"
-            application.email_logs = error_msg or "Unknown SMTP error after retries."
-            print(f"💀 CRITICAL: Failed to send invitation email to {candidate.email}: {error_msg}")
+            application.email_logs = result.get("message", "Email failed or score below threshold.")
             
         self.db.add(application)
         await self.db.commit()
@@ -262,21 +301,36 @@ class ApplicationService:
         
         # Trigger Email
         from src.api.services.email_service import EmailService
+        from src.api.services.onboarding_service import OnboardingService
         from starlette.concurrency import run_in_threadpool
+        from src.api.core.config import settings
         
-        await run_in_threadpool(
-            EmailService.send_offer_letter,
+        # Initiate onboarding to generate token
+        onboarding_service = OnboardingService(self.db)
+        onboarding = await onboarding_service.initiate_onboarding(application_id)
+        
+        token_param = f"?token={onboarding.onboarding_token}" if onboarding.onboarding_token else ""
+        onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application.id}{token_param}"
+        
+        await EmailService.send_offer_letter(
             candidate_email=candidate.email,
             candidate_name=candidate.full_name,
             job_title=job.title,
             company_name=job.company_name or "Evalyn AI",
             salary=salary_str,
-            joining_date=joining_date
+            joining_date=joining_date,
+            onboarding_link=onboarding_link
         )
         
         self.db.add(application)
         await self.db.commit()
         await self.db.refresh(application)
+        
+        # Auto-Spawn Onboarding Record
+        from src.api.services.onboarding_service import OnboardingService
+        onb_service = OnboardingService(self.db)
+        await onb_service.initiate_onboarding(application.id)
+        
         return application
 
     async def delete_application(self, application_id: int) -> bool:
@@ -284,6 +338,17 @@ class ApplicationService:
         application = await self.get_application_by_id(application_id)
         if not application:
             return False
+        
+        # Explicitly delete the onboarding record first to avoid FK constraint errors
+        from src.api.models.onboarding import Onboarding
+        from sqlalchemy.future import select
+        onboarding_result = await self.db.execute(
+            select(Onboarding).where(Onboarding.application_id == application_id)
+        )
+        onboarding = onboarding_result.scalars().first()
+        if onboarding:
+            await self.db.delete(onboarding)
+            await self.db.flush()
         
         await self.db.delete(application)
         await self.db.commit()

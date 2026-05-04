@@ -31,13 +31,14 @@ const mapJob = (job: any): Job => ({
     salary_currency: job.salary_currency,
     salary_period: job.salary_period,
     salary_range: job.salary_range,
-    required_skills: job.required_skills,
-    preferred_skills: job.preferred_skills,
-    benefits: job.benefits,
+    required_skills: job.required_skills || [],
+    preferred_skills: job.preferred_skills || [],
+    requirements: job.requirements || [],
+    preferred_qualifications: job.preferred_qualifications || [],
+    benefits: job.benefits || [],
     application_url: job.application_url,
     status: job.status,
     // Backward compatibility fields
-    requirements: job.required_skills || [],
     desiredSkills: job.preferred_skills || [],
     candidateCount: job.application_count || 0,
     application_count: job.application_count || 0,
@@ -50,6 +51,7 @@ const mapJob = (job: any): Job => ({
     published_at: job.published_at,
     closedAt: job.expires_at,
     expires_at: job.expires_at,
+    manager_feedback: job.manager_feedback,
 });
 
 export const jobsApi = {
@@ -93,14 +95,16 @@ export const jobsApi = {
     },
 
     /**
-     * Generate an initial AI job draft without creating a record
+     * Generate an initial AI job draft without creating a record.
+     * If `prompt` is provided, it is used as the primary AI instruction.
      */
     generateDraft: async (data: {
-        title: string;
+        title?: string;
         department?: string;
         location?: string;
         experience_level?: string;
         job_type?: string;
+        prompt?: string;
     }): Promise<any> => {
         return apiClient.post<any>('/jobs/generate-draft', data);
     },
@@ -164,6 +168,16 @@ export const jobsApi = {
      */
     sendToManager: async (jobId: string): Promise<{ message: string }> => {
         return apiClient.post<{ message: string }>(`/jobs/${jobId}/send-to-manager`);
+    },
+
+    /**
+     * Submit Operation Manager review
+     */
+    review: async (
+        jobId: string,
+        data: { status: JobStatus; feedback?: string }
+    ): Promise<ApiResponse<Job>> => {
+        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/review`, data);
     },
 };
 

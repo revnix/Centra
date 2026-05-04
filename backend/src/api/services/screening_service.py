@@ -14,6 +14,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _evaluate_salary(expected_salary: float | None, job_max_salary: int | None) -> str:
+    """
+    Compare candidate's expected salary against the job budget.
+    Returns: 'within_budget' | 'above_budget' | 'not_checked'
+    """
+    if expected_salary is None or job_max_salary is None:
+        return "not_checked"
+    return "above_budget" if expected_salary > job_max_salary else "within_budget"
+
+
 class ScreeningService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -71,71 +82,73 @@ class ScreeningService:
             score = evaluation.get("match_score", 0)
             feedback = evaluation.get("feedback", "")
             
-            # MANDATORY RULE: Shortlist if score >= 60
-            is_qualified = score >= 60
+            # Shortlist threshold: score >= 70
+            SHORTLIST_THRESHOLD = 70
+            is_qualified = score >= SHORTLIST_THRESHOLD
 
-            # 4. Update Application
+            # 4. Update Application — score, feedback, status
             application.match_score = float(score)
             application.ai_feedback = feedback
-            application.status = ApplicationStatus.SCREENING
-            
-            if is_qualified:
-                application.status = ApplicationStatus.SHORTLISTED
-                
-                # 5. Create Interview Session with Expiry
-                int_service = InterviewService(self.db)
-                session = await int_service.create_session(application.id)
-                
-                # Set 72-hour expiry
-                session.expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
-                # 6. Send Invitation Email with Retry Logic
-                from src.api.core.config import settings
-                interview_link = f"{settings.FRONTEND_URL}/interview/{session.token}"
-                
-                from starlette.concurrency import run_in_threadpool
-                
-                application.email_delivery_status = "PENDING"
-                max_retries = 3
-                sent = False
-                error_msg = ""
+            application.status = ApplicationStatus.SHORTLISTED if is_qualified else ApplicationStatus.SCREENING
 
-                for attempt in range(max_retries):
-                    try:
-                        logger.info(f"📧 Email attempt {attempt + 1} for {candidate.email}...")
-                        sent = await run_in_threadpool(
-                            EmailService.send_interview_invitation,
-                            candidate_email=candidate.email,
-                            candidate_name=candidate.full_name,
-                            job_title=job.title,
-                            interview_link=interview_link
-                        )
-                        if sent:
-                            break
-                        else:
-                            error_msg = f"Attempt {attempt + 1} failed (SMTP return False; check server logs)"
-                    except Exception as e:
-                        error_msg = f"Attempt {attempt + 1} raised Exception: {str(e)}"
-                        logger.error(f"❌ {error_msg}")
-                        if attempt < max_retries - 1:
-                            import asyncio
-                            await asyncio.sleep(2) # Short wait before retry
-                
-                if sent:
-                    application.status = ApplicationStatus.INTERVIEW_INVITED
-                    application.email_delivery_status = "SENT"
-                    application.email_logs = "Email delivered successfully."
-                    logger.info(f"✅ Auto-invitation COMPLETE for {candidate.email}")
-                else:
-                    application.email_delivery_status = "FAILED"
-                    application.email_logs = error_msg or "Unknown SMTP error after retries."
-                    logger.error(f"💀 CRITICAL: Failed to send invitation email to {candidate.email} after {max_retries} attempts. Reason: {error_msg}")
-            else:
-                # Optional: Handle rejection or just leave as screened
-                pass
+            # 5. Salary Filter
+            salary_status = _evaluate_salary(application.expected_salary, job.salary_max)
+            application.salary_filter_status = salary_status
+            logger.info(
+                f"[SALARY] App {application_id} — expected: {application.expected_salary}, "
+                f"job max: {job.salary_max}, result: {salary_status}"
+            )
 
+            # Persist score, status, and salary filter to DB
             self.db.add(application)
             await self.db.commit()
-            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}")
+            await self.db.refresh(application)
+            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}, Salary: {salary_status}")
+
+            if is_qualified:
+                # Block email if salary is above budget
+                if salary_status == "above_budget":
+                    application.email_delivery_status = "SKIPPED"
+                    application.email_logs = (
+                        f"Salary out of range — candidate expected "
+                        f"{application.expected_salary:,.0f}, job budget max: {job.salary_max:,.0f}."
+                    )
+                    self.db.add(application)
+                    await self.db.commit()
+                    logger.info(
+                        f"[SALARY FILTER] ⛔ App {application_id} — salary above budget, invite skipped. "
+                        f"Expected: {application.expected_salary}, Max: {job.salary_max}"
+                    )
+                    return
+
+                # Prevent duplicate emails — skip if already notified
+                if application.email_delivery_status == "SENT":
+                    logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
+                else:
+                    from src.api.services.scheduling_service import SchedulingService
+                    scheduler = SchedulingService()
+
+                    logger.info(f"[SHORTLIST] ✨ Score {score} >= {SHORTLIST_THRESHOLD} → sending WhatsApp-invite email to {candidate.email}")
+
+                    result = await scheduler.schedule_interview(
+                        candidate_name=candidate.full_name or "Candidate",
+                        candidate_email=candidate.email,
+                        candidate_score=score,
+                        job_title=job.title or "Position at Revnix",
+                    )
+
+                    if result.get("success") and result.get("email_sent"):
+                        application.email_delivery_status = "SENT"
+                        application.email_logs = f"WhatsApp-invite email sent. Score: {score}"
+                        self.db.add(application)
+                        await self.db.commit()
+                        logger.info(f"[SHORTLIST] ✅ Email sent and recorded for application {application_id}")
+                    else:
+                        application.email_delivery_status = "FAILED"
+                        application.email_logs = result.get("message", "Email failed during screening.")
+                        self.db.add(application)
+                        await self.db.commit()
+                        logger.error(f"[SHORTLIST] ❌ Email failed for application {application_id}: {result.get('message')}")
 
         except Exception as e:
             logger.error(f"Error during screening for application {application_id}: {str(e)}")

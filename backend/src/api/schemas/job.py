@@ -19,6 +19,8 @@ class JobBase(BaseModel):
     salary_range: Optional[str] = None
     required_skills: Optional[List[str]] = None
     preferred_skills: Optional[List[str]] = None
+    requirements: Optional[List[str]] = None
+    preferred_qualifications: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
     
@@ -34,22 +36,24 @@ class JobBase(BaseModel):
         
         # Convert string to enum if necessary
         if field_name == 'job_type' and isinstance(v, str):
+            v_upper = v.upper().replace('-', '_')
             try:
-                return JobType(v)
+                return JobType(v_upper)
             except ValueError:
                 # Try to find a matching enum value (case-insensitive)
                 for job_type in JobType:
-                    if job_type.value == v or job_type.name == v:
+                    if job_type.value.upper() == v_upper or job_type.name.upper() == v_upper:
                         return job_type
                 raise ValueError(f"Invalid job_type: {v}. Valid values are: {', '.join([jt.value for jt in JobType])}")
         
         elif field_name == 'experience_level' and isinstance(v, str):
+            v_upper = v.upper().replace('-', '_')
             try:
-                return ExperienceLevel(v)
+                return ExperienceLevel(v_upper)
             except ValueError:
                 # Try to find a matching enum value (case-insensitive)
                 for exp_level in ExperienceLevel:
-                    if exp_level.value == v or exp_level.name == v:
+                    if exp_level.value.upper() == v_upper or exp_level.name.upper() == v_upper:
                         return exp_level
                 raise ValueError(f"Invalid experience_level: {v}. Valid values are: {', '.join([el.value for el in ExperienceLevel])}")
         
@@ -74,18 +78,27 @@ class JobUpdate(BaseModel):
     salary_range: Optional[str] = None
     required_skills: Optional[List[str]] = None
     preferred_skills: Optional[List[str]] = None
+    requirements: Optional[List[str]] = None
+    preferred_qualifications: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
+    manager_feedback: Optional[str] = None
 
 class JobDraftRequest(BaseModel):
-    title: str
+    title: Optional[str] = None
     department: Optional[str] = None
     location: Optional[str] = "Remote"
     experience_level: Optional[str] = "MID_SENIOR"
     job_type: Optional[str] = "FULL_TIME"
+    required_skills: Optional[List[str]] = None
+    prompt: Optional[str] = None
 
 class JobImproveRequest(BaseModel):
     feedback: str
+
+class JobReviewRequest(BaseModel):
+    status: JobStatus
+    feedback: Optional[str] = None
     
 class JobResponse(JobBase):
     id: int
@@ -94,6 +107,7 @@ class JobResponse(JobBase):
     updated_at: Optional[datetime] = None
     status: Optional[JobStatus] = None
     published_at: Optional[datetime] = None
+    manager_feedback: Optional[str] = None
 
     class Config:
         from_attributes = True

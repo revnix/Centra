@@ -151,3 +151,26 @@ export function useCloseJob() {
         },
     });
 }
+
+/**
+ * Submit Operation Manager review
+ */
+export function useReviewJob() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({
+            jobId,
+            status,
+            feedback,
+        }: {
+            jobId: string;
+            status: JobStatus;
+            feedback?: string;
+        }) => jobsApi.review(jobId, { status, feedback }),
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: jobKeys.detail(variables.jobId) });
+            queryClient.invalidateQueries({ queryKey: jobKeys.lists() });
+        },
+    });
+}

@@ -18,6 +18,7 @@ dependencies = [
     "pytest",
     "pytest-asyncio",
     "httpx",
+    "aiosqlite",
     "langchain>=0.1.0",
     "langchain-core>=0.1.0",
     "langgraph>=0.0.1",
@@ -27,6 +28,5 @@ dependencies = [
     "pydantic>=2.0.0",
     "instagrapi",
     "requests",
-    "alembic>=1.18.4",
-    "psycopg2-binary",
+    "resend>=2.29.0",
 ]

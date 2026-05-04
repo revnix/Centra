@@ -15,6 +15,7 @@ class ApplicationStatus(str, enum.Enum):
     OFFER = "OFFER"
     REJECTED = "REJECTED"
     HIRED = "HIRED"
+    ONBOARDING = "ONBOARDING"
     WITHDRAWN = "WITHDRAWN"
 
 class Application(Base):
@@ -38,14 +39,16 @@ class Application(Base):
     # Application details
     cover_letter = Column(Text, nullable=True)
     phone_number = Column(String(50), nullable=True)
-    source = Column(String, nullable=True)
-    city = Column(String, nullable=True)
-    qualification = Column(String, nullable=True)
-    expected_salary = Column(String, nullable=True)
-    salary_filter_status = Column(String, nullable=True)
+    source = Column(String(50), default="web", index=True, comment="Source: web, linkedin, indeed, agent, etc.")
+    city = Column(String(100), nullable=True, comment="Candidate's city")
+    qualification = Column(String(200), nullable=True, comment="Highest qualification")
+    
+    # Salary
+    expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
+    salary_filter_status = Column(String(50), nullable=True, comment="within_budget | above_budget | not_checked")
 
     # Email Delivery Status
-    email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED")
+    email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(Text, nullable=True, comment="Failure reasons or SMTP logs")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

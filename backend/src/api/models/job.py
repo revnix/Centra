@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
 import enum
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 
 class JobType(str, enum.Enum):
@@ -23,6 +24,8 @@ class JobStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PENDING = "PENDING"
     PUBLISHED = "PUBLISHED"
+    APPROVED = "APPROVED"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
     CLOSED = "CLOSED"
     ARCHIVED = "ARCHIVED"
 
@@ -30,8 +33,12 @@ class JobStatus(str, enum.Enum):
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
     ENTRY_LEVEL = "ENTRY_LEVEL"
+    JUNIOR = "JUNIOR"
     ASSOCIATE = "ASSOCIATE"
+    MID = "MID"
     MID_SENIOR = "MID_SENIOR"
+    SENIOR = "SENIOR"
+    LEAD = "LEAD"
     DIRECTOR = "DIRECTOR"
     EXECUTIVE = "EXECUTIVE"
 
@@ -75,11 +82,11 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-    required_skills = Column(JSON, nullable=True, comment="Required skills")
-    preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
-    requirements = Column(Text, nullable=True, comment="Detailed requirements text")
-    preferred_qualifications = Column(Text, nullable=True, comment="Preferred qualifications text")
-    benefits = Column(JSON, nullable=True, comment="Job benefits")
+    required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
+    preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
+    requirements = Column(ARRAY(String), nullable=True, comment="Mandatory requirements/qualifications")
+    preferred_qualifications = Column(ARRAY(String), nullable=True, comment="Preferred qualifications")
+    benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
     
     # Status and Publishing
     status = Column(SQLEnum(JobStatus), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
@@ -95,9 +102,10 @@ class Posts(Base):
     slug = Column(String(500), nullable=True, unique=True, index=True, comment="URL-friendly slug")
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
-    tags = Column(JSON, nullable=True, comment="Tags for categorization")
-    manager_feedback = Column(Text, nullable=True, comment="Internal feedback from hiring manager")
-
+    tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
+    
+    manager_feedback = Column(Text, nullable=True, comment="Feedback from Operation Manager")
+    
     # Additional Data
     metadata_json = Column(JSON, nullable=True, comment="Additional metadata including publications history")
     
@@ -139,6 +147,8 @@ class Posts(Base):
             "application_deadline": self.application_deadline.isoformat() if self.application_deadline else None,
             "required_skills": self.required_skills,
             "preferred_skills": self.preferred_skills,
+            "requirements": self.requirements,
+            "preferred_qualifications": self.preferred_qualifications,
             "benefits": self.benefits,
             "status": self.status.value if self.status else None,
             "published_at": self.published_at.isoformat() if self.published_at else None,
@@ -151,6 +161,7 @@ class Posts(Base):
             "meta_description": self.meta_description,
             "tags": self.tags,
             "metadata_json": self.metadata_json,
+            "manager_feedback": self.manager_feedback,
             "view_count": self.view_count,
             "application_count": self.application_count,
             "created_by": self.created_by,

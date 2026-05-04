@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 from typing import List
 import os
 from dotenv import load_dotenv
@@ -19,26 +20,28 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL"
+    )
 
     # Security
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str = os.getenv(
+        "SECRET_KEY",
+        "your-secret-key-change-in-production"
+    )
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 Days
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
-        "http://localhost:2024",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
-        "http://127.0.0.1:2024",
         "http://127.0.0.1:8000",
         "http://172.22.112.1:3000",  # Network IP for frontend
-        "http://172.22.112.1:3001",
-        "http://172.22.112.1:2024",  # Network IP for langgraph dev
+        "http://172.22.112.1:8123",  # Network IP for backend
     ]
 
     # Social Media API Endpoints
@@ -62,13 +65,24 @@ class Settings(BaseSettings):
     INDEED_AUTH_URL: str = "https://apis.indeed.com/oauth/v2/authorize"
     INDEED_TOKEN_URL: str = "https://apis.indeed.com/oauth/v2/tokens"
 
-    # Email Settings
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USER: str = os.getenv("SMTP_USER", "")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    EMAILS_FROM_EMAIL: str = os.getenv("EMAILS_FROM_EMAIL", "noreply@evalyn.ai")
-    OPERATIONS_MANAGER_EMAIL: str = os.getenv("OPERATIONS_MANAGER_EMAIL", "manager@evalyn.ai")
+    # Email Settings (Resend)
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
+    RESEND_FROM_NAME: str = "Evalyn"
+    
+    # Aliases for compatibility (populated from .env or defaults)
+    EMAILS_FROM_EMAIL: str = "onboarding@resend.dev"
+    EMAILS_FROM_NAME: str = "Evalyn"
+
+    OPERATIONS_MANAGER_EMAIL: str = "manager@evalyn.ai"
+    HR_EMAIL: str = "hr@evalyn.ai"
+    EMAIL_TEST_OVERRIDE: str = ""
+    
+    @model_validator(mode='after')
+    def add_frontend_url_to_cors(self) -> 'Settings':
+        if self.FRONTEND_URL and self.FRONTEND_URL not in self.ALLOWED_ORIGINS:
+            self.ALLOWED_ORIGINS = self.ALLOWED_ORIGINS + [self.FRONTEND_URL]
+        return self
 
     # ✅ Pydantic v2 config
     model_config = SettingsConfigDict(

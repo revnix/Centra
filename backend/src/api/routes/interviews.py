@@ -34,15 +34,19 @@ async def upload_recording(
 
     # Create directory if it doesn't exist
     recordings_dir = os.path.join(settings.UPLOAD_DIR, "recordings")
-    os.makedirs(recordings_dir, exist_ok=True)
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(os.makedirs, recordings_dir, exist_ok=True)
 
     # Save file
     file_extension = os.path.splitext(file.filename)[1] if file.filename else ".webm"
     filename = f"recording_{token}{file_extension}"
     file_path = os.path.join(recordings_dir, filename)
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    def save_recording(path, upload_file):
+        with open(path, "wb") as buffer:
+            shutil.copyfileobj(upload_file.file, buffer)
+            
+    await run_in_threadpool(save_recording, file_path, file)
 
     # Update database
     # Store relative path for flexibility

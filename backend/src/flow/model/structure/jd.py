@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -9,11 +9,17 @@ class JobPost(BaseModel):
     """
 
     job_title: str = Field(
-        ..., 
-        description="Job title for the role",
+        ...,
+        description="Job title for the role — infer from the prompt if not explicitly stated",
         examples=["Senior Backend Engineer", "Product Manager"]
     )
-    
+
+    department: Optional[str] = Field(
+        default=None,
+        description="Department or team for this role (e.g. Engineering, Marketing, Design, Finance). Infer from the role and prompt context if not explicitly stated.",
+        examples=["Engineering", "Marketing", "Product", "Design"]
+    )
+
     location: str = Field(
         ..., 
         description="Job location",

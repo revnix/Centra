@@ -10,7 +10,7 @@ export * from './langgraph';
 // USER & AUTH TYPES
 // ============================================================================
 
-export type UserRole = 'ADMIN' | 'REVIEWER' | 'CANDIDATE';
+export type UserRole = 'admin' | 'reviewer' | 'candidate' | 'guest';
 
 export interface User {
   id: string;
@@ -55,7 +55,7 @@ export interface AuthSession {
 // JOB TYPES
 // ============================================================================
 
-export type JobStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
+export type JobStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'CLOSED' | 'ARCHIVED';
 
 export interface Job {
   id: string;
@@ -95,6 +95,7 @@ export interface Job {
   tags?: string[];
   company_size?: string;
   company_website?: string;
+  manager_feedback?: string;
 }
 
 export interface JobIntent {

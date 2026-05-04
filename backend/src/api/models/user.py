@@ -5,10 +5,10 @@ from src.api.db.base import Base
 import enum
 
 class UserRole(str, enum.Enum):
-    ADMIN = "ADMIN"
-    REVIEWER = "REVIEWER"
-    CANDIDATE = "CANDIDATE"
-    GUEST = "GUEST"
+    ADMIN = "admin"
+    REVIEWER = "reviewer"
+    CANDIDATE = "candidate"
+    GUEST = "guest"
 
 class User(Base):
     __tablename__ = "users"
@@ -38,4 +38,4 @@ class User(Base):
         lazy="select"
     )
 
-    candidate_profile = relationship("CandidateProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    candidate_profile = relationship("CandidateProfile", back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="selectin")

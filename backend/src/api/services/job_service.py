@@ -35,27 +35,43 @@ class JobService:
         return result.scalars().all()
 
     async def get_job(self, job_id: int):
+        import json
         result = await self.db.execute(select(Posts).where(Posts.id == job_id))
-        return result.scalars().first()
+        job = result.scalars().first()
+        if job:
+            print(f"DEBUG: [JobService.get_job] Job retrieved: {json.dumps(job.to_dict(), default=str)}")
+        else:
+            print(f"DEBUG: [JobService.get_job] Job not found: {job_id}")
+        return job
 
     async def create_job(self, job_in: JobCreate, user_id: int):
-        db_job = Posts(**job_in.model_dump(), created_by=user_id)
+        import json
+        payload = job_in.model_dump()
+        print(f"DEBUG: [JobService.create_job] Payload received: {json.dumps(payload, default=str)}")
+        
+        db_job = Posts(**payload, created_by=user_id)
         self.db.add(db_job)
         await self.db.commit()
         await self.db.refresh(db_job)
+        
+        print(f"DEBUG: [JobService.create_job] Job created with ID: {db_job.id}")
         return db_job
 
     async def update_job(self, job_id: int, job_in: JobUpdate):
+        import json
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
 
         update_data = job_in.model_dump(exclude_unset=True)
+        print(f"DEBUG: [JobService.update_job] Update data: {json.dumps(update_data, default=str)}")
+        
         for key, value in update_data.items():
             setattr(db_job, key, value)
 
         await self.db.commit()
         await self.db.refresh(db_job)
+        print(f"DEBUG: [JobService.update_job] Job updated: {db_job.id}")
         return db_job
 
     async def improve_job(self, job_id: int, feedback: str):
@@ -93,6 +109,8 @@ class JobService:
         db_job.description = post_data.get("summary", db_job.description)
         db_job.required_skills = post_data.get("skills", db_job.required_skills)
         db_job.preferred_skills = post_data.get("preferred_qualifications", db_job.preferred_skills)
+        db_job.requirements = post_data.get("requirements", db_job.requirements)
+        db_job.preferred_qualifications = post_data.get("preferred_qualifications", db_job.preferred_qualifications)
         db_job.benefits = post_data.get("benefits", db_job.benefits)
         
         metadata = db_job.metadata_json or {}
@@ -108,24 +126,20 @@ class JobService:
         return db_job
 
     async def generate_draft(self, draft_in: any):
-        from src.flow.prompts.human.jd_prompt import JD_GENERATION_PROMPT
-        from src.flow.model.llm_manager import get_llm
-        from src.flow.model.structure.jd import JobPost
-        from fastapi.concurrency import run_in_threadpool
-        
-        messages = JD_GENERATION_PROMPT.format_messages(
-            job_title=draft_in.title,
-            location=draft_in.location or "Remote",
-            skills="",  # No skills provided for initial draft
-            company_name=draft_in.department or "Our Company",
-            employment_type=draft_in.job_type or "Full-time",
-            experience_level=draft_in.experience_level or "Mid",
-            feedback=""
-        )
-        
-        llm = get_llm().with_structured_output(JobPost)
-        response = await run_in_threadpool(llm.invoke, messages)
-        return response
+        from src.api.services.jd_generator_service import JDGeneratorService
+
+        job_data = {
+            "title": draft_in.title,
+            "department": draft_in.department,
+            "location": draft_in.location or "Remote",
+            "experience_level": draft_in.experience_level or "Mid",
+            "job_type": draft_in.job_type or "Full-time",
+            "required_skills": draft_in.required_skills or [],
+        }
+        prompt = getattr(draft_in, "prompt", None)
+
+        generator = JDGeneratorService()
+        return await generator.generate_job_description(job_data, prompt=prompt)
 
     async def delete_job(self, job_id: int):
         db_job = await self.get_job(job_id)
@@ -159,4 +173,16 @@ class JobService:
         indeed_service = IndeedService(self.db)
         await indeed_service.upload_job(db_job, user_id)
         
+        return db_job
+
+    async def review_job(self, job_id: int, status: str, feedback: str = None):
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+            
+        db_job.status = status
+        db_job.manager_feedback = feedback
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
         return db_job

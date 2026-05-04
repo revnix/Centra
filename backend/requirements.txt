@@ -4,10 +4,9 @@ uvicorn[standard]>=0.23.0
 pydantic>=2.0.0
 pydantic-settings
 
-sqlalchemy[asyncio]>=2.0.0
+sqlalchemy
 asyncpg
 psycopg2-binary
-alembic>=1.13.0
 greenlet
 
 pyjwt
@@ -18,14 +17,15 @@ email-validator
 pytest
 pytest-asyncio
 httpx
+aiosqlite
 
 langchain>=0.1.0
 langchain-core>=0.1.0
 langgraph>=0.0.1
-langgraph-cli[inmem]>=0.4.11
 langchain-groq>=0.1.0
 
 python-dotenv>=1.0.0
 
 instagrapi
 requests
+resend
