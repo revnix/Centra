@@ -83,6 +83,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Mount static files for uploads
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # CORS — allow all origins in dev to prevent browser "Network Error"
