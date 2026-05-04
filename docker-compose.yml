@@ -1,0 +1,46 @@
+﻿services:
+  db:
+    image: postgres:15
+    container_name: evalyn-db
+    environment:
+      POSTGRES_USER: evalyn
+      POSTGRES_PASSWORD: evalyn123
+      POSTGRES_DB: evalyn_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: evalyn-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+        - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+        - NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:8000
+    container_name: evalyn-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      - NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

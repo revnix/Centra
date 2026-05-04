@@ -1,0 +1,8 @@
+﻿node_modules
+.next
+.git
+*.md
+.env*
+build_log*.txt
+build_output.txt
+dev_log.txt
