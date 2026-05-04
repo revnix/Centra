@@ -5,35 +5,14 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  * Handles authentication, request/response interceptors, and error handling
  */
 
-const getApiBaseUrl = () => {
-    // NEXT_PUBLIC_API_URL is set in .env.local (e.g. http://127.0.0.1:2024)
-    // langgraph dev hosts the FastAPI app on port 2024 by default
-    const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
-
-    if (typeof window !== "undefined") {
-        if (configuredUrl) {
-            // If the configured URL uses 127.0.0.1/localhost but user is on a network IP, swap it
-            const host = window.location.hostname;
-            if (host !== "localhost" && host !== "127.0.0.1") {
-                return configuredUrl.replace(/127\.0\.0\.1|localhost/, host) + "/api/v1";
-            }
-            return `${configuredUrl}/api/v1`;
-        }
-        const host = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
-        return `http://${host}:2024/api/v1`;
-    }
-    // Server-side default
-    return `${configuredUrl ?? "http://127.0.0.1:2024"}/api/v1`;
-};
-
-const API_BASE_URL = getApiBaseUrl();
+const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1';
 
 class ApiClient {
     private client: AxiosInstance;
 
     constructor() {
         this.client = axios.create({
-            baseURL: getApiBaseUrl(),
+            baseURL: API_URL,
             timeout: 90000,
             headers: {
                 'Content-Type': 'application/json',

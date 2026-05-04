@@ -215,7 +215,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             <CardContent className="p-0">
                                 <div className="aspect-video bg-black flex items-center justify-center">
                                     <video
-                                        src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:2024'}/${app.interview_session.recording_path}`}
+                                        src={`${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1'}/${app.interview_session.recording_path}`}
                                         controls
                                         className="w-full h-full"
                                         poster="/video-poster.png"
