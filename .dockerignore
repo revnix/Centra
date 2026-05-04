@@ -1,0 +1,29 @@
+# Exclude frontend entirely
+frontend/
+
+# Exclude backend virtual envs & caches
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.langgraph_api/
+backend/uploads/
+backend/uv.lock
+
+# Exclude env files (injected at runtime)
+backend/.env
+
+# Exclude git & IDE
+.git/
+.gitignore
+.gemini/
+
+# Exclude debug/test scripts at repo root
+*.py
+*.txt
+*.md

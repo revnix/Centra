@@ -1,4 +1,4 @@
-﻿services:
+services:
   db:
     image: postgres:15
     container_name: evalyn-db
@@ -13,8 +13,8 @@
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     platform: linux/amd64
     container_name: evalyn-backend
     ports:
