@@ -1,10 +1,10 @@
 ﻿FROM --platform=linux/amd64 node:20-alpine AS builder
 WORKDIR /app
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci
 
-COPY . .
+COPY frontend/ .
 
 ARG NEXT_PUBLIC_LANGGRAPH_API_URL
 ARG NEXT_PUBLIC_BACKEND_URL
