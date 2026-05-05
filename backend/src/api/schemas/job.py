@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional, List
+from typing import Optional, List, Any, Union
 from datetime import datetime
 from src.api.models.job import JobType, JobStatus, ExperienceLevel
 
@@ -58,6 +58,22 @@ class JobBase(BaseModel):
                 raise ValueError(f"Invalid experience_level: {v}. Valid values are: {', '.join([el.value for el in ExperienceLevel])}")
         
         return v
+
+    @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', mode='before')
+    @classmethod
+    def parse_list_fields(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            import json
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else [v]
+            except:
+                return [v]
+        return v
     
 class JobCreate(JobBase):
     pass
@@ -83,6 +99,22 @@ class JobUpdate(BaseModel):
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
     manager_feedback: Optional[str] = None
+
+    @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', mode='before')
+    @classmethod
+    def parse_list_fields(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            import json
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else [v]
+            except:
+                return [v]
+        return v
 
 class JobDraftRequest(BaseModel):
     title: Optional[str] = None
