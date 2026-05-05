@@ -26,13 +26,10 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:2024";
     
-    if (!backendUrl) {
-      // In production, we want to know if this is missing. 
-      // Next.js will use this destination during build/runtime.
-      console.warn("NEXT_PUBLIC_API_URL is not defined. API rewrites will not function correctly.");
-      return [];
+    if (!process.env.NEXT_PUBLIC_API_URL) {
+      console.warn("NEXT_PUBLIC_API_URL is not defined. Falling back to http://127.0.0.1:2024");
     }
 
     return [
