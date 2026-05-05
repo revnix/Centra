@@ -219,6 +219,19 @@ async def induction_manager_update(
     service = OnboardingService(db)
     return await service.manager_induction_update(application_id, data)
 
+@router.post("/{application_id}/complete", response_model=OnboardingResponse)
+async def complete_onboarding(
+    application_id: int,
+    token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user)
+):
+    """
+    Candidate marks their onboarding as completed.
+    """
+    service = OnboardingService(db)
+    return await service.mark_completed(application_id, current_user, token)
+
 @router.post("/{application_id}/send-welcome-email")
 async def send_welcome_email(
     application_id: int,

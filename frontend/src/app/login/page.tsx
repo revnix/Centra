@@ -55,7 +55,7 @@ export default function LoginPage() {
 
             // Redirect based on role
             // Use safe navigation
-            if (role === "admin" || role === "reviewer") {
+            if (role === "ADMIN" || role === "REVIEWER") {
                 window.location.href = "/dashboard/jobs";
             } else {
                 window.location.href = "/portal/status";

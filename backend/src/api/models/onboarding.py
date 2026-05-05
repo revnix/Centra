@@ -45,6 +45,14 @@ class Onboarding(Base):
     doc_resume_url = Column(String, nullable=True)
     doc_additional_files_json = Column(String, nullable=True) # Stores JSON list of URLs
     
+    # Personal Info (Added for new UI)
+    cnic_number = Column(String(50), nullable=True)
+    phone_number = Column(String(50), nullable=True)
+    current_address = Column(String, nullable=True)
+    emergency_contact = Column(String(100), nullable=True)
+    bank_name = Column(String(100), nullable=True)
+    bank_iban = Column(String(100), nullable=True)
+    
     # HR verification
     hr_verified = Column(Boolean, default=False)
     

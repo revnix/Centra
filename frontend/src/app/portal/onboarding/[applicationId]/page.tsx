@@ -1,27 +1,20 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onboardingApi, OnboardingResponse } from "@/lib/api/onboarding";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle2, Clock, CalendarDays, Rocket, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, CalendarDays, Rocket, ArrowRight, ShieldCheck, Sparkles, Building2, User, FileText, Shield, GraduationCap, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { Suspense } from "react";
+import { cn } from "@/lib/utils";
 
 // New Components
-import { JourneyStepper } from "@/components/onboarding/JourneyStepper";
-import { DocumentUploader } from "@/components/onboarding/DocumentUploader";
+import { OnboardingSidebar, ONBOARDING_STEPS } from "@/components/onboarding/OnboardingSidebar";
+import { PersonalInfoForm } from "@/components/onboarding/PersonalInfoForm";
 import { InductionTracker } from "@/components/onboarding/InductionTracker";
-
-const STEPS = [
-    { id: 1, name: "Joining Data", description: "Set your start date" },
-    { id: 2, name: "Documents", description: "Upload required documents" },
-];
-
-import { Suspense } from "react";
 
 function OnboardingContent() {
     const params = useParams();
@@ -34,9 +27,9 @@ function OnboardingContent() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [activeStep, setActiveStep] = useState(1);
     
     // Form States
-    const [joiningDate, setJoiningDate] = useState("");
     const [isSubmittingDocs, setIsSubmittingDocs] = useState(false);
     const [docFiles, setDocFiles] = useState<Record<string, File | null>>({
         front_picture: null,
@@ -59,7 +52,15 @@ function OnboardingContent() {
             setLoading(true);
             const data = await onboardingApi.get(applicationId, token);
             setOnboarding(data);
-            if (data.joining_date) setJoiningDate(data.joining_date.split('T')[0]);
+            
+            // Determine active step based on status if not already set
+            if (data.status === "PENDING_CANDIDATE_JOINING" || data.status === "PENDING_HR_DETAILS") {
+                setActiveStep(1);
+            } else if (data.status === "PENDING_CANDIDATE_DOCS" || data.status === "PENDING_HR_DOCS") {
+                setActiveStep(2);
+            } else if (data.status === "PENDING_IT_SETUP" || data.status === "PENDING_INDUCTION" || data.status === "COMPLETED") {
+                setActiveStep(3);
+            }
         } catch (err: any) {
             console.error(err);
             setError(err?.message || "Failed to load onboarding info");
@@ -68,32 +69,49 @@ function OnboardingContent() {
         }
     };
 
-    const currentStepIndex = useMemo(() => {
+    const progressPercentage = useMemo(() => {
         if (!onboarding) return 0;
-        if (onboarding.status === "PENDING_CANDIDATE_JOINING") return 0;
-        if (onboarding.status === "PENDING_HR_DETAILS") return 0;
-        if (onboarding.status === "PENDING_CANDIDATE_DOCS") return 1;
-        return 1; // All other states show docs tab
+        switch (onboarding.status) {
+            case "PENDING_CANDIDATE_JOINING": return 20;
+            case "PENDING_HR_DETAILS": return 40;
+            case "PENDING_CANDIDATE_DOCS": return 60;
+            case "PENDING_HR_DOCS": return 80;
+            case "PENDING_IT_SETUP": return 85;
+            case "PENDING_INDUCTION": return 95;
+            case "COMPLETED": return 100;
+            default: return 0;
+        }
     }, [onboarding]);
 
-    const handleSaveJoiningDate = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const completedSteps = useMemo(() => {
+        const steps = [];
+        if (!onboarding) return [];
+        if (onboarding.joining_date && onboarding.cnic_number) steps.push(1);
+        if (onboarding.doc_front_picture_url && onboarding.doc_id_card_url) steps.push(2);
+        if (onboarding.status === "COMPLETED") {
+            steps.push(3);
+        }
+        return steps;
+    }, [onboarding]);
+
+    const isLocked = useMemo(() => onboarding?.status === "COMPLETED", [onboarding]);
+
+    const handleSavePersonalInfo = async (formData: any) => {
+        if (isLocked) return;
         try {
             setIsSaving(true);
             await onboardingApi.updateCandidateInfo(applicationId, {
-                joining_date: joiningDate ? new Date(joiningDate).toISOString() : new Date().toISOString()
+                ...formData,
+                joining_date: onboarding?.joining_date || new Date().toISOString()
             }, token);
-            toast.success("Joining date updated");
+            toast.success("Personal information updated");
             await fetchOnboarding();
+            setActiveStep(2);
         } catch (err: any) {
-            toast.error(err?.message || "Failed to save joining date");
+            toast.error(err?.message || "Failed to save information");
         } finally {
             setIsSaving(false);
         }
-    };
-
-    const handleUpdateDoc = (updatedOnboarding: OnboardingResponse) => {
-        setOnboarding(updatedOnboarding);
     };
 
     const handleFileSelect = (type: string, file: File | null) => {
@@ -101,6 +119,7 @@ function OnboardingContent() {
     };
 
     const handleSubmitDocuments = async () => {
+        if (isLocked) return;
         const hasFiles = Object.values(docFiles).some(f => f !== null);
         if (!hasFiles) {
             toast.error("Please select at least one document to upload.");
@@ -109,11 +128,15 @@ function OnboardingContent() {
         try {
             setIsSubmittingDocs(true);
             const result = await onboardingApi.uploadDocuments(applicationId, docFiles, token);
-            setOnboarding(result);
+            
+            // Immediately mark as completed after document upload as per user request
+            const finalResult = await onboardingApi.complete(applicationId, token);
+            
+            setOnboarding(finalResult);
             setDocFiles({ front_picture: null, cnic: null, resume: null, degree: null, police_clearance: null, experience_letter: null, salary_slip: null });
-            toast.success("Documents submitted successfully!");
+            toast.success("Onboarding completed successfully!");
         } catch (err: any) {
-            toast.error(err?.message || "Failed to submit documents");
+            toast.error(err?.message || "Failed to complete onboarding");
         } finally {
             setIsSubmittingDocs(false);
         }
@@ -153,245 +176,174 @@ function OnboardingContent() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-10">
-            {/* Header Section */}
-            <header className="relative overflow-hidden bg-slate-900 text-white p-8 md:p-12 rounded-[2rem] shadow-2xl">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[100px] -mr-32 -mt-32" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-600/20 blur-[100px] -ml-32 -mb-32" />
-                
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div className="space-y-3">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-300 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-                            <Sparkles className="w-3 h-3" />
-                            Welcome Aboard
-                        </div>
-                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">Onboarding <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Hub</span></h1>
-                        <p className="text-slate-400 max-w-xl text-lg font-medium leading-relaxed">
-                            Congratulations on joining the team! Everything you need to get started is right here.
-                        </p>
-                    </div>
+        <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
+            {/* Top Branding Section */}
+            <div className="text-center space-y-2">
+                <h1 className="text-4xl font-black text-[#0f172a]">Welcome to <span className="text-blue-600">Evalyn AI</span></h1>
+                <p className="text-slate-500 font-medium">Onboarding for <span className="text-slate-900 font-bold">{onboarding?.job_title || "AI Developer"}</span> role</p>
+            </div>
+
+            {/* Progress Bar Section */}
+            <div className="space-y-2">
+                <div className="flex justify-between items-center px-1">
+                    <span className="text-sm font-bold text-slate-600">Onboarding Progress</span>
+                    <span className="text-sm font-bold text-blue-600">{progressPercentage}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <motion.div 
+                        className="h-full bg-blue-600"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progressPercentage}%` }}
+                        transition={{ duration: 1, ease: "circOut" }}
+                    />
+                </div>
+            </div>
+
+            {/* Main Layout Grid */}
+            <div className="grid lg:grid-cols-12 gap-8 items-start">
+                {/* Left Sidebar */}
+                <div className="lg:col-span-3 h-full">
+                    <OnboardingSidebar 
+                        currentStep={activeStep} 
+                        onStepClick={setActiveStep}
+                        completedSteps={completedSteps}
+                    />
                 </div>
 
-                <div className="mt-12">
-                    <JourneyStepper steps={STEPS} currentStep={currentStepIndex} />
-                </div>
-            </header>
-
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={currentStepIndex}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.4 }}
-                    className="space-y-10"
-                >
-                    {/* Primary Content Grid */}
-                    <div className="grid lg:grid-cols-3 gap-8">
-                        {/* Status Panel - Floating side info */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <Card className="border-none shadow-xl bg-slate-50/50 backdrop-blur-md sticky top-8">
-                                <CardHeader>
-                                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-blue-600" />
-                                        Overall Progress
-                                    </CardTitle>
+                {/* Right Content Area */}
+                <div className="lg:col-span-9">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeStep}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                        >
+                            <Card className="border-none shadow-xl rounded-3xl overflow-hidden min-h-[500px]">
+                                <CardHeader className="p-8 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <CardTitle className="text-2xl font-bold text-slate-900">
+                                                {ONBOARDING_STEPS[activeStep - 1]?.title || "Onboarding"}
+                                            </CardTitle>
+                                            <CardDescription className="text-base mt-1">
+                                                {activeStep === 1 && "Please provide your details for HR records and payroll."}
+                                                {activeStep === 2 && "Upload scanned copies of your official documents."}
+                                                {activeStep === 3 && "Final review by your manager and completion of the process."}
+                                            </CardDescription>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 rounded-2xl">
+                                            {ONBOARDING_STEPS[activeStep - 1] && React.createElement(ONBOARDING_STEPS[activeStep - 1].icon, { className: "w-8 h-8 text-blue-600" })}
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
-                                            <span>Current Phase</span>
-                                            <span className="text-blue-600">{STEPS[Math.min(currentStepIndex, 3)].name}</span>
-                                        </div>
-                                        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                                            <motion.div 
-                                                className="h-full bg-blue-600"
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${(currentStepIndex / 4) * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
+                                <CardContent className="p-8 pt-6">
+                                    {activeStep === 1 && (
+                                        <PersonalInfoForm 
+                                            onboarding={onboarding!} 
+                                            onSave={handleSavePersonalInfo}
+                                            isSaving={isSaving}
+                                            isLocked={isLocked}
+                                        />
+                                    )}
 
-                                    <div className="space-y-3 pt-6 border-t border-slate-200">
-                                        <div className="flex items-center gap-3 text-sm text-slate-600">
-                                            <Building2Icon />
-                                            <span>{onboarding?.office_location || "Location Pending"}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-sm text-slate-600">
-                                            <ClockIcon />
-                                            <span>{onboarding?.reporting_time || "Time Pending"}</span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Main Interaction Area */}
-                        <div className="lg:col-span-2 space-y-8">
-                            {/* Step 1 & 2: Forms */}
-                            {currentStepIndex <= 1 && (
-                                <div className="space-y-8">
-                                    {/* Joining Info Card */}
-                                    <Card className="border-none shadow-2xl overflow-hidden group">
-                                        <div className="h-1.5 w-full bg-blue-600" />
-                                        <CardHeader className="p-8 pb-4">
-                                            <CardTitle className="text-2xl font-bold flex items-center gap-3">
-                                                <CalendarDays className="w-6 h-6 text-blue-600" />
-                                                Confirm Joining Date
-                                            </CardTitle>
-                                            <CardDescription className="text-base">
-                                                Select your first day so we can prepare your workstation and welcome kit.
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="p-8 pt-4">
-                                            <form onSubmit={handleSaveJoiningDate} className="flex flex-col sm:flex-row gap-4">
-                                                <div className="flex-1">
-                                                    <Input 
-                                                        type="date" 
-                                                        value={joiningDate} 
-                                                        onChange={e => setJoiningDate(e.target.value)} 
-                                                        required 
-                                                        className="h-12 text-lg font-medium border-slate-200 shadow-inner"
-                                                    />
-                                                </div>
-                                                <Button size="lg" disabled={isSaving} className="h-12 px-8 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 group-hover:scale-[1.02] transition-all">
-                                                    Update Date
-                                                    <ArrowRight className="ml-2 w-4 h-4" />
-                                                </Button>
-                                            </form>
-                                        </CardContent>
-                                    </Card>
-
-                                    {/* Documents Card */}
-                                    <Card className="border-none shadow-2xl overflow-hidden">
-                                        <div className="h-1.5 w-full bg-purple-600" />
-                                        <CardHeader className="p-8 pb-4">
-                                            <CardTitle className="text-2xl font-bold flex items-center gap-3">
-                                                <ShieldCheck className="w-6 h-6 text-purple-600" />
-                                                Required Documents
-                                            </CardTitle>
-                                            <CardDescription className="text-base">
-                                                Select your files below, then click <strong>Submit Documents</strong> to upload them all at once.
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="p-8 pt-4 space-y-6">
-                                            <div className="grid gap-4 sm:grid-cols-2">
+                                    {activeStep === 2 && (
+                                        <div className="space-y-6">
+                                            <div className="grid gap-4">
                                                 {[
-                                                    { type: "front_picture", label: "Professional Photo", description: "For your digital ID card", uploaded: onboarding?.doc_front_picture_url },
-                                                    { type: "cnic", label: "Government ID (CNIC)", description: "Scan of CNIC or passport", uploaded: onboarding?.doc_id_card_url },
-                                                    { type: "resume", label: "Updated Resume", description: "Latest professional CV", uploaded: onboarding?.doc_resume_url },
-                                                    { type: "degree", label: "Educational Documents", description: "Degree, transcript & certificates", uploaded: onboarding?.doc_educational_documents_url },
-                                                    { type: "police_clearance", label: "Police Clearance", description: "Police clearance certificate", uploaded: onboarding?.doc_police_clearance_url },
-                                                    { type: "experience_letter", label: "Experience Letter", description: "From previous employer", uploaded: onboarding?.doc_experience_letter_url },
-                                                    { type: "salary_slip", label: "Last Salary Slip", description: "Last 3 months required", uploaded: onboarding?.doc_salary_slip_url },
+                                                    { type: "front_picture", label: "Profile Picture *", description: "Recent professional photo", uploaded: onboarding?.doc_front_picture_url },
+                                                    { type: "cnic", label: "CNIC / National ID *", description: "Front & Back (Merged PDF or Image)", uploaded: onboarding?.doc_id_card_url },
+                                                    { type: "resume", label: "Latest Resume *", description: "Updated professional CV", uploaded: onboarding?.doc_resume_url },
+                                                    { type: "degree", label: "Latest Degree / Certificate", description: "Educational qualification proof", uploaded: onboarding?.doc_educational_documents_url },
+                                                    { type: "experience_letter", label: "Experience Letter *", description: "Previous company certificate", uploaded: onboarding?.doc_experience_letter_url },
                                                 ].map(({ type, label, description, uploaded }) => (
-                                                    <div key={type} className="p-4 border rounded-xl bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="flex-1 min-w-0">
-                                                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                                                    {(uploaded || docFiles[type]) ? (
-                                                                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                                                                    ) : (
-                                                                        <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0" />
-                                                                    )}
-                                                                    {label}
-                                                                </h4>
-                                                                <p className="text-xs text-slate-500 mt-0.5">{description}</p>
-                                                                {docFiles[type] && (
-                                                                    <p className="text-xs text-blue-600 mt-1 font-medium truncate">{docFiles[type]!.name}</p>
-                                                                )}
-                                                                {uploaded && !docFiles[type] && (
-                                                                    <p className="text-xs text-green-600 mt-1 font-medium">Already uploaded</p>
-                                                                )}
-                                                            </div>
-                                                            <label className="cursor-pointer shrink-0">
-                                                                <input
-                                                                    type="file"
-                                                                    className="hidden"
-                                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                                                    onChange={(e) => handleFileSelect(type, e.target.files?.[0] || null)}
-                                                                />
-                                                                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
-                                                                    {docFiles[type] ? "Change" : "Select"}
-                                                                </span>
-                                                            </label>
+                                                    <div key={type} className="flex items-center justify-between p-5 border-2 border-dashed border-slate-100 rounded-2xl bg-white hover:border-blue-100 transition-all group">
+                                                        <div className="space-y-1">
+                                                            <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                                                {label}
+                                                                {uploaded && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                                                            </h4>
+                                                            <p className="text-xs text-slate-500">{description}</p>
+                                                            {docFiles[type] && (
+                                                                <p className="text-xs text-blue-600 font-bold truncate max-w-[200px]">{docFiles[type]!.name}</p>
+                                                            )}
                                                         </div>
+                                                        <label className={cn(isLocked ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
+                                                                disabled={isLocked}
+                                                                onChange={(e) => handleFileSelect(type, e.target.files?.[0] || null)}
+                                                            />
+                                                            <div className={cn(
+                                                                "px-6 py-2 rounded-lg font-bold text-sm transition-all shadow-sm",
+                                                                docFiles[type] ? "bg-blue-50 text-blue-600 border border-blue-200" : 
+                                                                isLocked ? "bg-slate-100 text-slate-400 border border-slate-200" :
+                                                                "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                                            )}>
+                                                                {isLocked ? "Locked" : (docFiles[type] ? "Change" : "Upload")}
+                                                            </div>
+                                                        </label>
                                                     </div>
                                                 ))}
                                             </div>
 
-                                            {/* Submit Button */}
-                                            <div className="pt-4 border-t flex items-center justify-between gap-4">
-                                                <p className="text-sm text-slate-500">
-                                                    {Object.values(docFiles).filter(Boolean).length} file(s) selected
-                                                </p>
+                                            <div className="flex justify-end pt-6 border-t mt-8">
                                                 <Button
                                                     size="lg"
                                                     onClick={handleSubmitDocuments}
-                                                    disabled={isSubmittingDocs || !Object.values(docFiles).some(Boolean)}
-                                                    className="px-8 h-12 bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-600/20 transition-all"
+                                                    disabled={isSubmittingDocs || isLocked || !Object.values(docFiles).some(Boolean)}
+                                                    className="px-10 h-12 bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-600/20 rounded-xl font-bold"
                                                 >
-                                                    {isSubmittingDocs ? (
-                                                        <><Clock className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
-                                                    ) : (
-                                                        <><CheckCircle2 className="w-4 h-4 mr-2" /> Submit Documents</>
-                                                    )}
+                                                    {isSubmittingDocs ? "Completing..." : "Save & Finish"}
                                                 </Button>
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            )}
-
-                            {/* Phase 3 & 4: Waiting & Induction */}
-                            {currentStepIndex >= 2 && currentStepIndex <= 3 && (
-                                <div className="space-y-8">
-                                    <div className="bg-blue-50 border border-blue-100 p-8 rounded-3xl flex items-start gap-4">
-                                        <div className="p-3 bg-blue-600 rounded-2xl text-white">
-                                            <Sparkles className="w-6 h-6" />
                                         </div>
-                                        <div className="space-y-1">
-                                            <h3 className="text-xl font-bold text-slate-900">Verification in Progress</h3>
-                                            <p className="text-slate-600 leading-relaxed">
-                                                HR and IT are currently reviewing your documents and setting up your workspace. 
-                                                Check the trackers below for real-time updates.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <InductionTracker onboarding={onboarding!} />
-                                </div>
-                            )}
+                                    )}
 
-                            {/* Phase 5: Completed */}
-                            {currentStepIndex >= 4 && (
-                                <Card className="border-none shadow-2xl p-12 text-center space-y-6 bg-gradient-to-tr from-green-50 to-emerald-50">
-                                    <div className="mx-auto w-24 h-24 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-green-500/20 animate-bounce">
-                                        <CheckCircle2 className="w-12 h-12" />
-                                    </div>
-                                    <div className="space-y-4">
-                                        <h2 className="text-4xl font-black text-slate-900 tracking-tight">You're All Set!</h2>
-                                        <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto">
-                                            Everything is ready for your first day. We're incredibly excited to have you join the team.
-                                        </p>
-                                    </div>
-                                    <Button size="lg" className="rounded-full px-12 h-14 bg-slate-900 hover:bg-slate-800 text-lg font-bold">
-                                        Go to Success Portal
-                                        <ArrowRight className="ml-2 w-5 h-5" />
-                                    </Button>
-                                </Card>
-                            )}
-                        </div>
-                    </div>
-                </motion.div>
-            </AnimatePresence>
+                                    {activeStep === 3 && (
+                                        <div className="py-12 text-center space-y-8">
+                                            <div className="mx-auto w-24 h-24 bg-green-500 rounded-full flex items-center justify-center text-white shadow-2xl shadow-green-500/20">
+                                                <CheckCircle2 className="w-12 h-12" />
+                                            </div>
+                                            <div className="space-y-4">
+                                                <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                                                    {onboarding?.status === "COMPLETED" ? "You're All Set!" : "Verification in Progress"}
+                                                </h2>
+                                                <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto">
+                                                    {onboarding?.status === "COMPLETED" 
+                                                        ? "Everything is ready for your first day. We're incredibly excited to have you join the team."
+                                                        : "HR and IT are currently reviewing your documents and setting up your workspace."}
+                                                </p>
+                                            </div>
+                                            
+                                            {onboarding?.status !== "COMPLETED" && (
+                                                <div className="mt-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100/50 flex items-center gap-4 max-w-lg mx-auto">
+                                                    <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
+                                                        <FileText className="w-6 h-6" />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <h4 className="font-bold text-slate-900">Documents Submitted</h4>
+                                                        <p className="text-sm text-slate-500">Your documents are safe with us and currently under review by the HR team.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {onboarding?.status === "COMPLETED" && (
+                                                <p className="text-sm text-slate-400 italic">Thank you for completing your onboarding!</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            </div>
         </div>
     );
 }
-
-// Icons
-function Building2Icon() { return <Building2 className="w-4 h-4 text-blue-600" />; }
-function ClockIcon() { return <Clock className="w-4 h-4 text-blue-600" />; }
-function Building2({ className }: { className?: string }) { return <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>; }
 
 export default function CandidateOnboardingPage() {
     return (

@@ -75,6 +75,12 @@ class OnboardingService:
                     "reporting_time": o.reporting_time,
                     "office_location": o.office_location,
                     "shift_timing": o.shift_timing,
+                    "cnic_number": o.cnic_number,
+                    "phone_number": o.phone_number,
+                    "current_address": o.current_address,
+                    "emergency_contact": o.emergency_contact,
+                    "bank_name": o.bank_name,
+                    "bank_iban": o.bank_iban,
                     "doc_front_picture_url": o.doc_front_picture_url,
                     "doc_id_card_url": o.doc_id_card_url,
                     "doc_salary_slip_url": o.doc_salary_slip_url,
@@ -223,7 +229,16 @@ class OnboardingService:
             
         await self._check_auth(onboarding, current_user, token)
 
-        onboarding.joining_date = data.joining_date
+        if data.joining_date is not None:
+            onboarding.joining_date = data.joining_date
+        
+        # Update personal info
+        if data.cnic_number is not None: onboarding.cnic_number = data.cnic_number
+        if data.phone_number is not None: onboarding.phone_number = data.phone_number
+        if data.current_address is not None: onboarding.current_address = data.current_address
+        if data.emergency_contact is not None: onboarding.emergency_contact = data.emergency_contact
+        if data.bank_name is not None: onboarding.bank_name = data.bank_name
+        if data.bank_iban is not None: onboarding.bank_iban = data.bank_iban
         
         # Advance status
         if onboarding.status == OnboardingStatus.PENDING_CANDIDATE_JOINING:
@@ -486,3 +501,22 @@ class OnboardingService:
         )
         
         return success
+
+    async def mark_completed(self, application_id: int, current_user: User | None, token: str | None = None) -> Onboarding:
+        onboarding = await self.get_by_application(application_id)
+        if not onboarding:
+            raise HTTPException(status_code=404, detail="Onboarding record not found")
+            
+        await self._check_auth(onboarding, current_user, token)
+        
+        onboarding.status = OnboardingStatus.COMPLETED
+        
+        # Also update application status
+        app_result = await self.db.execute(select(Application).where(Application.id == application_id))
+        app = app_result.scalars().first()
+        if app:
+            app.status = ApplicationStatus.HIRED
+            
+        await self.db.commit()
+        await self.db.refresh(onboarding)
+        return onboarding
