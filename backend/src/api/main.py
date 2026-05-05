@@ -15,6 +15,9 @@ from src.api.routes import (
     onboarding,
     uploads,
     langgraph,
+    indeed,
+    applications,
+    interviews,
 )
 from src.api.routes.admin import (
     users as admin_users,
