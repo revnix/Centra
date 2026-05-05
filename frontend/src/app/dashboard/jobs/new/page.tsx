@@ -222,7 +222,7 @@ export default function CreateJobPage() {
 
     // Forms
     const form1 = useForm<Step1Data>({
-        resolver: zodResolver(jobBasicSchema),
+        resolver: zodResolver(jobBasicSchema) as any,
         defaultValues: {
             title: "",
             department: "",
@@ -243,7 +243,7 @@ export default function CreateJobPage() {
     });
 
     const form2 = useForm<Step2Data>({
-        resolver: zodResolver(aiConfigSchema),
+        resolver: zodResolver(aiConfigSchema) as any,
         defaultValues: {
             requiredSkills: "",
             experienceLevel: "mid",
