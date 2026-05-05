@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
     Job,
+    JobStatus,
     JobIntent,
     AIJobDraft,
     PaginatedResponse,

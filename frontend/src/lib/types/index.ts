@@ -96,6 +96,7 @@ export interface Job {
   company_size?: string;
   company_website?: string;
   manager_feedback?: string;
+  preferred_qualifications?: string[];
 }
 
 export interface JobIntent {

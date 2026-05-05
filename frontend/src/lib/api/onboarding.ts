@@ -7,7 +7,7 @@ const BACKEND_BASE = (() => {
     if (apiBase) {
         return apiBase.replace(/\/api\/v[0-9]+$/, '');
     }
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8125';
+    return process.env.NEXT_PUBLIC_BACKEND_URL || '';
 })();
 
 export interface OnboardingResponse {

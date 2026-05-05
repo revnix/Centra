@@ -224,7 +224,7 @@ export default function GeneratedJobsPage() {
                                                     variant="outline" 
                                                     className="bg-orange-50 text-orange-700 border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
                                                     onClick={() => {
-                                                        setFeedbackToShow(job.manager_feedback);
+                                                        setFeedbackToShow(job.manager_feedback || "");
                                                         setShowFeedbackDialog(true);
                                                     }}
                                                 >
