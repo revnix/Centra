@@ -36,8 +36,11 @@ def _get_alembic_url() -> str:
     Strip sslmode/channel_binding query params — those are passed via connect_args.
     """
     url = settings.DATABASE_URL
-    # Ensure the async driver prefix is used
-    url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # Ensure the async driver prefix is used (handles both postgres:// and postgresql://)
+    if url.startswith("postgres://"):
+        url = "postgresql+asyncpg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
     # Strip query params that asyncpg doesn't accept in the URL itself
     if "?" in url:
         url = url.split("?")[0]
