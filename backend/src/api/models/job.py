@@ -65,8 +65,8 @@ class Posts(Base):
     location_type = Column(String(50), nullable=True, comment="on_site, remote, hybrid")
     
     # Job Details
-    job_type = Column(SQLEnum(JobType), nullable=False, default=JobType.FULL_TIME, comment="Type of employment")
-    experience_level = Column(SQLEnum(ExperienceLevel), nullable=True, comment="Required experience level")
+    job_type = Column(SQLEnum(JobType, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobType.FULL_TIME, comment="Type of employment")
+    experience_level = Column(SQLEnum(ExperienceLevel, values_callable=lambda x: [e.value for e in x]), nullable=True, comment="Required experience level")
     department = Column(String(200), nullable=True, comment="Department or team")
     
     # Compensation
@@ -89,7 +89,7 @@ class Posts(Base):
     benefits = Column(JSON, nullable=True, comment="Job benefits")
     
     # Status and Publishing
-    status = Column(SQLEnum(JobStatus), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
+    status = Column(SQLEnum(JobStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
     published_at = Column(DateTime(timezone=True), nullable=True, comment="When the job was first published")
     expires_at = Column(DateTime(timezone=True), nullable=True, comment="When the job listing expires")
     
