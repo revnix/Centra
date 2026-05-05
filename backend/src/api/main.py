@@ -12,11 +12,9 @@ from src.api.routes import (
     jobs,
     integrations,
     candidates,
-    applications,
-    interviews,
-    indeed,
     onboarding,
     uploads,
+    langgraph,
 )
 from src.api.routes.admin import (
     users as admin_users,
@@ -115,6 +113,8 @@ app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applic
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboarding", tags=["onboarding"])
 app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
+app.include_router(langgraph.router, tags=["langgraph"])
+
 
 
 @app.get("/health")
