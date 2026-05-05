@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
     
+    print(f"DEBUG: CORS ALLOWED_ORIGINS = {settings.ALLOWED_ORIGINS}")
     print("DEBUG: Application lifespan started and directories verified")
     yield
     # Shutdown

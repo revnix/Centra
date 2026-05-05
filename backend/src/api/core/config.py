@@ -42,6 +42,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "http://172.22.112.1:3000",  # Network IP for frontend
         "http://172.22.112.1:8123",  # Network IP for backend
+        "https://evalyn-omega.vercel.app",
     ]
 
     # Social Media API Endpoints
