@@ -22,34 +22,25 @@ class FileService:
         if ext not in ALLOWED_EXTENSIONS:
             raise ValueError(f"File type '{ext}' not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
 
-        # Create application-specific directory
-        # e.g., uploads/onboarding/28/
-        upload_dir = os.path.join(settings.UPLOAD_DIR, "onboarding", str(application_id))
-        
-        # Async-safe directory creation
-        await run_in_threadpool(os.makedirs, upload_dir, exist_ok=True)
-
         # Generate safe unique filename
-        # e.g., cnic_8f3a1b2c_my_id.pdf
         safe_filename = file.filename.replace(" ", "_")
         unique_name = f"{document_type}_{uuid.uuid4().hex[:8]}_{safe_filename}"
-        file_path = os.path.join(upload_dir, unique_name)
+
 
         # Read content
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
             raise ValueError(f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB")
 
-        # Async-safe file write
-        def save_file(path, data):
-            with open(path, "wb") as f:
-                f.write(data)
-        
-        await run_in_threadpool(save_file, file_path, content)
+        # Upload to Cloudinary
+        from src.api.utils.cloudinary_upload import upload_file
+        secure_url = await upload_file(
+            content,
+            unique_name,
+            folder=f"evalyn/onboarding/{application_id}"
+        )
 
-        # Return relative URL
-        # e.g., /uploads/onboarding/28/cnic_...pdf
-        return f"/uploads/onboarding/{application_id}/{unique_name}"
+        return secure_url
 
     @staticmethod
     def get_full_path(relative_url: str) -> str:

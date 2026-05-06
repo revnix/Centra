@@ -58,21 +58,13 @@ async def guest_apply(
     # 1. Handle Resume Upload
     resume_url = None
     if resume_file:
-        file_ext = os.path.splitext(resume_file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join(settings.UPLOAD_DIR, "resumes", unique_filename)
-        
-        # Write file to disk
-        from starlette.concurrency import run_in_threadpool
+        from src.api.utils.cloudinary_upload import upload_file
         content = await resume_file.read()
-        
-        def save_resume(path, data):
-            with open(path, "wb") as buffer:
-                buffer.write(data)
-                
-        await run_in_threadpool(save_resume, file_path, content)
-        
-        resume_url = f"/uploads/resumes/{unique_filename}"
+        resume_url = await upload_file(
+            content, 
+            resume_file.filename, 
+            folder=f"evalyn/resumes/{email}"
+        )
     
     # Parse skills from JSON string
     try:
