@@ -44,7 +44,7 @@ class Application(Base):
     qualification = Column(String(200), nullable=True, comment="Highest qualification")
     
     # Salary
-    expected_salary = Column(String(100), nullable=True, comment="Candidate's expected salary")
+    expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
     salary_filter_status = Column(String(50), nullable=True, comment="within_budget | above_budget | not_checked")
 
     # Email Delivery Status
