@@ -23,10 +23,8 @@ def _evaluate_salary(expected_salary: Any, job_max_salary: Any) -> str:
     """
     if expected_salary is None or job_max_salary is None:
         return "not_checked"
-    try:
-        return "above_budget" if float(expected_salary) > float(job_max_salary) else "within_budget"
-    except (ValueError, TypeError):
-        return "not_checked"
+    
+    return "above_budget" if float(expected_salary) > float(job_max_salary) else "within_budget"
 
 
 class ScreeningService:
