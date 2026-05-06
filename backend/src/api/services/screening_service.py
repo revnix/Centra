@@ -11,18 +11,22 @@ from langchain_core.messages import HumanMessage
 from datetime import datetime, timezone, timedelta
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _evaluate_salary(expected_salary: float | None, job_max_salary: int | None) -> str:
+def _evaluate_salary(expected_salary: Any, job_max_salary: Any) -> str:
     """
     Compare candidate's expected salary against the job budget.
     Returns: 'within_budget' | 'above_budget' | 'not_checked'
     """
     if expected_salary is None or job_max_salary is None:
         return "not_checked"
-    return "above_budget" if expected_salary > job_max_salary else "within_budget"
+    try:
+        return "above_budget" if float(expected_salary) > float(job_max_salary) else "within_budget"
+    except (ValueError, TypeError):
+        return "not_checked"
 
 
 class ScreeningService:
@@ -111,7 +115,7 @@ class ScreeningService:
                     application.email_delivery_status = "SKIPPED"
                     application.email_logs = (
                         f"Salary out of range — candidate expected "
-                        f"{application.expected_salary:,.0f}, job budget max: {job.salary_max:,.0f}."
+                        f"{float(application.expected_salary or 0):,.0f}, job budget max: {float(job.salary_max or 0):,.0f}."
                     )
                     self.db.add(application)
                     await self.db.commit()
