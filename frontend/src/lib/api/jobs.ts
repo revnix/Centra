@@ -180,5 +180,12 @@ export const jobsApi = {
     ): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/review`, data);
     },
+
+    /**
+     * Get dashboard statistics
+     */
+    getStats: async (): Promise<{ total_jobs: number; pending_actions: number }> => {
+        return apiClient.get<{ total_jobs: number; pending_actions: number }>('/jobs/stats/dashboard');
+    },
 };
 

@@ -26,6 +26,15 @@ async def get_jobs_stats(
     count = await job_service.get_total_jobs_count()
     return {"total_jobs": count}
 
+@router.get("/stats/dashboard")
+async def get_dashboard_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Returns dashboard statistics including pending actions"""
+    job_service = JobService(db)
+    return await job_service.get_dashboard_stats(user_id=current_user.id)
+
 from src.api.models.job import JobStatus
 
 @router.get("/public", response_model=List[JobResponse])

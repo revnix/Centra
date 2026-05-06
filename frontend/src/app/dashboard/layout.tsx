@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useUIStore } from '@/lib/stores/uiStore';
+import { useDashboardStats } from '@/lib/hooks/useJobs';
 import {
     Briefcase,
     Menu,
@@ -32,12 +33,8 @@ export default function DashboardLayout({
     const router = useRouter();
     const pathname = usePathname();
     const { isSidebarOpen, toggleSidebar } = useUIStore();
-    const [pendingActions, setPendingActions] = useState(0);
-
-    useEffect(() => {
-        // TODO: Fetch pending action count from API
-        setPendingActions(3);
-    }, []);
+    const { data: stats } = useDashboardStats();
+    const pendingActions = stats?.pending_actions || 0;
 
     const handleLogout = () => {
         if (typeof window !== 'undefined') {
