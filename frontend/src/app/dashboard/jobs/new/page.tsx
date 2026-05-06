@@ -952,7 +952,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                     ) : null}
 
                     {/* Error State */}
-                    {jobGeneration.error && (
+                    {jobGeneration.error && !jobGeneration.generatedPost && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
                             <AlertTitle>Error</AlertTitle>

@@ -36,7 +36,7 @@ async def stream_run(thread_id: str, request: Request):
     """
     try:
         body = await request.json()
-        input_data = body.get("input", {})
+        input_data = body.get("input") or {}
         config = body.get("config", {})
         
         # Merge thread_id into config
@@ -48,11 +48,13 @@ async def stream_run(thread_id: str, request: Request):
                 # We use graph.astream to get events
                 async for event in graph.astream(input_data, config=config, stream_mode="values"):
                     # Protocol: event: <event_name>\ndata: <json>\n\n
-                    yield f"event: values\ndata: {json.dumps(event)}\n\n"
+                    yield f"event: values\ndata: {json.dumps(event, default=str)}\n\n"
                 
                 # Signal completion
                 yield "event: end\ndata: {}\n\n"
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
