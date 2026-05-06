@@ -62,13 +62,6 @@ export interface UploadResponse {
     size: number;
 }
 
-/** Convert a relative /uploads/... URL to a full backend URL for viewing */
-export function getDocumentViewUrl(relativeUrl: string | undefined): string | null {
-    if (!relativeUrl) return null;
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    return `${BACKEND_BASE}${relativeUrl}`;
-}
-
 export const onboardingApi = {
     getAll: () => apiClient.get<OnboardingResponse[]>('/onboarding'),
     get: (applicationId: number, token?: string | null) => 
