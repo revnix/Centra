@@ -36,7 +36,7 @@ export default function PortalLayout({
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-20 items-center">
                         <div className="flex items-center gap-4">
-                            <Link href="/portal/dashboard" className="flex items-center gap-2 group">
+                            <Link href="/portal/status" className="flex items-center gap-2 group">
                                 <div className="p-2.5 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform">
                                     <Sparkles className="h-6 w-6 text-white" />
                                 </div>

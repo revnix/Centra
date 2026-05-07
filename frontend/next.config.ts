@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: "/portal/status",
-        destination: "/portal/dashboard",
+        source: "/portal/dashboard",
+        destination: "/portal/status",
         permanent: true,
       },
       {

@@ -27,7 +27,7 @@ import { motion } from 'framer-motion';
  * Shows real-time application progress
  */
 
-export default function PortalDashboardPage() {
+export default function PortalStatusPage() {
     const [applications, setApplications] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 

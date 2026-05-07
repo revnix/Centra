@@ -92,7 +92,7 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
             localStorage.removeItem(`interview_timer_${token}`);
             setIsSubmitted(true);
             setTimeout(() => {
-                router.push("/portal/dashboard");
+                router.push("/portal/status");
             }, 3000);
         } catch (error) {
             console.error(error);
@@ -125,7 +125,7 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
                     </div>
                     <h2 className="text-2xl font-bold">Assessment Complete!</h2>
                     <p className="text-muted-foreground">Thank you. We will contact you shortly.</p>
-                    <p className="text-xs text-muted-foreground animate-pulse pt-4">Redirecting you to dashboard...</p>
+                    <p className="text-xs text-muted-foreground animate-pulse pt-4">Redirecting you to status page...</p>
                 </motion.div>
             </div>
         );
