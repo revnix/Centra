@@ -56,9 +56,9 @@ export default function LoginPage() {
             // Redirect based on role
             // Use safe navigation
             if (role === "ADMIN" || role === "REVIEWER") {
-                window.location.href = "/dashboard/jobs";
+                window.location.href = "/dashboard/applications";
             } else {
-                window.location.href = "/portal/status";
+                window.location.href = "/portal/dashboard";
             }
         } catch (err: any) {
             console.error("Login error object:", err);

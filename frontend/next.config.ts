@@ -3,6 +3,20 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   /* TypeScript and ESLint errors are not ignored to ensure production quality */
+  async redirects() {
+    return [
+      {
+        source: "/portal/status",
+        destination: "/portal/dashboard",
+        permanent: true,
+      },
+      {
+        source: "/jobs",
+        destination: "/login",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     

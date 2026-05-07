@@ -46,7 +46,7 @@ export default function InterviewPage({ params }: { params: Promise<{ token: str
             {/* Top Nav (Mobile/Desktop) */}
             <header className="h-14 bg-white dark:bg-slate-900 border-b border-border flex items-center px-4 justify-between shrink-0 z-10">
                 <div className="flex items-center gap-4">
-                    <Link href={`/portal/jobs`}>
+                    <Link href={`/portal/dashboard`}>
                         {/* Changed back link to generic jobs since guest might not have direct job link access easily without persistent state */}
                         <Button variant="ghost" size="sm" className="gap-2">
                             <ChevronLeft className="w-4 h-4" /> Exit

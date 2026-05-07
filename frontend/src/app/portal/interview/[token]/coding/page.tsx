@@ -92,7 +92,7 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
             localStorage.removeItem(`interview_timer_${token}`);
             setIsSubmitted(true);
             setTimeout(() => {
-                router.push("/portal/jobs");
+                router.push("/portal/dashboard");
             }, 3000);
         } catch (error) {
             console.error(error);
@@ -123,9 +123,9 @@ export default function CodingPage({ params }: { params: Promise<{ token: string
                     <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
                         <CheckCircle className="w-8 h-8" />
                     </div>
-                    <h2 className="text-2xl font-bold">Heads up!</h2>
+                    <h2 className="text-2xl font-bold">Assessment Complete!</h2>
                     <p className="text-muted-foreground">Thank you. We will contact you shortly.</p>
-                    <p className="text-xs text-muted-foreground animate-pulse pt-4">Redirecting you to jobs...</p>
+                    <p className="text-xs text-muted-foreground animate-pulse pt-4">Redirecting you to dashboard...</p>
                 </motion.div>
             </div>
         );

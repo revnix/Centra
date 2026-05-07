@@ -48,8 +48,8 @@ export default function DashboardLayout({
     };
 
     const navigation = [
-        { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
         { name: 'Applications', href: '/dashboard/applications', icon: Users },
+        { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
         { name: 'Generated Jobs', href: '/dashboard/generated-jobs', icon: Sparkles },
         { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
         { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },

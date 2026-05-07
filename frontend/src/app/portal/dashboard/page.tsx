@@ -27,7 +27,7 @@ import { motion } from 'framer-motion';
  * Shows real-time application progress
  */
 
-export default function PortalStatusPage() {
+export default function PortalDashboardPage() {
     const [applications, setApplications] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -77,13 +77,10 @@ export default function PortalStatusPage() {
                     <div className="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
                         <FileText className="h-8 w-8 text-slate-400" />
                     </div>
-                    <CardTitle className="text-2xl font-bold">No Applications Yet</CardTitle>
+                    <CardTitle className="text-2xl font-bold">Welcome to Your Portal</CardTitle>
                     <CardDescription className="max-w-xs mx-auto mt-2">
-                        You haven't applied to any positions yet. Browse our job board to find your next role.
+                        You haven't been assigned any applications yet. Please check back later or contact your recruiter.
                     </CardDescription>
-                    <Button asChild className="mt-6 bg-blue-600 hover:bg-blue-700 text-white">
-                        <Link href="/jobs">Browse Jobs</Link>
-                    </Button>
                 </CardContent>
             </Card>
         );
@@ -97,13 +94,8 @@ export default function PortalStatusPage() {
                 className="flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
                 <div>
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Your Journey</h1>
+                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Your Dashboard</h1>
                     <p className="text-slate-500 mt-2 text-lg">Track your application status and next steps.</p>
-                </div>
-                <div className="flex gap-3">
-                    <Button variant="outline" asChild>
-                        <Link href="/jobs" className="gap-2">Browse More Jobs <ExternalLink className="w-4 h-4" /></Link>
-                    </Button>
                 </div>
             </motion.div>
 
