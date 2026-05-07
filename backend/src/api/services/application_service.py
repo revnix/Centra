@@ -37,7 +37,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=expected_salary,
+            expected_salary=str(expected_salary) if expected_salary is not None else None,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )

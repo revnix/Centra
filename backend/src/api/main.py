@@ -12,11 +12,12 @@ from src.api.routes import (
     jobs,
     integrations,
     candidates,
-    applications,
-    interviews,
-    indeed,
     onboarding,
     uploads,
+    langgraph,
+    indeed,
+    applications,
+    interviews,
 )
 from src.api.routes.admin import (
     users as admin_users,
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
     
+    print(f"DEBUG: CORS ALLOWED_ORIGINS = {settings.ALLOWED_ORIGINS}")
     print("DEBUG: Application lifespan started and directories verified")
     yield
     # Shutdown
@@ -87,10 +89,10 @@ os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # CORS — allow all origins in dev to prevent browser "Network Error"
-# CORS — allow all origins in dev to prevent browser "Network Error"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -114,6 +116,8 @@ app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applic
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboarding", tags=["onboarding"])
 app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
+app.include_router(langgraph.router, tags=["langgraph"])
+
 
 
 @app.get("/health")

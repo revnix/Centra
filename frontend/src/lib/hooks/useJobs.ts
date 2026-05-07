@@ -174,3 +174,14 @@ export function useReviewJob() {
         },
     });
 }
+
+/**
+ * Fetch dashboard statistics
+ */
+export function useDashboardStats() {
+    return useQuery({
+        queryKey: [...jobKeys.all, 'stats', 'dashboard'],
+        queryFn: () => jobsApi.getStats(),
+        staleTime: 60000, // 1 minute
+    });
+}

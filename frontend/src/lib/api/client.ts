@@ -7,6 +7,28 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1';
 
+/**
+ * The backend base URL (FastAPI) — used to resolve relative /uploads/... URLs.
+ * NEXT_PUBLIC_API_BASE_URL already includes /api/v1, so strip that suffix.
+ */
+export const BACKEND_BASE_URL = (() => {
+    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+        return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/api\/v[0-9]+$/, '');
+    }
+    return process.env.NEXT_PUBLIC_BACKEND_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run';
+})();
+
+/**
+ * Resolves a relative URL (like /uploads/...) to a full backend URL.
+ * Used for resumes, profile pictures, and recordings.
+ */
+export function resolveUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/uploads')) return `${BACKEND_BASE_URL}${url}`;
+    return url;
+}
+
 class ApiClient {
     private client: AxiosInstance;
 

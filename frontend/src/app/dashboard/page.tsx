@@ -2,11 +2,22 @@
 
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, Briefcase, FileText, ArrowRight, Zap, ClipboardCheck } from "lucide-react";
+import { Users, Briefcase, FileText, ArrowRight, Zap, ClipboardCheck, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useDashboardStats } from "@/lib/hooks/useJobs";
 
 export default function DashboardPage() {
+    const { data: stats, isLoading } = useDashboardStats();
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -45,51 +56,33 @@ export default function DashboardPage() {
                         <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-emerald-500">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">
-                                    Active Jobs
+                                    Total Jobs
                                 </CardTitle>
                                 <Briefcase className="h-4 w-4 text-emerald-500" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">3</div>
+                                <div className="text-2xl font-bold">{stats?.total_jobs || 0}</div>
                                 <p className="text-xs text-muted-foreground">
-                                    1 draft pending review
+                                    Current active positions
                                 </p>
                             </CardContent>
                         </Card>
                     </motion.div>
                 </Link>
 
-                <Link href="/dashboard/generated-jobs">
+                <Link href="/dashboard/jobs">
                     <motion.div whileHover={{ y: -5 }} transition={{ type: "spring", stiffness: 300 }}>
                         <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-amber-500">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">
-                                    AI Drafts
+                                    Pending Actions
                                 </CardTitle>
                                 <Zap className="h-4 w-4 text-amber-500" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">5</div>
+                                <div className="text-2xl font-bold">{stats?.pending_actions || 0}</div>
                                 <p className="text-xs text-muted-foreground">
-                                    Ready for review
-                                </p>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                </Link>
-                <Link href="/dashboard/onboarding">
-                    <motion.div whileHover={{ y: -5 }} transition={{ type: "spring", stiffness: 300 }}>
-                        <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-purple-500">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">
-                                    Active Onboardings
-                                </CardTitle>
-                                <ClipboardCheck className="h-4 w-4 text-purple-500" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">4</div>
-                                <p className="text-xs text-muted-foreground">
-                                    2 ready for induction
+                                    Jobs needing review
                                 </p>
                             </CardContent>
                         </Card>
@@ -137,15 +130,15 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <Link href="/dashboard/jobs/new">
-                            <Button className="w-full justify-between" variant="outline">
+                            <Button className="w-full justify-between" variant="outline" size="lg">
                                 <span className="flex items-center gap-2">
                                     <Briefcase className="w-4 h-4" /> Post New Job
                                 </span>
                                 <ArrowRight className="w-4 h-4" />
                             </Button>
                         </Link>
-                        <Link href="/dashboard/generated-jobs">
-                            <Button className="w-full justify-between" variant="outline">
+                        <Link href="/dashboard/jobs/new">
+                            <Button className="w-full justify-between" variant="outline" size="lg">
                                 <span className="flex items-center gap-2">
                                     <Zap className="w-4 h-4" /> Generate with AI
                                 </span>

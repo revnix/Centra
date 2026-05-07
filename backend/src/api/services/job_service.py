@@ -154,6 +154,28 @@ class JobService:
         result = await self.db.execute(select(func.count()).select_from(Posts))
         return result.scalar()
 
+    async def get_dashboard_stats(self, user_id: int):
+        from sqlalchemy import func
+        from src.api.models.job import JobStatus
+        
+        # Total jobs for this user
+        total_query = select(func.count()).select_from(Posts).where(Posts.created_by == user_id)
+        total_result = await self.db.execute(total_query)
+        total_jobs = total_result.scalar()
+        
+        # Pending actions: DRAFT or CHANGES_REQUESTED
+        pending_query = select(func.count()).select_from(Posts).where(
+            Posts.created_by == user_id,
+            Posts.status.in_([JobStatus.DRAFT, JobStatus.CHANGES_REQUESTED])
+        )
+        pending_result = await self.db.execute(pending_query)
+        pending_actions = pending_result.scalar()
+        
+        return {
+            "total_jobs": total_jobs,
+            "pending_actions": pending_actions
+        }
+
     async def publish_job(self, job_id: int, user_id: int):
         from src.api.models.job import JobStatus
         from datetime import datetime, timezone

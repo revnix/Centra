@@ -38,11 +38,11 @@ class ApplicationResponse(ApplicationBase):
     id: int
     candidate_id: int
     status: ApplicationStatus
-    source: str
+    source: Optional[str] = None
     match_score: Optional[float] = None
     expected_salary: Optional[float] = None
     salary_filter_status: Optional[str] = None
-    email_delivery_status: Optional[str] = "PENDING"
+    email_delivery_status: Optional[str] = None
     email_logs: Optional[str] = None
     city: Optional[str] = None
     qualification: Optional[str] = None

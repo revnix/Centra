@@ -30,3 +30,4 @@ python-dotenv>=1.0.0
 instagrapi
 requests
 resend
+cloudinary

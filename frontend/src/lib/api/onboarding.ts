@@ -1,13 +1,10 @@
-import { apiClient } from './client';
+import { apiClient, resolveUrl } from './client';
 
-const BACKEND_BASE = (() => {
-    const langgraphUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL;
-    if (langgraphUrl) {
-        // Remove /api/v1 or /api/v2 if present to get the base host
-        return langgraphUrl.replace(/\/api\/v[0-9]+$/, '');
-    }
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8125';
-})();
+/** Convert a relative /uploads/... URL to a full backend URL for viewing */
+export function getDocumentViewUrl(relativeUrl: string | undefined): string | null {
+    if (!relativeUrl) return null;
+    return resolveUrl(relativeUrl);
+}
 
 export interface OnboardingResponse {
     id: number;
@@ -63,13 +60,6 @@ export interface UploadResponse {
     url: string;
     filename: string;
     size: number;
-}
-
-/** Convert a relative /uploads/... URL to a full backend URL for viewing */
-export function getDocumentViewUrl(relativeUrl: string | undefined): string | null {
-    if (!relativeUrl) return null;
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    return `${BACKEND_BASE}${relativeUrl}`;
 }
 
 export const onboardingApi = {

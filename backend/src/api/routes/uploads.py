@@ -36,28 +36,19 @@ async def upload_onboarding_document(
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
         )
     
-    # Create onboarding uploads directory
-    upload_dir = os.path.join(settings.UPLOAD_DIR, "onboarding")
-    from starlette.concurrency import run_in_threadpool
-    await run_in_threadpool(os.makedirs, upload_dir, exist_ok=True)
     
     # Generate unique filename to avoid collisions
     unique_name = f"{current_user.id}_{uuid.uuid4().hex[:8]}_{file.filename}"
     # Sanitize filename
     unique_name = unique_name.replace(" ", "_")
     
-    file_path = os.path.join(upload_dir, unique_name)
-    
-    # Write file to disk
-    def save_file(path, data):
-        with open(path, "wb") as f:
-            f.write(data)
-            
-    await run_in_threadpool(save_file, file_path, content)
-    
-    # Return the URL that can be used to access this file
-    # The /uploads path is served by StaticFiles in main.py
-    file_url = f"/uploads/onboarding/{unique_name}"
+    # Upload to Cloudinary
+    from src.api.utils.cloudinary_upload import upload_file
+    file_url = await upload_file(
+        content,
+        unique_name,
+        folder="evalyn/onboarding/manual"
+    )
     
     return {
         "url": file_url,

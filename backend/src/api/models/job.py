@@ -1,22 +1,22 @@
 # src/api/models/job.py
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Enum as SQLEnum, JSON
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
 import enum
-from sqlalchemy.dialects.postgresql import ARRAY, JSON
+from sqlalchemy.dialects.postgresql import JSON
 
 
 class JobType(str, enum.Enum):
     """Job type enumeration"""
-    FULL_TIME = "FULL_TIME"
-    PART_TIME = "PART_TIME"
-    CONTRACT = "CONTRACT"
-    TEMPORARY = "TEMPORARY"
-    INTERNSHIP = "INTERNSHIP"
-    VOLUNTEER = "VOLUNTEER"
-    FREELANCE = "FREELANCE"
+    FULL_TIME = "full_time"
+    PART_TIME = "part_time"
+    CONTRACT = "contract"
+    TEMPORARY = "temporary"
+    INTERNSHIP = "internship"
+    VOLUNTEER = "volunteer"
+    FREELANCE = "freelance"
 
 
 class JobStatus(str, enum.Enum):
@@ -32,15 +32,15 @@ class JobStatus(str, enum.Enum):
 
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
-    ENTRY_LEVEL = "ENTRY_LEVEL"
-    JUNIOR = "JUNIOR"
-    ASSOCIATE = "ASSOCIATE"
-    MID = "MID"
-    MID_SENIOR = "MID_SENIOR"
-    SENIOR = "SENIOR"
-    LEAD = "LEAD"
-    DIRECTOR = "DIRECTOR"
-    EXECUTIVE = "EXECUTIVE"
+    ENTRY_LEVEL = "entry_level"
+    JUNIOR = "junior"
+    ASSOCIATE = "associate"
+    MID = "mid"
+    MID_SENIOR = "mid_senior"
+    SENIOR = "senior"
+    LEAD = "lead"
+    DIRECTOR = "director"
+    EXECUTIVE = "executive"
 
 
 class Posts(Base):
@@ -65,8 +65,8 @@ class Posts(Base):
     location_type = Column(String(50), nullable=True, comment="on_site, remote, hybrid")
     
     # Job Details
-    job_type = Column(SQLEnum(JobType), nullable=False, default=JobType.FULL_TIME, comment="Type of employment")
-    experience_level = Column(SQLEnum(ExperienceLevel), nullable=True, comment="Required experience level")
+    job_type = Column(SQLEnum(JobType, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobType.FULL_TIME, comment="Type of employment")
+    experience_level = Column(SQLEnum(ExperienceLevel, values_callable=lambda x: [e.value for e in x]), nullable=True, comment="Required experience level")
     department = Column(String(200), nullable=True, comment="Department or team")
     
     # Compensation
@@ -82,14 +82,14 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-    required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
-    preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
-    requirements = Column(ARRAY(String), nullable=True, comment="Mandatory requirements/qualifications")
-    preferred_qualifications = Column(ARRAY(String), nullable=True, comment="Preferred qualifications")
-    benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
+    required_skills = Column(JSON, nullable=True, comment="Required skills")
+    preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
+    requirements = Column(JSON, nullable=True, comment="Mandatory requirements/qualifications")
+    preferred_qualifications = Column(JSON, nullable=True, comment="Preferred qualifications")
+    benefits = Column(JSON, nullable=True, comment="Job benefits")
     
     # Status and Publishing
-    status = Column(SQLEnum(JobStatus), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
+    status = Column(SQLEnum(JobStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
     published_at = Column(DateTime(timezone=True), nullable=True, comment="When the job was first published")
     expires_at = Column(DateTime(timezone=True), nullable=True, comment="When the job listing expires")
     
@@ -102,7 +102,7 @@ class Posts(Base):
     slug = Column(String(500), nullable=True, unique=True, index=True, comment="URL-friendly slug")
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
-    tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
+    tags = Column(JSON, nullable=True, comment="Tags for categorization")
     
     manager_feedback = Column(Text, nullable=True, comment="Feedback from Operation Manager")
     

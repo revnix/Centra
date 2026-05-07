@@ -32,30 +32,24 @@ async def upload_recording(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Create directory if it doesn't exist
-    recordings_dir = os.path.join(settings.UPLOAD_DIR, "recordings")
-    from starlette.concurrency import run_in_threadpool
-    await run_in_threadpool(os.makedirs, recordings_dir, exist_ok=True)
-
-    # Save file
+    # Upload to Cloudinary
+    from src.api.utils.cloudinary_upload import upload_file
+    content = await file.read()
     file_extension = os.path.splitext(file.filename)[1] if file.filename else ".webm"
     filename = f"recording_{token}{file_extension}"
-    file_path = os.path.join(recordings_dir, filename)
-
-    def save_recording(path, upload_file):
-        with open(path, "wb") as buffer:
-            shutil.copyfileobj(upload_file.file, buffer)
-            
-    await run_in_threadpool(save_recording, file_path, file)
+    
+    secure_url = await upload_file(
+        content,
+        filename,
+        folder="evalyn/recordings"
+    )
 
     # Update database
-    # Store relative path for flexibility
-    relative_path = os.path.join("uploads", "recordings", filename).replace("\\", "/")
-    session.recording_path = relative_path
+    session.recording_path = secure_url
     db.add(session)
     await db.commit()
 
-    return {"message": "Recording uploaded successfully", "path": relative_path}
+    return {"message": "Recording uploaded successfully", "path": secure_url}
 
 class ChatRequest(BaseModel):
     message: str

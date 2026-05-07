@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
     Job,
+    JobStatus,
     JobIntent,
     AIJobDraft,
     PaginatedResponse,
@@ -178,6 +179,13 @@ export const jobsApi = {
         data: { status: JobStatus; feedback?: string }
     ): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/review`, data);
+    },
+
+    /**
+     * Get dashboard statistics
+     */
+    getStats: async (): Promise<{ total_jobs: number; pending_actions: number }> => {
+        return apiClient.get<{ total_jobs: number; pending_actions: number }>('/jobs/stats/dashboard');
     },
 };
 

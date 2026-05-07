@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { api } from "@/lib/api";
+import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign } from "lucide-react";
@@ -105,7 +106,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                 <div className="flex gap-2">
                     {profile?.resume_url && (
-                        <a href={profile.resume_url} target="_blank" rel="noopener noreferrer">
+                        <a href={resolveUrl(profile.resume_url)} target="_blank" rel="noopener noreferrer">
                             <Button variant="outline">
                                 <Download className="w-4 h-4 mr-2" /> View Resume
                             </Button>
@@ -215,9 +216,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             <CardContent className="p-0">
                                 <div className="aspect-video bg-black flex items-center justify-center">
                                     <video
-                                        src={app.interview_session.recording_path.startsWith('http') 
-                                            ? app.interview_session.recording_path 
-                                            : `${process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || ''}${app.interview_session.recording_path}`}
+                                        src={resolveUrl(app.interview_session.recording_path)}
                                         controls
                                         className="w-full h-full"
                                         poster="/video-poster.png"
