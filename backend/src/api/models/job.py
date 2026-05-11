@@ -5,18 +5,18 @@ from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
 import enum
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSON, ARRAY
 
 
 class JobType(str, enum.Enum):
     """Job type enumeration"""
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    CONTRACT = "contract"
-    TEMPORARY = "temporary"
-    INTERNSHIP = "internship"
-    VOLUNTEER = "volunteer"
-    FREELANCE = "freelance"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    CONTRACT = "CONTRACT"
+    TEMPORARY = "TEMPORARY"
+    INTERNSHIP = "INTERNSHIP"
+    VOLUNTEER = "VOLUNTEER"
+    FREELANCE = "FREELANCE"
 
 
 class JobStatus(str, enum.Enum):
@@ -32,15 +32,15 @@ class JobStatus(str, enum.Enum):
 
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
-    ENTRY_LEVEL = "entry_level"
-    JUNIOR = "junior"
-    ASSOCIATE = "associate"
-    MID = "mid"
-    MID_SENIOR = "mid_senior"
-    SENIOR = "senior"
-    LEAD = "lead"
-    DIRECTOR = "director"
-    EXECUTIVE = "executive"
+    ENTRY_LEVEL = "ENTRY_LEVEL"
+    JUNIOR = "JUNIOR"
+    ASSOCIATE = "ASSOCIATE"
+    MID = "MID"
+    MID_SENIOR = "MID_SENIOR"
+    SENIOR = "SENIOR"
+    LEAD = "LEAD"
+    DIRECTOR = "DIRECTOR"
+    EXECUTIVE = "EXECUTIVE"
 
 
 class Posts(Base):
@@ -82,11 +82,12 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-    required_skills = Column(JSON, nullable=True, comment="Required skills")
-    preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
-    requirements = Column(JSON, nullable=True, comment="Mandatory requirements/qualifications")
-    preferred_qualifications = Column(JSON, nullable=True, comment="Preferred qualifications")
-    benefits = Column(JSON, nullable=True, comment="Job benefits")
+    # NOTE: DB columns are character varying[] — must use ARRAY(String), not JSON
+    required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
+    preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
+    requirements = Column(ARRAY(String), nullable=True, comment="Mandatory requirements/qualifications")
+    preferred_qualifications = Column(ARRAY(String), nullable=True, comment="Preferred qualifications")
+    benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
     
     # Status and Publishing
     status = Column(SQLEnum(JobStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
@@ -102,7 +103,7 @@ class Posts(Base):
     slug = Column(String(500), nullable=True, unique=True, index=True, comment="URL-friendly slug")
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
-    tags = Column(JSON, nullable=True, comment="Tags for categorization")
+    tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
     
     manager_feedback = Column(Text, nullable=True, comment="Feedback from Operation Manager")
     
