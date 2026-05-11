@@ -107,50 +107,10 @@ class ScreeningService:
             await self.db.refresh(application)
             logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}, Salary: {salary_status}")
 
+            # Email sending is intentionally skipped here.
+            # HR will manually trigger invitations from the dashboard.
             if is_qualified:
-                # Block email if salary is above budget
-                if salary_status == "above_budget":
-                    application.email_delivery_status = "SKIPPED"
-                    application.email_logs = (
-                        f"Salary out of range — candidate expected "
-                        f"{float(application.expected_salary or 0):,.0f}, job budget max: {float(job.salary_max or 0):,.0f}."
-                    )
-                    self.db.add(application)
-                    await self.db.commit()
-                    logger.info(
-                        f"[SALARY FILTER] ⛔ App {application_id} — salary above budget, invite skipped. "
-                        f"Expected: {application.expected_salary}, Max: {job.salary_max}"
-                    )
-                    return
-
-                # Prevent duplicate emails — skip if already notified
-                if application.email_delivery_status == "SENT":
-                    logger.info(f"[SHORTLIST] Email already sent for application {application_id} — skipping duplicate.")
-                else:
-                    from src.api.services.scheduling_service import SchedulingService
-                    scheduler = SchedulingService()
-
-                    logger.info(f"[SHORTLIST] ✨ Score {score} >= {SHORTLIST_THRESHOLD} → sending WhatsApp-invite email to {candidate.email}")
-
-                    result = await scheduler.schedule_interview(
-                        candidate_name=candidate.full_name or "Candidate",
-                        candidate_email=candidate.email,
-                        candidate_score=score,
-                        job_title=job.title or "Position at Revnix",
-                    )
-
-                    if result.get("success") and result.get("email_sent"):
-                        application.email_delivery_status = "SENT"
-                        application.email_logs = f"WhatsApp-invite email sent. Score: {score}"
-                        self.db.add(application)
-                        await self.db.commit()
-                        logger.info(f"[SHORTLIST] ✅ Email sent and recorded for application {application_id}")
-                    else:
-                        application.email_delivery_status = "FAILED"
-                        application.email_logs = result.get("message", "Email failed during screening.")
-                        self.db.add(application)
-                        await self.db.commit()
-                        logger.error(f"[SHORTLIST] ❌ Email failed for application {application_id}: {result.get('message')}")
+                logger.info(f"[SHORTLIST] ✨ App {application_id} shortlisted with score {score}. Awaiting manual HR invite.")
 
         except Exception as e:
             logger.error(f"Error during screening for application {application_id}: {str(e)}")

@@ -26,9 +26,9 @@ export default function LandingPage() {
     if (userRole) {
       // Redirect based on role
       if (userRole === "candidate") {
-        window.location.href = "/portal/status";
+        window.location.href = "/portal/dashboard";
       } else {
-        window.location.href = "/dashboard/jobs";
+        window.location.href = "/dashboard/applications";
       }
     }
   }, []);

@@ -71,7 +71,7 @@ export default function SignupPage() {
             if (userRole === "candidate") {
                 window.location.href = "/portal/status";
             } else {
-                window.location.href = "/dashboard/jobs";
+                window.location.href = "/dashboard";
             }
         } catch (err: any) {
             console.error("Signup failed:", err);

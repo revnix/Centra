@@ -1,10 +1,22 @@
-const nextConfig = {
-  output: 'standalone',
-  typescript: {
-    ignoreBuildErrors: true,
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  output: "standalone",
+  /* TypeScript and ESLint errors are not ignored to ensure production quality */
+  async redirects() {
+    return [
+      {
+        source: "/portal/dashboard",
+        destination: "/portal/status",
+        permanent: true,
+      },
+      {
+        source: "/jobs",
+        destination: "/login",
+        permanent: false,
+      },
+    ];
   },
-  // reactCompiler: true, // Commented out to debug stability issues
-  allowedDevOrigins: ["http://localhost:3000", "http://172.27.80.1:3000", "http://172.20.96.1:3000", "localhost:3000", "172.20.96.1:3000", "172.20.96.1"],
   async rewrites() {
     return [
       {
