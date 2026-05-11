@@ -23,6 +23,7 @@ class JobBase(BaseModel):
     preferred_qualifications: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
+    tags: Optional[List[str]] = None
     
     @field_validator('job_type', 'experience_level', mode='before')
     @classmethod
@@ -36,30 +37,30 @@ class JobBase(BaseModel):
         
         # Convert string to enum if necessary
         if field_name == 'job_type' and isinstance(v, str):
-            v_lower = v.lower().replace('-', '_')
+            v_upper = v.upper().replace('-', '_')
             try:
-                return JobType(v_lower)
+                return JobType(v_upper)
             except ValueError:
                 # Try to find a matching enum value (case-insensitive)
                 for job_type in JobType:
-                    if job_type.value.lower() == v_lower or job_type.name.lower() == v_lower:
+                    if job_type.value.upper() == v_upper or job_type.name.upper() == v_upper:
                         return job_type
                 raise ValueError(f"Invalid job_type: {v}. Valid values are: {', '.join([jt.value for jt in JobType])}")
 
         elif field_name == 'experience_level' and isinstance(v, str):
-            v_lower = v.lower().replace('-', '_')
+            v_upper = v.upper().replace('-', '_')
             try:
-                return ExperienceLevel(v_lower)
+                return ExperienceLevel(v_upper)
             except ValueError:
                 # Try to find a matching enum value (case-insensitive)
                 for exp_level in ExperienceLevel:
-                    if exp_level.value.lower() == v_lower or exp_level.name.lower() == v_lower:
+                    if exp_level.value.upper() == v_upper or exp_level.name.upper() == v_upper:
                         return exp_level
                 raise ValueError(f"Invalid experience_level: {v}. Valid values are: {', '.join([el.value for el in ExperienceLevel])}")
         
         return v
 
-    @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', mode='before')
+    @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', 'tags', mode='before')
     @classmethod
     def parse_list_fields(cls, v):
         if v is None:
@@ -98,9 +99,10 @@ class JobUpdate(BaseModel):
     preferred_qualifications: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
+    tags: Optional[List[str]] = None
     manager_feedback: Optional[str] = None
 
-    @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', mode='before')
+    @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', 'tags', mode='before')
     @classmethod
     def parse_list_fields(cls, v):
         if v is None:
