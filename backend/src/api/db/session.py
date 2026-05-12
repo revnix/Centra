@@ -37,15 +37,18 @@ if "neon.tech" in settings.DATABASE_URL:
 
 print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
+_is_neon = "neon.tech" in settings.DATABASE_URL
+
 engine = create_async_engine(
     database_url,
     echo=False,
     future=True,
     connect_args=connect_args,
     pool_pre_ping=True,
-    pool_recycle=1800,
-    pool_size=20,
-    max_overflow=10,
+    pool_recycle=60 if _is_neon else 1800,   # Neon kills idle conns aggressively
+    pool_size=3 if _is_neon else 20,          # Neon free tier: max 5 concurrent
+    max_overflow=2 if _is_neon else 10,
+    pool_timeout=30,
 )
 
 # Enable WAL mode for SQLite to improve concurrency and prevent locking

@@ -112,12 +112,34 @@ class ApplicationService:
         return result.scalars().all()
 
     async def reject_application(self, application_id: int) -> Application:
-        """Reject an application."""
+        """Reject an application and send rejection email."""
         application = await self.get_application_by_id(application_id)
         if not application:
             raise ValueError("Application not found")
-        
+
         application.status = ApplicationStatus.REJECTED
+        self.db.add(application)
+        await self.db.commit()
+        await self.db.refresh(application)
+
+        from src.api.services.email_service import EmailService
+
+        candidate = application.candidate
+        job = application.job
+
+        try:
+            sent = await EmailService.send_rejection_email(
+                candidate_email=candidate.email,
+                candidate_name=candidate.full_name or "Candidate",
+                job_title=job.title if job else "the position",
+            )
+            application.email_delivery_status = "SENT" if sent else "FAILED"
+            application.email_logs = "Rejection email sent." if sent else "Rejection email failed to deliver."
+        except Exception as e:
+            logger.error(f"[REJECT] Failed to send rejection email for application {application_id}: {e}")
+            application.email_delivery_status = "FAILED"
+            application.email_logs = f"Rejection email error: {str(e)}"
+
         self.db.add(application)
         await self.db.commit()
         await self.db.refresh(application)

@@ -5,7 +5,14 @@ import { api } from "@/lib/api";
 import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign } from "lucide-react";
+import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -20,6 +27,10 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [app, setApp] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [showResendDialog, setShowResendDialog] = useState(false);
+    const [resendSubject, setResendSubject] = useState("");
+    const [resendMessage, setResendMessage] = useState("");
+    const [isResending, setIsResending] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
@@ -69,6 +80,46 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         }
     };
 
+    const openResendDialog = () => {
+        const candidateName = app?.candidate?.full_name || "Candidate";
+        const jobTitle = app?.job?.title || "the position";
+        const status = app?.status;
+
+        if (status === "REJECTED") {
+            setResendSubject(`Application Status Update – ${jobTitle}`);
+            setResendMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position. After careful consideration, we regret to inform you that we will not be moving forward with your application at this time.\n\nWe appreciate your interest and wish you the best in your job search.\n\nBest regards,\nHR Team`);
+        } else if (status === "HIRED") {
+            setResendSubject(`Congratulations! Job Offer – ${jobTitle}`);
+            setResendMessage(`Dear ${candidateName},\n\nCongratulations! We are pleased to offer you the ${jobTitle} position. Please reply to confirm your acceptance.\n\nBest regards,\nHR Team`);
+        } else {
+            setResendSubject(`Interview Invitation – ${jobTitle}`);
+            setResendMessage(`Dear ${candidateName},\n\nWe are pleased to inform you that after reviewing your application for the ${jobTitle} position, we would like to invite you for an interview.\n\nPlease reply to this email or contact us to schedule a convenient time.\n\nWe look forward to speaking with you.\n\nBest regards,\nHR Team`);
+        }
+        setShowResendDialog(true);
+    };
+
+    const handleResendEmail = async () => {
+        setIsResending(true);
+        try {
+            if (app?.status === "REJECTED") {
+                await api.applications.reject(id);
+            } else if (app?.status === "HIRED") {
+                await api.applications.hire(id);
+            } else {
+                await api.applications.shortlist(id);
+            }
+            toast.success("Email resent successfully!");
+            setShowResendDialog(false);
+            setResendMessage("");
+            const updated = await api.applications.get(id);
+            setApp(updated);
+        } catch (error: any) {
+            toast.error(`Failed to resend email: ${error.message || "Please try again"}`);
+        } finally {
+            setIsResending(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex min-h-[400px] items-center justify-center">
@@ -85,6 +136,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const job = app.job;
 
     return (
+        <>
         <div className="space-y-6 max-w-6xl mx-auto">
 
             {/* Header */}
@@ -137,6 +189,17 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             {isActionLoading ? 'Sending Invite...' : 'Shortlist & Invite'}
                         </Button>
                     )}
+
+                    <Button
+                        variant="outline"
+                        className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                        onClick={openResendDialog}
+                        disabled={isActionLoading}
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                        <Mail className="w-4 h-4" />
+                        Resend Email
+                    </Button>
 
                     <Button
                         variant="destructive"
@@ -437,5 +500,59 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
             </div>
         </div>
+
+        <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5 text-indigo-600" />
+                        Resend Email to {candidate?.full_name || "Candidate"}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Subject</label>
+                        <input
+                            type="text"
+                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950"
+                            value={resendSubject}
+                            onChange={(e) => setResendSubject(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Message</label>
+                        <textarea
+                            className="flex min-h-[280px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
+                            value={resendMessage}
+                            onChange={(e) => setResendMessage(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            The candidate's name will be added as a greeting automatically.
+                        </p>
+                    </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => setShowResendDialog(false)} disabled={isResending}>
+                        Cancel
+                    </Button>
+                    <Button
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                        onClick={handleResendEmail}
+                        disabled={isResending}
+                    >
+                        {isResending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Mail className="h-4 w-4" />
+                        )}
+                        {isResending ? "Sending..." : "Send Email"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }

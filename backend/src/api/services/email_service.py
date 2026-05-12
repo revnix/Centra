@@ -86,6 +86,31 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
+    async def send_rejection_email(candidate_email: str, candidate_name: str, job_title: str) -> bool:
+        """Informs candidate their application was not successful."""
+        subject = f"Update on Your Application for {job_title}"
+        html = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; color: #2d3748; line-height: 1.6;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #2d3748; font-size: 24px; margin: 0;">Application Update</h1>
+            </div>
+            <p>Dear <strong>{candidate_name}</strong>,</p>
+            <p>Thank you for your interest in the <strong>{job_title}</strong> position and for taking the time to apply.</p>
+            <p>After careful consideration, we regret to inform you that we will not be moving forward with your application at this time. This was a difficult decision, as we received many strong applications.</p>
+            <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #a0aec0;">
+                <p style="margin: 0; color: #4a5568;">We encourage you to continue developing your skills and to apply for future openings that match your profile. We will keep your information on file for upcoming opportunities.</p>
+            </div>
+            <p>We wish you the very best in your career journey.</p>
+            <p style="margin-top: 30px;">Best regards,<br/>
+            <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
+            Evalyn AI</p>
+            <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
+            <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
+        </div>
+        """
+        return await send_email(candidate_email, subject, html)
+
+    @staticmethod
     async def send_shortlist_email(candidate_email: str, candidate_name: str, job_title: str) -> bool:
         """
         Informs candidate they are shortlisted and provides next steps.
