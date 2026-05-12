@@ -205,7 +205,7 @@ class ApplicationService:
         # 2. Experience Match (30% weight)
         # Map Job Experience Level to required years
         experience_map = {
-            "ENTRY_LEVEL": 0, "ASSOCIATE": 2, "MID_SENIOR": 5, "DIRECTOR": 8, "EXECUTIVE": 10
+            "entry_level": 0, "associate": 2, "mid_senior": 5, "director": 8, "executive": 10
         }
         level = str(application.job.experience_level.value) if hasattr(application.job.experience_level, 'value') else str(application.job.experience_level)
         required_years = experience_map.get(level, 2)
