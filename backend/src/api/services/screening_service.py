@@ -33,7 +33,8 @@ class ScreeningService:
 
     async def evaluate_and_invite(self, application_id: int):
         """
-        AI Evaluation of an application followed by automated invitation if qualified.
+        AI Evaluation: assigns an ATS match score and updates the application status.
+        NO automatic emails are sent — interview invitations are manual (sent by HR).
         """
         # 1. Fetch Application with data
         from src.api.models.user import User
@@ -88,7 +89,7 @@ class ScreeningService:
             SHORTLIST_THRESHOLD = 70
             is_qualified = score >= SHORTLIST_THRESHOLD
 
-            # 4. Update Application — score, feedback, status
+            # 4. Update Application — score, feedback, status only (no email)
             application.match_score = float(score)
             application.ai_feedback = feedback
             application.status = ApplicationStatus.SHORTLISTED if is_qualified else ApplicationStatus.SCREENING
@@ -101,16 +102,18 @@ class ScreeningService:
                 f"job max: {job.salary_max}, result: {salary_status}"
             )
 
+            # Mark email status as PENDING — HR will send manually
+            application.email_delivery_status = "PENDING"
+
             # Persist score, status, and salary filter to DB
             self.db.add(application)
             await self.db.commit()
             await self.db.refresh(application)
-            logger.info(f"Screening completed for application {application_id}. Score: {score}, Qualified: {is_qualified}, Salary: {salary_status}")
-
-            # Email sending is intentionally skipped here.
-            # HR will manually trigger invitations from the dashboard.
-            if is_qualified:
-                logger.info(f"[SHORTLIST] ✨ App {application_id} shortlisted with score {score}. Awaiting manual HR invite.")
+            logger.info(
+                f"[SCREENING] ✅ App {application_id} scored: {score}/100 | "
+                f"Qualified: {is_qualified} | Salary: {salary_status} | "
+                f"Invite: MANUAL (HR action required)"
+            )
 
         except Exception as e:
             logger.error(f"Error during screening for application {application_id}: {str(e)}")

@@ -42,5 +42,6 @@ export const api = {
         delete: (id: string) => applicationsApi.delete(id),
         shortlist: (id: string) => applicationsApi.shortlist(id),
         analyze: (id: string) => applicationsApi.analyze(id),
+        invite: (id: string, subject: string, message: string) => applicationsApi.invite(id, subject, message),
     },
 };

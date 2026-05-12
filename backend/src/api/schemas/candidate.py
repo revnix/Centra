@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -9,6 +9,18 @@ class CandidateProfileBase(BaseModel):
     skills: List[str] = []
     experience_years: int = 0
     bio: Optional[str] = None
+    
+    @field_validator('skills', mode='before')
+    @classmethod
+    def parse_skills(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else [v]
+            except:
+                return [v]
+        return v
 
 class CandidateProfileCreate(CandidateProfileBase):
     pass
