@@ -17,7 +17,8 @@ import {
     Sparkles,
     ChevronRight,
     Users,
-    ClipboardCheck
+    ClipboardCheck,
+    KanbanSquare
 } from 'lucide-react';
 
 /**
@@ -51,6 +52,7 @@ export default function DashboardLayout({
         { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
         { name: 'Generated Jobs', href: '/dashboard/generated-jobs', icon: Sparkles },
         { name: 'Applications', href: '/dashboard/applications', icon: Users },
+        { name: 'Pipeline', href: '/dashboard/pipeline', icon: KanbanSquare },
         { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
         { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
     ];
