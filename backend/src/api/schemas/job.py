@@ -37,24 +37,24 @@ class JobBase(BaseModel):
         
         # Convert string to enum if necessary
         if field_name == 'job_type' and isinstance(v, str):
-            v_upper = v.upper().replace('-', '_')
+            v_lower = v.lower().replace('-', '_')
             try:
-                return JobType(v_upper)
+                return JobType(v_lower)
             except ValueError:
-                # Try to find a matching enum value (case-insensitive)
+                # Try to find a matching enum member by name (case-insensitive)
                 for job_type in JobType:
-                    if job_type.value.upper() == v_upper or job_type.name.upper() == v_upper:
+                    if job_type.name.lower() == v_lower:
                         return job_type
                 raise ValueError(f"Invalid job_type: {v}. Valid values are: {', '.join([jt.value for jt in JobType])}")
 
         elif field_name == 'experience_level' and isinstance(v, str):
-            v_upper = v.upper().replace('-', '_')
+            v_lower = v.lower().replace('-', '_')
             try:
-                return ExperienceLevel(v_upper)
+                return ExperienceLevel(v_lower)
             except ValueError:
-                # Try to find a matching enum value (case-insensitive)
+                # Try to find a matching enum member by name (case-insensitive)
                 for exp_level in ExperienceLevel:
-                    if exp_level.value.upper() == v_upper or exp_level.name.upper() == v_upper:
+                    if exp_level.name.lower() == v_lower:
                         return exp_level
                 raise ValueError(f"Invalid experience_level: {v}. Valid values are: {', '.join([el.value for el in ExperienceLevel])}")
         

@@ -43,5 +43,6 @@ export const api = {
         shortlist: (id: string) => applicationsApi.shortlist(id),
         analyze: (id: string) => applicationsApi.analyze(id),
         invite: (id: string, subject: string, message: string) => applicationsApi.invite(id, subject, message),
+        updateStatus: (id: string, status: string) => applicationsApi.updateStatus(id, status),
     },
 };

@@ -35,6 +35,28 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 
+async def _migrate_enum_values():
+    """Add new ApplicationStatus values to the PostgreSQL enum type if they don't exist."""
+    from sqlalchemy import text
+    new_values = [
+        "INTERVIEW_SCHEDULED",
+        "REFERENCE_CHECK",
+        "OFFER_EXTENDED",
+        "OFFER_ACCEPTED",
+    ]
+    try:
+        async with engine.connect() as conn:
+            await conn.execution_options(isolation_level="AUTOCOMMIT")
+            for val in new_values:
+                await conn.execute(
+                    text(f"ALTER TYPE applicationstatus ADD VALUE IF NOT EXISTS '{val}'")
+                )
+        print("DEBUG: ApplicationStatus enum migration complete")
+    except Exception as e:
+        # Non-fatal: SQLite doesn't have named enum types; skip silently
+        print(f"DEBUG: Enum migration skipped ({type(e).__name__}: {e})")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Ensure upload directories exist
@@ -43,7 +65,9 @@ async def lifespan(app: FastAPI):
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
-    
+
+    await _migrate_enum_values()
+
     print(f"DEBUG: CORS ALLOWED_ORIGINS = {settings.ALLOWED_ORIGINS}")
     print("DEBUG: Application lifespan started and directories verified")
     yield

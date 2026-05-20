@@ -5,7 +5,17 @@ import { api } from "@/lib/api";
 import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
+import { ArrowLeft, Mail, Download, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
+
+function getViewableResumeUrl(url: string): string {
+    if (!url.includes('cloudinary.com')) return url;
+    if (url.includes('/raw/upload/')) {
+        // Legacy raw uploads: use Google Docs viewer to display inline
+        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    // New auto-type uploads (image/upload): viewable inline directly
+    return url;
+}
 import {
     Dialog,
     DialogContent,
@@ -158,9 +168,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                 <div className="flex gap-2">
                     {profile?.resume_url && (
-                        <a href={resolveUrl(profile.resume_url)} target="_blank" rel="noopener noreferrer">
+                        <a href={getViewableResumeUrl(resolveUrl(profile.resume_url))} target="_blank" rel="noopener noreferrer">
                             <Button variant="outline">
-                                <Download className="w-4 h-4 mr-2" /> View Resume
+                                <Eye className="w-4 h-4 mr-2" /> View Resume
                             </Button>
                         </a>
                     )}

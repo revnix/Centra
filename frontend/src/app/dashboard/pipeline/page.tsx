@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ type ColumnDef = {
     avatarText: string;
     cardsBg: string;
     muted?: true;
+    showNotes?: true;
 };
 
 const COLUMNS: ColumnDef[] = [
@@ -93,6 +95,30 @@ const COLUMNS: ColumnDef[] = [
         cardsBg: "bg-orange-50/30",
     },
     {
+        label: "Rejected",
+        status: "REJECTED",
+        topStrip: "bg-slate-400",
+        headerText: "text-slate-500",
+        countBg: "bg-slate-100",
+        countText: "text-slate-500",
+        avatarBg: "bg-slate-100",
+        avatarText: "text-slate-500",
+        cardsBg: "bg-slate-50/60",
+        muted: true,
+    },
+    {
+        label: "Reference Check",
+        status: "REFERENCE_CHECK",
+        topStrip: "bg-cyan-500",
+        headerText: "text-cyan-700",
+        countBg: "bg-cyan-100",
+        countText: "text-cyan-700",
+        avatarBg: "bg-cyan-100",
+        avatarText: "text-cyan-700",
+        cardsBg: "bg-cyan-50/30",
+        showNotes: true,
+    },
+    {
         label: "Offer Extended",
         status: "OFFER_EXTENDED",
         topStrip: "bg-emerald-500",
@@ -117,13 +143,13 @@ const COLUMNS: ColumnDef[] = [
     {
         label: "Onboarding",
         status: "ONBOARDING",
-        topStrip: "bg-cyan-500",
-        headerText: "text-cyan-700",
-        countBg: "bg-cyan-100",
-        countText: "text-cyan-700",
-        avatarBg: "bg-cyan-100",
-        avatarText: "text-cyan-700",
-        cardsBg: "bg-cyan-50/30",
+        topStrip: "bg-sky-500",
+        headerText: "text-sky-700",
+        countBg: "bg-sky-100",
+        countText: "text-sky-700",
+        avatarBg: "bg-sky-100",
+        avatarText: "text-sky-700",
+        cardsBg: "bg-sky-50/30",
     },
     {
         label: "Hired",
@@ -136,19 +162,15 @@ const COLUMNS: ColumnDef[] = [
         avatarText: "text-green-700",
         cardsBg: "bg-green-50/30",
     },
-    {
-        label: "Rejected",
-        status: "REJECTED",
-        topStrip: "bg-slate-400",
-        headerText: "text-slate-500",
-        countBg: "bg-slate-100",
-        countText: "text-slate-500",
-        avatarBg: "bg-slate-100",
-        avatarText: "text-slate-500",
-        cardsBg: "bg-slate-50/60",
-        muted: true,
-    },
 ];
+
+// Build a map from status → next status for quick lookup
+const NEXT_STATUS: Record<string, string> = {};
+COLUMNS.forEach((col, i) => {
+    if (i < COLUMNS.length - 1) {
+        NEXT_STATUS[col.status] = COLUMNS[i + 1].status;
+    }
+});
 
 // ─── Summary bar config ───────────────────────────────────────────────────────
 
@@ -207,14 +229,69 @@ export default function PipelinePage() {
     const router = useRouter();
     const [applications, setApplications] = useState<Application[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
 
-    useEffect(() => {
-        api.applications
+    const fetchApplications = useCallback(() => {
+        return api.applications
             .list()
             .then((res) => setApplications(res as Application[]))
-            .catch(console.error)
-            .finally(() => setIsLoading(false));
+            .catch(console.error);
     }, []);
+
+    useEffect(() => {
+        fetchApplications().finally(() => setIsLoading(false));
+    }, [fetchApplications]);
+
+    const handleRefCheck = useCallback(
+        async (e: React.MouseEvent, app: Application, targetStatus: "OFFER_EXTENDED" | "REJECTED") => {
+            e.stopPropagation();
+            setMovingIds((prev) => new Set(prev).add(app.id));
+            try {
+                await api.applications.updateStatus(app.id, targetStatus);
+                if (targetStatus === "OFFER_EXTENDED") {
+                    toast.success("Reference cleared! Moving to Offer Extended.");
+                } else {
+                    toast.error("Reference failed. Candidate rejected.");
+                }
+                await fetchApplications();
+            } catch {
+                toast.error("Failed to update candidate");
+            } finally {
+                setMovingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(app.id);
+                    return next;
+                });
+            }
+        },
+        [fetchApplications]
+    );
+
+    const handleMoveToNext = useCallback(
+        async (e: React.MouseEvent, app: Application) => {
+            e.stopPropagation();
+            const nextStatus = NEXT_STATUS[app.status?.toUpperCase()];
+            if (!nextStatus) return;
+
+            setMovingIds((prev) => new Set(prev).add(app.id));
+            try {
+                await api.applications.updateStatus(app.id, nextStatus);
+                const nextLabel =
+                    COLUMNS.find((c) => c.status === nextStatus)?.label ?? nextStatus;
+                toast.success(`Candidate moved to ${nextLabel}`);
+                await fetchApplications();
+            } catch {
+                toast.error("Failed to move candidate");
+            } finally {
+                setMovingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(app.id);
+                    return next;
+                });
+            }
+        },
+        [fetchApplications]
+    );
 
     if (isLoading) {
         return (
@@ -308,6 +385,12 @@ export default function PipelinePage() {
                                         const name = app.candidate?.full_name || "Unknown";
                                         const score = app.match_score ?? app.ai_score ?? 0;
                                         const ep = emailPill(app.email_delivery_status);
+                                        const nextStatus = NEXT_STATUS[app.status?.toUpperCase()];
+                                        const nextLabel =
+                                            nextStatus
+                                                ? COLUMNS.find((c) => c.status === nextStatus)?.label
+                                                : null;
+                                        const isMoving = movingIds.has(app.id);
 
                                         return (
                                             <motion.div
@@ -375,6 +458,49 @@ export default function PipelinePage() {
                                                             />
                                                             {ep.label}
                                                         </div>
+
+                                                        {/* Reference Check notes */}
+                                                        {col.showNotes && (
+                                                            <RefCheckNotes appId={app.id} />
+                                                        )}
+
+                                                        {/* Reference Check actions */}
+                                                        {col.status === "REFERENCE_CHECK" && (
+                                                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                <button
+                                                                    onClick={(e) => handleRefCheck(e, app, "OFFER_EXTENDED")}
+                                                                    disabled={isMoving}
+                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Cleared"}
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => handleRefCheck(e, app, "REJECTED")}
+                                                                    disabled={isMoving}
+                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Failed"}
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Move to Next Stage (all other columns) */}
+                                                        {col.status !== "REFERENCE_CHECK" && nextLabel && (
+                                                            <button
+                                                                onClick={(e) => handleMoveToNext(e, app)}
+                                                                disabled={isMoving}
+                                                                className="w-full flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {isMoving ? (
+                                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                                ) : (
+                                                                    <>
+                                                                        <span>→</span>
+                                                                        <span>Move to {nextLabel}</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        )}
                                                     </CardContent>
                                                 </Card>
                                             </motion.div>
@@ -386,6 +512,35 @@ export default function PipelinePage() {
                     ))}
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ─── Reference Check Notes ────────────────────────────────────────────────────
+
+function RefCheckNotes({ appId }: { appId: string }) {
+    const key = `ref_check_notes_${appId}`;
+    const [notes, setNotes] = useState(() => {
+        if (typeof window === "undefined") return "";
+        return localStorage.getItem(key) ?? "";
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        setNotes(value);
+        localStorage.setItem(key, value);
+    };
+
+    return (
+        <div onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs font-medium text-cyan-700 mb-1">Reference Notes</p>
+            <textarea
+                value={notes}
+                onChange={handleChange}
+                placeholder="e.g. Police clearance pending, Previous employer confirmed..."
+                rows={3}
+                className="w-full text-xs rounded-lg border border-cyan-200 bg-cyan-50/60 px-2 py-1.5 text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-cyan-400"
+            />
         </div>
     );
 }
