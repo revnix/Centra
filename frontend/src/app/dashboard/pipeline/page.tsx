@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -293,6 +293,31 @@ export default function PipelinePage() {
         [fetchApplications]
     );
 
+    const handleInterviewAction = useCallback(
+        async (e: React.MouseEvent, app: Application, targetStatus: "REFERENCE_CHECK" | "REJECTED") => {
+            e.stopPropagation();
+            setMovingIds((prev) => new Set(prev).add(app.id));
+            try {
+                await api.applications.updateStatus(app.id, targetStatus);
+                if (targetStatus === "REFERENCE_CHECK") {
+                    toast.success("Moving to Reference Check");
+                } else {
+                    toast.error("Candidate rejected");
+                }
+                await fetchApplications();
+            } catch {
+                toast.error("Failed to update candidate");
+            } finally {
+                setMovingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(app.id);
+                    return next;
+                });
+            }
+        },
+        [fetchApplications]
+    );
+
     if (isLoading) {
         return (
             <div className="flex min-h-[400px] items-center justify-center">
@@ -433,7 +458,12 @@ export default function PipelinePage() {
                                                         <div className="border-t border-slate-100" />
 
                                                         {/* AI Score badge */}
-                                                        {score > 0 ? (
+                                                        {col.status === "HIRED" ? (
+                                                            <span className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 w-full">
+                                                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                Hired
+                                                            </span>
+                                                        ) : score > 0 ? (
                                                             <Badge
                                                                 variant="outline"
                                                                 className={`w-full justify-center text-xs font-semibold h-6 ${scoreStyle(score)}`}
@@ -484,8 +514,28 @@ export default function PipelinePage() {
                                                             </div>
                                                         )}
 
-                                                        {/* Move to Next Stage (all other columns) */}
-                                                        {col.status !== "REFERENCE_CHECK" && nextLabel && (
+                                                        {/* Interview Completed: Reference Check or Reject */}
+                                                        {col.status === "INTERVIEW_COMPLETED" && (
+                                                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                <button
+                                                                    onClick={(e) => handleInterviewAction(e, app, "REFERENCE_CHECK")}
+                                                                    disabled={isMoving}
+                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Reference Check"}
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => handleInterviewAction(e, app, "REJECTED")}
+                                                                    disabled={isMoving}
+                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Reject"}
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Move to Next Stage (all other columns except REFERENCE_CHECK and INTERVIEW_COMPLETED) */}
+                                                        {col.status !== "REFERENCE_CHECK" && col.status !== "INTERVIEW_COMPLETED" && nextLabel && (
                                                             <button
                                                                 onClick={(e) => handleMoveToNext(e, app)}
                                                                 disabled={isMoving}
