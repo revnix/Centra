@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, noload  # ✨ noload added for P2 fix
 from src.api.models.application import Application, ApplicationStatus
 from src.api.models.candidate import CandidateProfile
 from src.api.models.user import User, UserRole
@@ -90,7 +90,11 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                # ✨ OPTIMIZATION: noload prevents a lazy async load of interview_session during
+                # Pydantic serialization. Without this, removing the joinedload causes a
+                # MissingGreenlet crash because the Optional field is still in ApplicationResponse.
+                # noload() sets the attribute to None immediately — zero DB cost, zero crash.
+                noload(Application.interview_session),
             )
             .offset(skip)
             .limit(limit)

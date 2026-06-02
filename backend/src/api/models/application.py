@@ -32,8 +32,8 @@ class Application(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Foreign Keys
-    job_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False)
-    candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    job_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)  # ✨ OPTIMIZATION
+    candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # ✨ OPTIMIZATION
     
     # Status & AI Scoring
     status = Column(SqlEnum(ApplicationStatus), default=ApplicationStatus.APPLIED, nullable=False, index=True)
@@ -56,7 +56,7 @@ class Application(Base):
     email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(JSON, nullable=True, comment="Failure reasons or SMTP logs")
     
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # ✨ OPTIMIZATION — ORDER BY created_at DESC on every list call
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships

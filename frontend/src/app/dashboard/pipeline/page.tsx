@@ -1,14 +1,14 @@
-"use client";
+"use client"; // ✅ UNCHANGED
 
-import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2 } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react"; // ✨ NEW - OPTIMIZATION (removed unused useEffect, useCallback)
+import { motion } from "framer-motion"; // ✅ UNCHANGED
+import { useRouter } from "next/navigation"; // ✅ UNCHANGED
+import { useApplications, useUpdateApplicationStatus } from "@/lib/hooks/useApplications"; // ✨ NEW - OPTIMIZATION
+import { Card, CardContent } from "@/components/ui/card"; // ✅ UNCHANGED
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // ✅ UNCHANGED
+import { Badge } from "@/components/ui/badge"; // ✅ UNCHANGED
+import { Loader2, CheckCircle2 } from "lucide-react"; // ✅ UNCHANGED
+import { toast } from "sonner"; // ✅ UNCHANGED
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -225,98 +225,92 @@ const emailPill = (
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function PipelinePage() {
-    const router = useRouter();
-    const [applications, setApplications] = useState<Application[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
+export default function PipelinePage() { // ✅ UNCHANGED
+    const router = useRouter(); // ✅ UNCHANGED
+    const [movingIds, setMovingIds] = useState<Set<string>>(new Set()); // ✅ UNCHANGED
 
-    const fetchApplications = useCallback(() => {
-        return api.applications
-            .list()
-            .then((res) => setApplications(res as Application[]))
-            .catch(console.error);
-    }, []);
+    // ✨ NEW - OPTIMIZATION: React Query replaces manual useState/useEffect/useCallback fetch.
+    // On first visit: fetches from network. On every subsequent visit: serves from cache instantly (0ms).
+    const { data: applications = [], isLoading } = useApplications();
 
-    useEffect(() => {
-        fetchApplications().finally(() => setIsLoading(false));
-    }, [fetchApplications]);
+    // ✨ NEW - OPTIMIZATION: Mutations now go through React Query, which auto-invalidates
+    // the applications list cache after success — no manual fetchApplications() needed.
+    const updateStatus = useUpdateApplicationStatus();
 
-    const handleRefCheck = useCallback(
-        async (e: React.MouseEvent, app: Application, targetStatus: "OFFER_EXTENDED" | "REJECTED") => {
-            e.stopPropagation();
-            setMovingIds((prev) => new Set(prev).add(app.id));
-            try {
-                await api.applications.updateStatus(app.id, targetStatus);
-                if (targetStatus === "OFFER_EXTENDED") {
-                    toast.success("Reference cleared! Moving to Offer Extended.");
-                } else {
-                    toast.error("Reference failed. Candidate rejected.");
-                }
-                await fetchApplications();
-            } catch {
-                toast.error("Failed to update candidate");
-            } finally {
-                setMovingIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(app.id);
-                    return next;
-                });
+    const handleRefCheck = async ( // ✨ NEW - OPTIMIZATION (removed useCallback dependency on fetchApplications)
+        e: React.MouseEvent,
+        app: Application,
+        targetStatus: "OFFER_EXTENDED" | "REJECTED"
+    ) => {
+        e.stopPropagation(); // ✅ UNCHANGED
+        setMovingIds((prev) => new Set(prev).add(app.id)); // ✅ UNCHANGED
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: targetStatus }); // ✨ NEW - OPTIMIZATION
+            if (targetStatus === "OFFER_EXTENDED") { // ✅ UNCHANGED
+                toast.success("Reference cleared! Moving to Offer Extended."); // ✅ UNCHANGED
+            } else { // ✅ UNCHANGED
+                toast.error("Reference failed. Candidate rejected."); // ✅ UNCHANGED
             }
-        },
-        [fetchApplications]
-    );
+            // ✨ NEW - OPTIMIZATION: no fetchApplications() needed — invalidation happens in hook's onSuccess
+        } catch { // ✅ UNCHANGED
+            toast.error("Failed to update candidate"); // ✅ UNCHANGED
+        } finally { // ✅ UNCHANGED
+            setMovingIds((prev) => { // ✅ UNCHANGED
+                const next = new Set(prev); // ✅ UNCHANGED
+                next.delete(app.id); // ✅ UNCHANGED
+                return next; // ✅ UNCHANGED
+            }); // ✅ UNCHANGED
+        }
+    };
 
-    const handleMoveToNext = useCallback(
-        async (e: React.MouseEvent, app: Application) => {
-            e.stopPropagation();
-            const nextStatus = NEXT_STATUS[app.status?.toUpperCase()];
-            if (!nextStatus) return;
+    const handleMoveToNext = async (e: React.MouseEvent, app: Application) => { // ✨ NEW - OPTIMIZATION
+        e.stopPropagation(); // ✅ UNCHANGED
+        const nextStatus = NEXT_STATUS[app.status?.toUpperCase()]; // ✅ UNCHANGED
+        if (!nextStatus) return; // ✅ UNCHANGED
 
-            setMovingIds((prev) => new Set(prev).add(app.id));
-            try {
-                await api.applications.updateStatus(app.id, nextStatus);
-                const nextLabel =
-                    COLUMNS.find((c) => c.status === nextStatus)?.label ?? nextStatus;
-                toast.success(`Candidate moved to ${nextLabel}`);
-                await fetchApplications();
-            } catch {
-                toast.error("Failed to move candidate");
-            } finally {
-                setMovingIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(app.id);
-                    return next;
-                });
+        setMovingIds((prev) => new Set(prev).add(app.id)); // ✅ UNCHANGED
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: nextStatus }); // ✨ NEW - OPTIMIZATION
+            const nextLabel = // ✅ UNCHANGED
+                COLUMNS.find((c) => c.status === nextStatus)?.label ?? nextStatus; // ✅ UNCHANGED
+            toast.success(`Candidate moved to ${nextLabel}`); // ✅ UNCHANGED
+            // ✨ NEW - OPTIMIZATION: no fetchApplications() needed — invalidation happens in hook's onSuccess
+        } catch { // ✅ UNCHANGED
+            toast.error("Failed to move candidate"); // ✅ UNCHANGED
+        } finally { // ✅ UNCHANGED
+            setMovingIds((prev) => { // ✅ UNCHANGED
+                const next = new Set(prev); // ✅ UNCHANGED
+                next.delete(app.id); // ✅ UNCHANGED
+                return next; // ✅ UNCHANGED
+            }); // ✅ UNCHANGED
+        }
+    };
+
+    const handleInterviewAction = async ( // ✨ NEW - OPTIMIZATION (removed useCallback dependency)
+        e: React.MouseEvent,
+        app: Application,
+        targetStatus: "REFERENCE_CHECK" | "REJECTED"
+    ) => {
+        e.stopPropagation(); // ✅ UNCHANGED
+        setMovingIds((prev) => new Set(prev).add(app.id)); // ✅ UNCHANGED
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: targetStatus }); // ✨ NEW - OPTIMIZATION
+            if (targetStatus === "REFERENCE_CHECK") { // ✅ UNCHANGED
+                toast.success("Moving to Reference Check"); // ✅ UNCHANGED
+            } else { // ✅ UNCHANGED
+                toast.error("Candidate rejected"); // ✅ UNCHANGED
             }
-        },
-        [fetchApplications]
-    );
-
-    const handleInterviewAction = useCallback(
-        async (e: React.MouseEvent, app: Application, targetStatus: "REFERENCE_CHECK" | "REJECTED") => {
-            e.stopPropagation();
-            setMovingIds((prev) => new Set(prev).add(app.id));
-            try {
-                await api.applications.updateStatus(app.id, targetStatus);
-                if (targetStatus === "REFERENCE_CHECK") {
-                    toast.success("Moving to Reference Check");
-                } else {
-                    toast.error("Candidate rejected");
-                }
-                await fetchApplications();
-            } catch {
-                toast.error("Failed to update candidate");
-            } finally {
-                setMovingIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(app.id);
-                    return next;
-                });
-            }
-        },
-        [fetchApplications]
-    );
+            // ✨ NEW - OPTIMIZATION: no fetchApplications() needed — invalidation happens in hook's onSuccess
+        } catch { // ✅ UNCHANGED
+            toast.error("Failed to update candidate"); // ✅ UNCHANGED
+        } finally { // ✅ UNCHANGED
+            setMovingIds((prev) => { // ✅ UNCHANGED
+                const next = new Set(prev); // ✅ UNCHANGED
+                next.delete(app.id); // ✅ UNCHANGED
+                return next; // ✅ UNCHANGED
+            }); // ✅ UNCHANGED
+        }
+    };
 
     if (isLoading) {
         return (
