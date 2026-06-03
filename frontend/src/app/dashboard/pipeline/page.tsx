@@ -171,6 +171,18 @@ COLUMNS.forEach((col, i) => {
         NEXT_STATUS[col.status] = COLUMNS[i + 1].status;
     }
 });
+// INTERVIEW_INVITED is shown in the INTERVIEW_SCHEDULED column; advance to the same next stage
+NEXT_STATUS["INTERVIEW_INVITED"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
+
+// Build a reverse map: status → previous status
+const PREV_STATUS: Record<string, string> = {};
+COLUMNS.forEach((col, i) => {
+    if (i > 0) {
+        PREV_STATUS[col.status] = COLUMNS[i - 1].status;
+    }
+});
+// INTERVIEW_INVITED goes back to SHORTLISTED (same prev as INTERVIEW_SCHEDULED)
+PREV_STATUS["INTERVIEW_INVITED"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
 
 // ─── Summary bar config ───────────────────────────────────────────────────────
 
@@ -180,7 +192,7 @@ const SUMMARY: { label: string; statuses: string[] | null; color: string }[] = [
     { label: "Shortlisted", statuses: ["SHORTLISTED"], color: "text-violet-600" },
     {
         label: "Interviewing",
-        statuses: ["INTERVIEW_SCHEDULED", "INTERVIEW_COMPLETED"],
+        statuses: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "INTERVIEW_COMPLETED"],
         color: "text-amber-600",
     },
     {
@@ -286,6 +298,26 @@ export default function PipelinePage() { // ✅ UNCHANGED
         }
     };
 
+    const handleMoveBack = async (e: React.MouseEvent, app: Application) => {
+        e.stopPropagation();
+        const prevStatus = PREV_STATUS[app.status?.toUpperCase()];
+        if (!prevStatus) return;
+        setMovingIds((prev) => new Set(prev).add(app.id));
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: prevStatus });
+            const prevLabel = COLUMNS.find((c) => c.status === prevStatus)?.label ?? prevStatus;
+            toast.success(`Candidate moved back to ${prevLabel}`);
+        } catch {
+            toast.error("Failed to move candidate back");
+        } finally {
+            setMovingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(app.id);
+                return next;
+            });
+        }
+    };
+
     const handleInterviewAction = async ( // ✨ NEW - OPTIMIZATION (removed useCallback dependency)
         e: React.MouseEvent,
         app: Application,
@@ -322,9 +354,13 @@ export default function PipelinePage() { // ✅ UNCHANGED
 
     const grouped = COLUMNS.map((col) => ({
         ...col,
-        cards: applications.filter(
-            (app) => (app.status || "").toUpperCase() === col.status
-        ),
+        cards: applications.filter((app) => {
+            const s = (app.status || "").toUpperCase();
+            if (col.status === "INTERVIEW_SCHEDULED") {
+                return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED";
+            }
+            return s === col.status;
+        }),
     }));
 
     const statCount = (statuses: string[] | null) =>
@@ -409,6 +445,11 @@ export default function PipelinePage() { // ✅ UNCHANGED
                                             nextStatus
                                                 ? COLUMNS.find((c) => c.status === nextStatus)?.label
                                                 : null;
+                                        const prevStatus = PREV_STATUS[app.status?.toUpperCase()];
+                                        const prevLabel =
+                                            prevStatus
+                                                ? COLUMNS.find((c) => c.status === prevStatus)?.label
+                                                : null;
                                         const isMoving = movingIds.has(app.id);
 
                                         return (
@@ -490,60 +531,95 @@ export default function PipelinePage() { // ✅ UNCHANGED
 
                                                         {/* Reference Check actions */}
                                                         {col.status === "REFERENCE_CHECK" && (
-                                                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                                                <button
-                                                                    onClick={(e) => handleRefCheck(e, app, "OFFER_EXTENDED")}
-                                                                    disabled={isMoving}
-                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                >
-                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Cleared"}
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => handleRefCheck(e, app, "REJECTED")}
-                                                                    disabled={isMoving}
-                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                >
-                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Failed"}
-                                                                </button>
+                                                            <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex gap-1.5">
+                                                                    <button
+                                                                        onClick={(e) => handleRefCheck(e, app, "OFFER_EXTENDED")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Cleared"}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => handleRefCheck(e, app, "REJECTED")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Failed"}
+                                                                    </button>
+                                                                </div>
+                                                                {prevLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveBack(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="w-full text-xs border border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        ← Back
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         )}
 
                                                         {/* Interview Completed: Reference Check or Reject */}
                                                         {col.status === "INTERVIEW_COMPLETED" && (
-                                                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                                                <button
-                                                                    onClick={(e) => handleInterviewAction(e, app, "REFERENCE_CHECK")}
-                                                                    disabled={isMoving}
-                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                >
-                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Reference Check"}
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => handleInterviewAction(e, app, "REJECTED")}
-                                                                    disabled={isMoving}
-                                                                    className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                >
-                                                                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Reject"}
-                                                                </button>
+                                                            <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex gap-1.5">
+                                                                    <button
+                                                                        onClick={(e) => handleInterviewAction(e, app, "REFERENCE_CHECK")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Reference Check"}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => handleInterviewAction(e, app, "REJECTED")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Reject"}
+                                                                    </button>
+                                                                </div>
+                                                                {prevLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveBack(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="w-full text-xs border border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        ← Back
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         )}
 
-                                                        {/* Move to Next Stage (all other columns except REFERENCE_CHECK and INTERVIEW_COMPLETED) */}
-                                                        {col.status !== "REFERENCE_CHECK" && col.status !== "INTERVIEW_COMPLETED" && nextLabel && (
-                                                            <button
-                                                                onClick={(e) => handleMoveToNext(e, app)}
-                                                                disabled={isMoving}
-                                                                className="w-full flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            >
-                                                                {isMoving ? (
-                                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                                ) : (
-                                                                    <>
-                                                                        <span>→</span>
-                                                                        <span>Move to {nextLabel}</span>
-                                                                    </>
+                                                        {/* Move to Next Stage + Move Back (all other columns except REFERENCE_CHECK and INTERVIEW_COMPLETED) */}
+                                                        {col.status !== "REFERENCE_CHECK" && col.status !== "INTERVIEW_COMPLETED" && (nextLabel || prevLabel) && (
+                                                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                {prevLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveBack(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="text-xs border border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                                                                    >
+                                                                        ← Back
+                                                                    </button>
                                                                 )}
-                                                            </button>
+                                                                {nextLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveToNext(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? (
+                                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                                        ) : (
+                                                                            <>
+                                                                                <span>→</span>
+                                                                                <span>Move to {nextLabel}</span>
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </CardContent>
                                                 </Card>
