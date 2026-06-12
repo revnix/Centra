@@ -172,6 +172,41 @@ function JobApplicationInner({ id }: { id: string }) {
         );
     }
 
+    const isClosed = job.effective_status === "CLOSED" || job.status !== "PUBLISHED";
+
+    if (isClosed) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+                <Card className="w-full max-w-md text-center">
+                    <CardHeader>
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                            <AlertCircle className="h-8 w-8 text-red-600" />
+                        </div>
+                        <CardTitle className="text-2xl">Applications Closed</CardTitle>
+                        <CardDescription>
+                            We are no longer accepting applications for <strong>{job.title}</strong> at {job.company_name}. The application deadline has been reached.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button
+                            variant="outline"
+                            className="w-full mt-4"
+                            onClick={() => {
+                                if (sourceUrlRef.current) {
+                                    window.location.href = sourceUrlRef.current;
+                                } else {
+                                    router.push(`/jobs`);
+                                }
+                            }}
+                        >
+                            {sourceUrlRef.current?.includes('linkedin') ? 'Return to LinkedIn' : sourceUrlRef.current?.includes('indeed') ? 'Return to Indeed' : 'View Other Jobs'}
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     if (isSuccess) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">

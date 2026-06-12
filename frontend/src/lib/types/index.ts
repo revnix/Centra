@@ -92,6 +92,8 @@ export interface Job {
   published_at?: string;
   closedAt?: string;
   expires_at?: string;
+  application_deadline?: string;
+  effective_status?: string;
   tags?: string[];
   company_size?: string;
   company_website?: string;

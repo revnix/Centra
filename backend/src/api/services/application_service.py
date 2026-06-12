@@ -30,6 +30,16 @@ class ApplicationService:
         if existing:
             return existing
 
+        from src.api.services.job_service import JobService
+        job_service = JobService(self.db)
+        job = await job_service.get_job(job_id)
+        if not job:
+            raise ValueError("Job not found")
+            
+        from src.api.models.job import JobStatus
+        if job.effective_status != JobStatus.PUBLISHED:
+            raise ValueError("Applications for this position are closed.")
+
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
