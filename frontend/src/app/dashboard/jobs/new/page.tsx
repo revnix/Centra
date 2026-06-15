@@ -88,6 +88,7 @@ const jobBasicSchema = z.object({
     salaryCurrency: z.string().min(1, "Currency is required"),
     salaryPeriod: z.string().min(1, "Period is required"),
     salaryRange: z.string().optional(),
+    applicationDeadline: z.string().optional(),
     aiPrompt: z.string().optional(),
     description: z.string(),
 }).superRefine((data, ctx) => {
@@ -237,6 +238,7 @@ export default function CreateJobPage() {
             salaryCurrency: "PKR",
             salaryPeriod: "monthly",
             salaryRange: "",
+            applicationDeadline: "",
             aiPrompt: "",
             description: "",
         },
@@ -704,6 +706,17 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                         <SelectItem value="volunteer">Volunteer</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form1.control}
+                                        name="applicationDeadline"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Application Deadline (Optional)</FormLabel>
+                                                <FormControl><Input type="datetime-local" {...field} /></FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -1314,6 +1327,7 @@ ${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\
                                                                     salary_currency: formData.salaryCurrency || jobPost.suggested_salary_currency || "PKR",
                                                                     salary_period: formData.salaryPeriod || jobPost.suggested_salary_period || "monthly",
                                                                     salary_range: formData.salaryRange,
+                                                                    application_deadline: formData.applicationDeadline ? new Date(formData.applicationDeadline).toISOString() : undefined,
                                                                 };
 
                                                                 console.log('STRICT_DATA_LOG: [Frontend] Sending job data to backend:', JSON.stringify(jobData, null, 2));

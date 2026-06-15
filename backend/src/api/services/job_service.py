@@ -49,6 +49,10 @@ class JobService:
         payload = job_in.model_dump()
         print(f"DEBUG: [JobService.create_job] Payload received: {json.dumps(payload, default=str)}")
         
+        # Map application_deadline to expires_at automatically
+        if payload.get("application_deadline") and not payload.get("expires_at"):
+            payload["expires_at"] = payload["application_deadline"]
+
         db_job = Posts(**payload, created_by=user_id)
         self.db.add(db_job)
         await self.db.commit()

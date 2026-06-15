@@ -125,6 +125,24 @@ class Posts(Base):
     # Relationships
     creator = relationship("User", back_populates="jobs", foreign_keys=[created_by])
 
+    @property
+    def effective_status(self) -> JobStatus:
+        """
+        Dynamically determine the job status based on hard status and deadline.
+        Rules:
+        - If ARCHIVED or CLOSED hard status, return that.
+        - If PUBLISHED but expires_at has passed, return CLOSED.
+        - Otherwise return hard status.
+        """
+        if self.status in [JobStatus.ARCHIVED, JobStatus.CLOSED]:
+            return self.status
+            
+        if self.status == JobStatus.PUBLISHED and self.expires_at:
+            if datetime.now(timezone.utc) > self.expires_at:
+                return JobStatus.CLOSED
+                
+        return self.status
+
     def to_dict(self):
         """Convert model to dictionary"""
         return {
@@ -152,6 +170,7 @@ class Posts(Base):
             "preferred_qualifications": self.preferred_qualifications,
             "benefits": self.benefits,
             "status": self.status.value if self.status else None,
+            "effective_status": self.effective_status.value if self.effective_status else None,
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "company_name": self.company_name,

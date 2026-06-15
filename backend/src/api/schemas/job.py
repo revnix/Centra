@@ -23,6 +23,8 @@ class JobBase(BaseModel):
     preferred_qualifications: Optional[List[str]] = None
     benefits: Optional[List[str]] = None
     application_url: Optional[str] = None
+    application_deadline: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     tags: Optional[List[str]] = None
     
     @field_validator('job_type', 'experience_level', mode='before')

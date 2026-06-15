@@ -184,7 +184,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                             {/* Apply Card */}
                             <Card className="sticky top-24">
                                 <CardContent className="p-6 space-y-4">
-                                    {job.status === 'PUBLISHED' ? (
+                                    {(job.effective_status || job.status) === 'PUBLISHED' ? (
                                         <Link href={`/jobs/${job.id}/apply?source_url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}>
                                             <Button
                                                 size="lg"
@@ -200,17 +200,25 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                                             disabled
                                             className="w-full bg-slate-200 text-slate-500 h-12 text-base cursor-not-allowed hover:bg-slate-200"
                                         >
-                                            {job.status === 'CLOSED' ? 'Position Closed' : 'Not Open For Applications'}
+                                            {(job.effective_status || job.status) === 'CLOSED' ? 'Position Closed' : 'Not Open For Applications'}
                                         </Button>
                                     )}
 
                                     <p className="text-sm text-slate-500 text-center">
-                                        {job.status === 'PUBLISHED' ? 'Takes 2 minutes • No account required' : 'This position is currently not accepting applications.'}
+                                        {(job.effective_status || job.status) === 'PUBLISHED' ? 'Takes 2 minutes • No account required' : 'This position is currently not accepting applications.'}
                                     </p>
 
                                     <Separator />
 
                                     <div className="space-y-3 text-sm">
+                                        {job.expires_at && (
+                                            <div className="flex items-center gap-2 text-red-600 font-medium">
+                                                <Clock className="h-4 w-4" />
+                                                <span>
+                                                    Deadline: {format(new Date(job.expires_at), 'MMM d, yyyy h:mm a')}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-2 text-slate-600">
                                             <Calendar className="h-4 w-4" />
                                             <span>Posted {job.created_at ? format(new Date(job.created_at), 'MMM d, yyyy') : "Recently"}</span>
