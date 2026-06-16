@@ -39,6 +39,7 @@ const mapJob = (job: any): Job => ({
     benefits: job.benefits || [],
     application_url: job.application_url,
     status: job.status,
+    effective_status: job.effective_status,
     // Backward compatibility fields
     desiredSkills: job.preferred_skills || [],
     candidateCount: job.application_count || 0,

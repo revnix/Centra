@@ -138,19 +138,25 @@ class LinkedInService:
             if not article_url.startswith('http'):
                 article_url = f"https://{article_url}"
             
-            share_content["shareMediaCategory"] = "ARTICLE"
-            share_content["media"] = [
-                {
-                    "status": "READY",
-                    "description": {
-                        "text": "Submit your application for this position."
-                    },
-                    "originalUrl": article_url,
-                    "title": {
-                        "text": "View Job Details & Apply"
+            if "localhost" in article_url or "127.0.0.1" in article_url:
+                # LinkedIn rejects localhost URLs in media blocks with 422 error
+                # Fallback: append to text
+                updated_text = f"{text}\n\nApply here: {article_url}"
+                share_content["shareCommentary"]["text"] = updated_text
+            else:
+                share_content["shareMediaCategory"] = "ARTICLE"
+                share_content["media"] = [
+                    {
+                        "status": "READY",
+                        "description": {
+                            "text": "Submit your application for this position."
+                        },
+                        "originalUrl": article_url,
+                        "title": {
+                            "text": "View Job Details & Apply"
+                        }
                     }
-                }
-            ]
+                ]
         
         payload = {
             "author": author,

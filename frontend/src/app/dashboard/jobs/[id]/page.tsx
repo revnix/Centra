@@ -446,8 +446,14 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                         const account = connectedAccounts.find(a => a.id === accId);
                                         const jobUrl = `${window.location.origin}/jobs/${job.id}/apply`;
 
+                                        let descriptionObj = job.description;
+                                        if (job.expires_at || job.application_deadline) {
+                                            const dl = new Date(job.expires_at || job.application_deadline || "");
+                                            descriptionObj += `\n\n⏳ Application Deadline: ${dl.toLocaleDateString()}`;
+                                        }
+
                                         if (account?.platform === 'linkedin') {
-                                            return integrationsApi.linkedin.publish(job.description, jobUrl);
+                                            return integrationsApi.linkedin.publish(descriptionObj, jobUrl);
                                         } else if (account?.platform === 'indeed') {
                                             return integrationsApi.indeed.postJob({
                                                 title: job.title,
