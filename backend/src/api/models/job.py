@@ -10,13 +10,13 @@ from sqlalchemy.dialects.postgresql import JSON, ARRAY
 
 class JobType(str, enum.Enum):
     """Job type enumeration"""
-    FULL_TIME = "FULL_TIME"
-    PART_TIME = "PART_TIME"
-    CONTRACT = "CONTRACT"
-    TEMPORARY = "TEMPORARY"
-    INTERNSHIP = "INTERNSHIP"
-    VOLUNTEER = "VOLUNTEER"
-    FREELANCE = "FREELANCE"
+    FULL_TIME = "full_time"
+    PART_TIME = "part_time"
+    CONTRACT = "contract"
+    TEMPORARY = "temporary"
+    INTERNSHIP = "internship"
+    VOLUNTEER = "volunteer"
+    FREELANCE = "freelance"
 
 
 class JobStatus(str, enum.Enum):
@@ -32,15 +32,15 @@ class JobStatus(str, enum.Enum):
 
 class ExperienceLevel(str, enum.Enum):
     """Experience level enumeration"""
-    ENTRY_LEVEL = "ENTRY_LEVEL"
-    JUNIOR = "JUNIOR"
-    ASSOCIATE = "ASSOCIATE"
-    MID = "MID"
-    MID_SENIOR = "MID_SENIOR"
-    SENIOR = "SENIOR"
-    LEAD = "LEAD"
-    DIRECTOR = "DIRECTOR"
-    EXECUTIVE = "EXECUTIVE"
+    ENTRY_LEVEL = "entry_level"
+    JUNIOR = "junior"
+    ASSOCIATE = "associate"
+    MID = "mid"
+    MID_SENIOR = "mid_senior"
+    SENIOR = "senior"
+    LEAD = "lead"
+    DIRECTOR = "director"
+    EXECUTIVE = "executive"
 
 
 class Posts(Base):
