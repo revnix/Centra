@@ -142,6 +142,7 @@ class JobResponse(JobBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     status: Optional[JobStatus] = None
+    effective_status: Optional[JobStatus] = None
     published_at: Optional[datetime] = None
     manager_feedback: Optional[str] = None
 

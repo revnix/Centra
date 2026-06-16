@@ -520,7 +520,12 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                 const account = connectedAccounts.find(a => a.id === accId);
                 if (account?.platform === 'linkedin') {
                     // STRICT REQUIREMENT: Use full AI-generated structured JD, not the short social summary.
-                    const fullDescription = form1.getValues("description");
+                    let fullDescription = form1.getValues("description");
+                    const deadline = form1.getValues("applicationDeadline");
+                    if (deadline) {
+                        const dl = new Date(deadline);
+                        fullDescription += `\n\n⏳ Application Deadline: ${dl.toLocaleDateString()}`;
+                    }
                     return integrationsApi.linkedin.publish(fullDescription);
                 } else if (account?.platform === 'indeed') {
                     // Also ensure Indeed uses the full description for consistency
@@ -716,7 +721,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Application Deadline (Optional)</FormLabel>
-                                                <FormControl><Input type="datetime-local" {...field} /></FormControl>
+                                                <FormControl><Input type="date" {...field} /></FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
