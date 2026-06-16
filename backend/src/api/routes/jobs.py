@@ -201,3 +201,29 @@ async def extend_job_deadline(
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+@router.post("/{job_id}/close", response_model=JobResponse)
+async def close_job(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Close a job posting"""
+    job_service = JobService(db)
+    job = await job_service.close_job(job_id, current_user.id)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@router.delete("/{job_id}", status_code=204)
+async def delete_job(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Permanently delete a job posting"""
+    job_service = JobService(db)
+    deleted = await job_service.delete_job(job_id, current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Job not found")

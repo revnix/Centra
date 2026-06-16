@@ -168,6 +168,29 @@ async def list_my_applications(
     applications = await app_service.get_applications_by_user_id(current_user.id)
     return applications
 
+@router.get("/by-job/{job_id}", response_model=List[ApplicationResponse])
+async def list_applications_by_job(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all applications for a specific job (HR/Admin only)."""
+    from sqlalchemy.future import select
+    from sqlalchemy.orm import joinedload, noload
+    from src.api.models.application import Application
+
+    result = await db.execute(
+        select(Application)
+        .where(Application.job_id == job_id)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            noload(Application.interview_session),   # avoids MissingGreenlet on serialization
+        )
+        .order_by(Application.match_score.desc().nullslast())
+    )
+    return result.scalars().all()
+
 @router.get("", response_model=List[ApplicationResponse])
 async def list_applications(
     skip: int = 0,
@@ -176,12 +199,7 @@ async def list_applications(
     db: AsyncSession = Depends(get_db)
 ):
     """List all applications (Admin only)."""
-    # In a real app, restrict this to Admin/Recruiter roles
-    # if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
-    #     raise HTTPException(status_code=403, detail="Not authorized")
-    
     app_service = ApplicationService(db)
-    # We need to implement a list method in service
     applications = await app_service.list_applications(skip, limit)
     return applications
 @router.get("/{application_id}", response_model=ApplicationResponse)

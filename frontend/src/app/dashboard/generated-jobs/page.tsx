@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'; // ✨ NEW - OPTIMIZATION (added useMemo)
 import { useQuery } from '@tanstack/react-query'; // ✨ NEW - OPTIMIZATION
-import { useJobs, usePublishJob } from '@/lib/hooks/useJobs';
+import { useJobs, usePublishJob, useDeleteJob } from '@/lib/hooks/useJobs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2 } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -38,7 +38,7 @@ export default function GeneratedJobsPage() {
     const { data: jobsResponse, isLoading } = useJobs();
     const publishJob = usePublishJob();
 
-    const jobs = jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED'].includes(j.status)) || [];
+    const jobs = jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'ACTIVE'].includes(j.status)) || [];
 
     // Publish Dialog State // ✅ UNCHANGED
     const [showPublishDialog, setShowPublishDialog] = useState(false); // ✅ UNCHANGED
@@ -49,6 +49,50 @@ export default function GeneratedJobsPage() {
     // Feedback Dialog State // ✅ UNCHANGED
     const [showFeedbackDialog, setShowFeedbackDialog] = useState(false); // ✅ UNCHANGED
     const [feedbackToShow, setFeedbackToShow] = useState(""); // ✅ UNCHANGED
+
+    // Delete Dialog State
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [jobToDelete, setJobToDelete] = useState<any>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const deleteJob = useDeleteJob();
+
+    // Multi-select State (none selected by default)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+    const allSelected = jobs.length > 0 && selectedIds.size === jobs.length;
+    const someSelected = selectedIds.size > 0 && !allSelected;
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (allSelected) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(jobs.map(j => j.id)));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        setIsBulkDeleting(true);
+        try {
+            await Promise.all([...selectedIds].map(id => deleteJob.mutateAsync(id)));
+            toast.success(`${selectedIds.size} job${selectedIds.size > 1 ? 's' : ''} deleted successfully.`);
+            setSelectedIds(new Set());
+            setShowBulkDeleteDialog(false);
+        } catch (error: any) {
+            toast.error(`Bulk delete failed: ${error.message || 'Unknown error'}`);
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
 
     // ✨ NEW - OPTIMIZATION: cached integrations fetch (5 min stale time).
     // Previously fired a fresh network call every mount; now instant on revisit.
@@ -118,6 +162,26 @@ export default function GeneratedJobsPage() {
         );
     };
 
+    const handleDeleteClick = (job: any) => {
+        setJobToDelete(job);
+        setShowDeleteDialog(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!jobToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteJob.mutateAsync(jobToDelete.id);
+            toast.success(`"${jobToDelete.title}" has been deleted.`);
+            setShowDeleteDialog(false);
+            setJobToDelete(null);
+        } catch (error: any) {
+            toast.error(`Failed to delete: ${error.message || 'Unknown error'}`);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const handleFinalPublish = async () => {
         if (!selectedJob) return;
         setIsPublishing(true);
@@ -184,6 +248,20 @@ export default function GeneratedJobsPage() {
                     </h1>
                     <p className="text-slate-500 mt-1">Review and publish AI-generated job postings</p>
                 </div>
+                {jobs.length > 0 && (
+                    <button
+                        onClick={toggleSelectAll}
+                        className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition-all duration-200"
+                    >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                            allSelected ? 'bg-indigo-600 border-indigo-600' : someSelected ? 'border-indigo-400' : 'border-slate-300'
+                        }`}>
+                            {allSelected && <Check className="h-3 w-3 text-white" />}
+                            {someSelected && <div className="w-2 h-0.5 bg-indigo-400 rounded" />}
+                        </div>
+                        {allSelected ? 'Deselect All' : 'Select All'}
+                    </button>
+                )}
             </div>
 
             {jobs.length === 0 ? (
@@ -199,13 +277,30 @@ export default function GeneratedJobsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid grid-cols-1 gap-6">
-                    {jobs.map((job) => (
+                <div className="grid grid-cols-1 gap-4">
+                    {jobs.map((job) => {
+                        const isChecked = selectedIds.has(job.id);
+                        return (
                         <Card
                             key={job.id}
-                            className="group hover:shadow-lg transition-all duration-300 border-indigo-100/50 overflow-hidden"
+                            className={`group transition-all duration-200 overflow-hidden ${
+                                isChecked
+                                    ? 'border-indigo-400 shadow-md shadow-indigo-100 ring-1 ring-indigo-300'
+                                    : 'border-slate-200 hover:shadow-lg hover:border-indigo-100'
+                            }`}
                         >
                             <div className="flex flex-col md:flex-row md:items-center gap-6 p-6">
+                                {/* Checkbox */}
+                                <div
+                                    onClick={() => toggleSelect(job.id)}
+                                    className={`flex-shrink-0 cursor-pointer w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-150 ${
+                                        isChecked
+                                            ? 'bg-indigo-600 border-indigo-600'
+                                            : 'border-slate-300 hover:border-indigo-400'
+                                    }`}
+                                >
+                                    {isChecked && <Check className="h-3 w-3 text-white" />}
+                                </div>
                                 <div className="flex-1 min-w-0 space-y-3">
                                     <div className="flex items-start justify-between md:justify-start gap-4">
                                         <h3 className="text-xl font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors">
@@ -293,11 +388,45 @@ export default function GeneratedJobsPage() {
                                         <Rocket className="h-4 w-4" />
                                         Publish Now
                                     </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => handleDeleteClick(job)}
+                                        className="whitespace-nowrap border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 gap-2"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete
+                                    </Button>
                                 </div>
-
                             </div>
                         </Card>
-                    ))}
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── Floating Bulk Action Bar ── */}
+            {selectedIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex items-center gap-4 px-6 py-3.5 bg-slate-900 text-white rounded-2xl shadow-2xl shadow-slate-900/40 border border-slate-700">
+                        <span className="text-sm font-medium">
+                            <span className="bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full mr-2">{selectedIds.size}</span>
+                            job{selectedIds.size > 1 ? 's' : ''} selected
+                        </span>
+                        <div className="w-px h-5 bg-slate-600" />
+                        <button
+                            onClick={() => setSelectedIds(new Set())}
+                            className="text-sm text-slate-400 hover:text-white transition-colors"
+                        >
+                            Clear
+                        </button>
+                        <button
+                            onClick={() => setShowBulkDeleteDialog(true)}
+                            className="flex items-center gap-2 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-xl transition-colors"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            Delete {selectedIds.size > 1 ? `${selectedIds.size} Jobs` : 'Job'}
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -418,6 +547,92 @@ export default function GeneratedJobsPage() {
                             }}
                         >
                             View & Edit Job
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Delete Job Post
+                        </DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to permanently delete{" "}
+                            <span className="font-semibold text-slate-800">"{jobToDelete?.title}"</span>?
+                            This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowDeleteDialog(false)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Permanently
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Bulk Delete Confirmation ── */}
+            <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Delete {selectedIds.size} Job{selectedIds.size > 1 ? 's' : ''}
+                        </DialogTitle>
+                        <DialogDescription>
+                            You are about to permanently delete{' '}
+                            <span className="font-semibold text-slate-800">{selectedIds.size} job posting{selectedIds.size > 1 ? 's' : ''}</span>.
+                            This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-3 px-4 bg-red-50 border border-red-100 rounded-xl">
+                        <ul className="space-y-1 max-h-40 overflow-y-auto">
+                            {jobs.filter(j => selectedIds.has(j.id)).map(j => (
+                                <li key={j.id} className="text-sm text-red-700 flex items-center gap-2">
+                                    <Trash2 className="h-3 w-3 flex-shrink-0" />
+                                    {j.title}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <DialogFooter className="flex gap-2">
+                        <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkDeleting}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleBulkDelete}
+                            disabled={isBulkDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isBulkDeleting ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</>
+                            ) : (
+                                <><Trash2 className="mr-2 h-4 w-4" /> Delete {selectedIds.size} Job{selectedIds.size > 1 ? 's' : ''}</>
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

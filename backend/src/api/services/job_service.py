@@ -229,3 +229,36 @@ class JobService:
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
+
+    async def close_job(self, job_id: int, user_id: int):
+        from src.api.models.job import JobStatus
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+            
+        db_job.status = JobStatus.CLOSED
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job
+
+    async def delete_job(self, job_id: int, user_id: int) -> bool:
+        from sqlalchemy import delete as sql_delete
+        from src.api.models.application import Application
+
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return False
+
+        # ── Step 1: delete all child applications first ──────────────────────
+        # SQLAlchemy's backref does NOT cascade delete, so it tries to SET
+        # job_id = NULL which violates the NOT NULL constraint. We must
+        # explicitly wipe related rows before removing the parent.
+        await self.db.execute(
+            sql_delete(Application).where(Application.job_id == job_id)
+        )
+
+        # ── Step 2: now it's safe to delete the job itself ───────────────────
+        await self.db.delete(db_job)
+        await self.db.commit()
+        return True
