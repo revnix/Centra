@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw } from "lucide-react";
+import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw, Calendar } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,6 +46,11 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const [feedback, setFeedback] = useState("");
     const [isImproving, setIsImproving] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
+
+    // Extend Deadline State
+    const [showExtendDialog, setShowExtendDialog] = useState(false);
+    const [newDeadline, setNewDeadline] = useState("");
+    const [isExtending, setIsExtending] = useState(false);
 
     // Edit Form State
     const [editForm, setEditForm] = useState({
@@ -94,6 +99,23 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
             toast.error(`Failed to update job: ${error.message || "Unknown error"}`);
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleExtendDeadline = async () => {
+        if (!newDeadline) return;
+        setIsExtending(true);
+        try {
+            const expiresAt = new Date(newDeadline);
+            expiresAt.setHours(23, 59, 59, 999);
+            await jobsApi.extendDeadline(id, expiresAt.toISOString());
+            toast.success("Deadline extended successfully!");
+            setShowExtendDialog(false);
+            refetchJob();
+        } catch (error: any) {
+            toast.error(`Failed to extend deadline: ${error.message || "Unknown error"}`);
+        } finally {
+            setIsExtending(false);
         }
     };
 
@@ -256,6 +278,9 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                         <Button variant="outline" onClick={openEditDialog}>
                             <Edit className="w-4 h-4 mr-2" /> Edit
                         </Button>
+                        <Button variant="outline" onClick={() => setShowExtendDialog(true)}>
+                            <Calendar className="w-4 h-4 mr-2" /> Extend Deadline
+                        </Button>
                         <Link href={`/dashboard/jobs/${job.id}/candidates`}>
                             <Button variant="secondary">
                                 <Users className="w-4 h-4 mr-2" /> Candidates
@@ -318,6 +343,10 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                             <div>
                                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Posted Date</h4>
                                 <p className="font-medium">{job.created_at ? new Date(job.created_at).toLocaleDateString() : "N/A"}</p>
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Deadline</h4>
+                                <p className="font-medium">{job.expires_at ? new Date(job.expires_at).toLocaleDateString() : "No Deadline Set"}</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -600,6 +629,48 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                 </>
                             ) : (
                                 "Save Changes"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Extend Deadline Dialog */}
+            <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-indigo-600" />
+                            Extend Deadline
+                        </DialogTitle>
+                        <DialogDescription>
+                            Set a new deadline for this job posting. This will reopen the job if it has expired.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <label className="text-sm font-medium">New Application Deadline</label>
+                        <Input
+                            type="date"
+                            value={newDeadline}
+                            onChange={(e) => setNewDeadline(e.target.value)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowExtendDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleExtendDeadline}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                            disabled={isExtending || !newDeadline}
+                        >
+                            {isExtending ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Extending...
+                                </>
+                            ) : (
+                                "Extend Deadline"
                             )}
                         </Button>
                     </DialogFooter>

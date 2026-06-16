@@ -149,3 +149,6 @@ class JobResponse(JobBase):
     class Config:
         from_attributes = True
         use_enum_values = True  # Serialize enums as their values (strings)
+
+class JobExtendDeadlineRequest(BaseModel):
+    expires_at: datetime

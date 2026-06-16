@@ -82,12 +82,12 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-    # NOTE: DB columns are of type ARRAY(String) actually.
-    required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
-    preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
-    requirements = Column(ARRAY(String), nullable=True, comment="Mandatory requirements/qualifications")
-    preferred_qualifications = Column(ARRAY(String), nullable=True, comment="Preferred qualifications")
-    benefits = Column(ARRAY(String), nullable=True, comment="Job benefits")
+    # NOTE: DB columns are of type JSON actually.
+    required_skills = Column(JSON, nullable=True, comment="Required skills")
+    preferred_skills = Column(JSON, nullable=True, comment="Preferred skills")
+    requirements = Column(JSON, nullable=True, comment="Mandatory requirements/qualifications")
+    preferred_qualifications = Column(JSON, nullable=True, comment="Preferred qualifications")
+    benefits = Column(JSON, nullable=True, comment="Job benefits")
     
     # Status and Publishing
     status = Column(SQLEnum(JobStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
@@ -103,7 +103,7 @@ class Posts(Base):
     slug = Column(String(500), nullable=True, unique=True, index=True, comment="URL-friendly slug")
     meta_title = Column(String(200), nullable=True, comment="SEO meta title")
     meta_description = Column(String(500), nullable=True, comment="SEO meta description")
-    tags = Column(ARRAY(String), nullable=True, comment="Tags for categorization")
+    tags = Column(JSON, nullable=True, comment="Tags for categorization")
     
     manager_feedback = Column(Text, nullable=True, comment="Feedback from Operation Manager")
     

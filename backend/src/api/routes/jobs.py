@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
 from src.api.services.job_service import JobService
-from src.api.schemas.job import JobResponse, JobCreate, JobUpdate, JobImproveRequest, JobDraftRequest, JobReviewRequest
+from src.api.schemas.job import JobResponse, JobCreate, JobUpdate, JobImproveRequest, JobDraftRequest, JobReviewRequest, JobExtendDeadlineRequest
 from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 
@@ -184,5 +184,20 @@ async def review_job(
     job_service = JobService(db)
     job = await job_service.review_job(job_id, review_data.status, review_data.feedback)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@router.patch("/{job_id}/extend-deadline", response_model=JobResponse)
+async def extend_job_deadline(
+    job_id: int,
+    request: JobExtendDeadlineRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Extend the application deadline of a job"""
+    job_service = JobService(db)
+    job = await job_service.extend_deadline(job_id, request.expires_at)
+    if not job:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job not found")
     return job

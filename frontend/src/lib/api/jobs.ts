@@ -188,5 +188,13 @@ export const jobsApi = {
     getStats: async (): Promise<{ total_jobs: number; pending_actions: number }> => {
         return apiClient.get<{ total_jobs: number; pending_actions: number }>('/jobs/stats/dashboard');
     },
+
+    /**
+     * Extend job application deadline
+     */
+    extendDeadline: async (jobId: string, expiresAt: string): Promise<Job> => {
+        const response = await apiClient.patch<any>(`/jobs/${jobId}/extend-deadline`, { expires_at: expiresAt });
+        return mapJob(response);
+    },
 };
 

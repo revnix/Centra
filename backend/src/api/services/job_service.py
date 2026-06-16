@@ -212,3 +212,20 @@ class JobService:
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
+
+    async def extend_deadline(self, job_id: int, new_deadline):
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+        
+        db_job.expires_at = new_deadline
+        db_job.application_deadline = new_deadline
+        
+        # If the job was automatically CLOSED due to expiration, 
+        # the effective_status property handles it, but if it was manually CLOSED,
+        # we might want to let HR reopen it manually or we just leave it CLOSED.
+        # But wait, we just update the dates. `effective_status` will compute it properly.
+
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job
