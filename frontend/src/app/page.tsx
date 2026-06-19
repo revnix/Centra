@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,18 +21,18 @@ import {
 } from "lucide-react";
 
 export default function LandingPage() {
+  const router = useRouter();
+
   useEffect(() => {
-    // Check if user is logged in
+    // Middleware already handles server-side redirect for authenticated users.
+    // This client-side check is a fast fallback for tokens stored only in localStorage.
     const userRole = localStorage.getItem("userRole");
-    if (userRole) {
-      // Redirect based on role
-      if (userRole === "candidate") {
-        window.location.href = "/portal/dashboard";
-      } else {
-        window.location.href = "/dashboard/applications";
-      }
+    if (userRole === "candidate") {
+      router.replace("/portal/status");
+    } else if (userRole) {
+      router.replace("/dashboard");
     }
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
@@ -50,7 +51,7 @@ export default function LandingPage() {
             <a href="#features" className="text-slate-600 hover:text-slate-900 transition-colors">Features</a>
             <a href="#how-it-works" className="text-slate-600 hover:text-slate-900 transition-colors">How It Works</a>
             <a href="#pricing" className="text-slate-600 hover:text-slate-900 transition-colors">Pricing</a>
-            <Button variant="outline" onClick={() => window.location.href = "/login"}>
+            <Button variant="outline" onClick={() => router.push("/login")}>
               Sign In
             </Button>
             <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
@@ -82,7 +83,7 @@ export default function LandingPage() {
             <Button
               size="lg"
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8"
-              onClick={() => window.location.href = "/login"}
+              onClick={() => router.push("/login")}
             >
               Start Hiring for Free
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -236,7 +237,7 @@ export default function LandingPage() {
               <Button
                 size="lg"
                 className="bg-white text-blue-600 hover:bg-blue-50 text-lg px-8"
-                onClick={() => window.location.href = "/login"}
+                onClick={() => router.push("/login")}
               >
                 Get Started Free
                 <ArrowRight className="ml-2 h-5 w-5" />

@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useUIStore } from '@/lib/stores/uiStore';
-import { useDashboardStats } from '@/lib/hooks/useJobs';
+import { useDashboardStats, jobKeys } from '@/lib/hooks/useJobs';
+import { applicationKeys } from '@/lib/hooks/useApplications';
+import { jobsApi } from '@/lib/api/jobs';
+import { applicationsApi } from '@/lib/api/applications';
 import {
     Briefcase,
     Menu,
@@ -21,10 +25,27 @@ import {
     KanbanSquare
 } from 'lucide-react';
 
-/**
- * Dashboard Layout
- * Premium navigation sidebar with gradient styling and modern effects
- */
+// Defined outside component — never recreated on re-render
+const NAVIGATION = [
+    { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
+    { name: 'Generated Jobs', href: '/dashboard/generated-jobs', icon: Sparkles },
+    { name: 'Applications', href: '/dashboard/applications', icon: Users },
+    { name: 'Pipeline', href: '/dashboard/pipeline', icon: KanbanSquare },
+    { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
+    { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
+];
+
+// Prefetch map: nav href → what data to warm up for that page
+const PREFETCH_QUERIES = [
+    {
+        queryKey: jobKeys.list({}),
+        queryFn: () => jobsApi.getAll(),
+    },
+    {
+        queryKey: applicationKeys.lists(),
+        queryFn: () => applicationsApi.list(),
+    },
+];
 
 export default function DashboardLayout({
     children,
@@ -33,29 +54,32 @@ export default function DashboardLayout({
 }) {
     const router = useRouter();
     const pathname = usePathname();
+    const queryClient = useQueryClient();
     const { isSidebarOpen, toggleSidebar } = useUIStore();
     const { data: stats } = useDashboardStats();
     const pendingActions = stats?.pending_actions || 0;
+
+    // Background-prefetch the most-visited pages' data right after layout mounts.
+    // By the time the user clicks Jobs or Applications the data is already in cache
+    // and the page renders with zero network wait.
+    useEffect(() => {
+        const staleTime = 5 * 60_000;
+        PREFETCH_QUERIES.forEach(({ queryKey, queryFn }) => {
+            queryClient.prefetchQuery({ queryKey, queryFn, staleTime });
+        });
+        // Also prefetch the JS bundles for all sidebar routes
+        NAVIGATION.forEach(({ href }) => router.prefetch(href));
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleLogout = () => {
         if (typeof window !== 'undefined') {
             localStorage.removeItem('access_token');
             localStorage.removeItem('userRole');
             localStorage.removeItem('userEmail');
-            // Clear cookie
             document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
         }
         router.push('/login');
     };
-
-    const navigation = [
-        { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
-        { name: 'Generated Jobs', href: '/dashboard/generated-jobs', icon: Sparkles },
-        { name: 'Applications', href: '/dashboard/applications', icon: Users },
-        { name: 'Pipeline', href: '/dashboard/pipeline', icon: KanbanSquare },
-        { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
-        { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
-    ];
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50">
@@ -66,19 +90,19 @@ export default function DashboardLayout({
             >
                 <div className="flex flex-col h-full relative overflow-hidden">
                     {/* Decorative gradient orbs */}
-                    <div className="absolute top-20 -right-20 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl" />
-                    <div className="absolute bottom-40 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl" />
+                    <div className="absolute top-20 -right-20 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute bottom-40 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
                     {/* Logo */}
                     <div className="flex items-center justify-between p-6 border-b border-white/10">
-                        <div className="flex items-center gap-3">
+                        <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 animate-pulse-glow">
                                 <Sparkles className="h-5 w-5 text-white" />
                             </div>
                             <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">
                                 Evalyn
                             </h1>
-                        </div>
+                        </Link>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -91,17 +115,17 @@ export default function DashboardLayout({
 
                     {/* Navigation */}
                     <nav className="flex-1 p-4 space-y-2 relative z-10">
-                        {navigation.map((item, index) => {
+                        {NAVIGATION.map((item) => {
                             const isActive = pathname.startsWith(item.href);
                             return (
                                 <Link
                                     key={item.name}
                                     href={item.href}
+                                    prefetch={true}
                                     className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${isActive
                                         ? 'bg-gradient-to-r from-indigo-500/30 to-purple-500/20 text-white shadow-lg shadow-indigo-500/10 border border-indigo-400/20'
                                         : 'text-indigo-200 hover:bg-white/5 hover:text-white'
                                         }`}
-                                    style={{ animationDelay: `${index * 50}ms` }}
                                 >
                                     <div className={`p-2 rounded-lg transition-all duration-200 ${isActive
                                         ? 'bg-indigo-500/30'
@@ -158,7 +182,6 @@ export default function DashboardLayout({
                         </Button>
 
                         <div className="flex items-center gap-4">
-                            {/* Human action required indicator */}
                             {pendingActions > 0 && (
                                 <div className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-xl shadow-lg shadow-amber-500/10">
                                     <div className="relative">

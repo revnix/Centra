@@ -38,10 +38,9 @@ if "neon.tech" in settings.DATABASE_URL:
     connect_args["command_timeout"] = 60
     # CRITICAL: Disable prepared statement cache for PgBouncer compatibility
     connect_args["statement_cache_size"] = 0
-    # Explicit connection-establishment timeout (TCP/TLS handshake).
-    # Without this, asyncpg inherits an internal default that can exceed
-    # LangGraph's request deadline when Neon wakes from suspension.
-    connect_args["timeout"] = 30
+    # Keep per-attempt timeout short so cold-start retries stay under 90s total:
+    # 4 attempts × 15s + (1+3+8)s delays = 72s max < 90s frontend timeout
+    connect_args["timeout"] = 15
 
 print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
@@ -112,7 +111,7 @@ async def get_async_db():
       Phase 2 (single):  Yield one AsyncSession. Connection is now warm.
     """
     if _is_neon:
-        _RETRY_DELAYS = [2, 5]  # seconds to wait between attempts
+        _RETRY_DELAYS = [1, 3, 8]  # seconds to wait between attempts (4 total attempts)
         last_exc: Exception | None = None
 
         for attempt, delay in enumerate([0] + _RETRY_DELAYS, start=1):

@@ -24,7 +24,13 @@ async def list_integrations(
         )
         integrations = result.scalars().all()
         print(f"DEBUG: Found {len(integrations)} integrations for user_id={user_id}")
-        return integrations
+
+        # Deduplicate: keep only the most recent record per platform
+        seen: dict = {}
+        for integration in sorted(integrations, key=lambda x: x.id, reverse=True):
+            if integration.platform not in seen:
+                seen[integration.platform] = integration
+        return list(seen.values())
     except Exception as e:
         print(f"ERROR in list_integrations: {str(e)}")
         import traceback

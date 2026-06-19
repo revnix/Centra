@@ -173,6 +173,20 @@ export const jobsApi = {
     },
 
     /**
+     * Fetch the configured team member list
+     */
+    getTeamMembers: async (): Promise<{ label: string; email: string }[]> => {
+        return apiClient.get<{ label: string; email: string }[]>('/jobs/team-members');
+    },
+
+    /**
+     * Send job details to selected team members
+     */
+    sendToTeam: async (jobId: string, emails: string[]): Promise<{ message: string; sent: number; failed: number }> => {
+        return apiClient.post<{ message: string; sent: number; failed: number }>(`/jobs/${jobId}/send-to-team`, { emails });
+    },
+
+    /**
      * Submit Operation Manager review
      */
     review: async (

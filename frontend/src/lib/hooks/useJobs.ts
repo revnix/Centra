@@ -25,7 +25,7 @@ export function useJobs(params?: {
     return useQuery({
         queryKey: jobKeys.list(params || {}),
         queryFn: () => jobsApi.getAll(params),
-        staleTime: 30000, // 30 seconds
+        staleTime: 30_000,
     });
 }
 
@@ -37,7 +37,7 @@ export function useJob(id: string) {
         queryKey: jobKeys.detail(id),
         queryFn: () => jobsApi.getById(id),
         enabled: !!id,
-        staleTime: 60000, // 1 minute
+        staleTime: 30_000,
     });
 }
 
@@ -182,6 +182,6 @@ export function useDashboardStats() {
     return useQuery({
         queryKey: [...jobKeys.all, 'stats', 'dashboard'],
         queryFn: () => jobsApi.getStats(),
-        staleTime: 60000, // 1 minute
+        staleTime: 30_000,
     });
 }

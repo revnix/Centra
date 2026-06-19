@@ -16,7 +16,8 @@ Rules:
 - Always populate the 'department' field by inferring from the job title (e.g. Software Engineer → Engineering, Marketing Manager → Marketing)
 - If FEEDBACK is provided, you MUST incorporate it to improve the job description
 - Address ALL points mentioned in the feedback
-- Provide a REALISTIC suggested salary range (min/max/currency/period) based on the title, experience level, and location. If location is remote, use global or target market standards (e.g. USD)."""
+- Provide a REALISTIC suggested salary range (min/max/currency/period) based on the title, experience level, and location. If location is remote, use global or target market standards (e.g. USD).
+- Set 'benefits' to an empty list []. Do NOT generate generic placeholder benefits (health insurance, 401k, remote work, flexible hours, etc.)"""
     ),
     (
         "human",
@@ -34,6 +35,49 @@ Rules:
 {feedback}
 
 Generate the complete Job Description. If feedback is provided above, make sure to address ALL the feedback points in your improved version."""
+    ),
+])
+
+
+JD_IMPROVE_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        """You are a senior HR professional making precise edits to an existing job description.
+
+Your task is to make ONLY the specific changes requested in the feedback while preserving ALL other content.
+
+Rules:
+- Output MUST be structured JSON matching the required schema
+- Make ONLY the changes explicitly mentioned in the feedback
+- Preserve all existing content, phrasing, tone, and structure that is not mentioned in the feedback
+- Do NOT add, remove, or rewrite anything that was not asked to change
+- Ensure all list fields remain as flat lists of strings"""
+    ),
+    (
+        "human",
+        """Here is the EXISTING job description. Make ONLY the specific changes from the feedback below.
+
+**Current Description:**
+{current_description}
+
+**Current Requirements (preserve unless feedback asks to change):**
+{current_requirements}
+
+**Current Skills (preserve unless feedback asks to change):**
+{current_skills}
+
+**Current Responsibilities (preserve unless feedback asks to change):**
+{current_responsibilities}
+
+**Job Title:** {job_title}
+**Location:** {location}
+**Employment Type:** {employment_type}
+**Experience Level:** {experience_level}
+
+**Feedback — make ONLY these specific changes:**
+{feedback}
+
+Return the updated Job Description with ONLY the requested changes applied. Keep everything else identical."""
     ),
 ])
 

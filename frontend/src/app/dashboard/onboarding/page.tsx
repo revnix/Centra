@@ -22,7 +22,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
     } = useQuery({
         queryKey: ['onboarding', 'list'],
         queryFn: () => onboardingApi.getAll(),
-        staleTime: 30_000,
+        staleTime: 5 * 60_000,
     });
     const error = listError ? (listError as any)?.message || "Failed to fetch onboarding records" : ""; // ✅ UNCHANGED behaviour
 

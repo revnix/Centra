@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     OPERATIONS_MANAGER_EMAIL: str = "manager@evalyn.ai"
     HR_EMAIL: str = "hr@evalyn.ai"
     EMAIL_TEST_OVERRIDE: str = ""
+
+    # Team lead emails
+    LEAD_AI_EMAIL: str = ""
+    LEAD_WEB_EMAIL: str = ""
+    LEAD_SEO_EMAIL: str = ""
+    LEAD_SHOPIFY_EMAIL: str = ""
+    LEAD_UIUX_EMAIL: str = ""
     
     @model_validator(mode='after')
     def add_frontend_url_to_cors(self) -> 'Settings':
