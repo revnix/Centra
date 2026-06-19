@@ -172,7 +172,10 @@ function JobApplicationInner({ id }: { id: string }) {
         );
     }
 
-    const isClosed = job.effective_status === "CLOSED" || job.status !== "PUBLISHED";
+    const now = new Date();
+    const deadline = job.expires_at ? new Date(job.expires_at) : null;
+    const isDeadlineExpired = deadline ? now > deadline : false;
+    const isClosed = job.effective_status === "CLOSED" || isDeadlineExpired;
 
     if (isClosed) {
         return (

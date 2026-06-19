@@ -92,7 +92,7 @@ class Posts(Base):
     # Status and Publishing
     status = Column(SQLEnum(JobStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobStatus.DRAFT, index=True, comment="Current status")
     published_at = Column(DateTime(timezone=True), nullable=True, comment="When the job was first published")
-    expires_at = Column(DateTime(timezone=True), nullable=True, comment="When the job listing expires")
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True, comment="When the job listing expires")
     
     # Company Information
     company_name = Column(String(255), nullable=True, comment="Hiring company name")

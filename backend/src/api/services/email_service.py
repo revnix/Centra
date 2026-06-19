@@ -1,5 +1,6 @@
 import resend
 import logging
+import asyncio
 from src.api.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,8 @@ if settings.RESEND_API_KEY:
 
 HR_PHONE_NUMBER = "03125932632"
 
+EMAIL_SEND_TIMEOUT = 25  # seconds — well under the 90s frontend timeout
+
 async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
     Centralized email sending function using Resend API.
@@ -17,14 +20,11 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
     if not settings.RESEND_API_KEY:
         logger.warning("RESEND_API_KEY is not configured. Email not sent.")
-        # In development, we log the content
         logger.info(f"Dev Email Log [To: {to_email} | Subject: {subject}]:\n{html_content}")
         return True
 
-    # Ensure API key is set
     resend.api_key = settings.RESEND_API_KEY
 
-    # Redirect for testing if configured
     effective_to = settings.EMAIL_TEST_OVERRIDE or to_email
     if settings.EMAIL_TEST_OVERRIDE and settings.EMAIL_TEST_OVERRIDE != to_email:
         subject = f"[TEST → {to_email}] {subject}"
@@ -36,12 +36,25 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
             "subject": subject,
             "html": html_content,
         }
-        
+
+        # Route replies to the actual HR inbox — the FROM domain (Resend sender)
+        # has no MX records, so replies would bounce without this.
+        reply_to = settings.HR_EMAIL or settings.OPERATIONS_MANAGER_EMAIL
+        if reply_to:
+            params["reply_to"] = [reply_to]
+
         logger.info(f"Sending email via Resend to {effective_to}...")
         from starlette.concurrency import run_in_threadpool
-        result = await run_in_threadpool(resend.Emails.send, params)
+
+        result = await asyncio.wait_for(
+            run_in_threadpool(resend.Emails.send, params),
+            timeout=EMAIL_SEND_TIMEOUT,
+        )
         logger.info(f"Email successfully sent to {effective_to}. Response: {result}")
         return True
+    except asyncio.TimeoutError:
+        logger.error(f"Resend API timed out after {EMAIL_SEND_TIMEOUT}s for email to {to_email}")
+        return False
     except Exception as e:
         logger.error(f"FAILED to send email via Resend to {to_email}: {str(e)}")
         return False
@@ -231,7 +244,7 @@ class EmailService:
         return await send_email(email, subject, html)
 
     @staticmethod
-    async def send_job_to_manager(job_title: str, job_details: str, review_url: str = None) -> bool:
+    async def send_job_to_manager(job_title: str, job_details: str, review_url: str | None = None) -> bool:
         """
         Internal notification to manager for job review.
         """
@@ -272,7 +285,51 @@ class EmailService:
         return await send_email(settings.OPERATIONS_MANAGER_EMAIL, subject, html)
 
     @staticmethod
-    async def send_new_application_notification(candidate_name: str, candidate_email: str, job_title: str, source: str, resume_link: str = None) -> bool:
+    async def send_job_to_team(job_title: str, job_details: str, recipient_emails: list, review_url: str | None = None) -> dict:
+        """
+        Send job review request to a list of team members.
+        Returns a dict with sent/failed counts.
+        """
+        subject = f"Job Post for Review: {job_title}"
+
+        review_section = ""
+        if review_url:
+            review_section = f"""
+            <div style="margin: 30px 0; text-align: center;">
+                <a href="{review_url}" style="background-color: #1e40af; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Review Job Post</a>
+            </div>
+            """
+
+        html = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #1e40af; font-size: 24px; margin: 0;">Job Post Review Request</h1>
+            </div>
+            <p>Hello,</p>
+            <p>A new job post for <strong>{job_title}</strong> has been shared with you for review.</p>
+            <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; border-left: 4px solid #1e40af; margin: 25px 0;">
+                <h3 style="margin-top: 0; font-size: 16px; color: #1e40af;">Job Details</h3>
+                <pre style="white-space: pre-wrap; font-family: inherit; font-size: 14px; margin: 0;">{job_details}</pre>
+            </div>
+            {review_section}
+            <p style="margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px; font-size: 14px; color: #718096;">
+                Best regards,<br/>
+                <strong>Evalyn AI Recruitment Team</strong>
+            </p>
+        </div>
+        """
+
+        sent, failed = 0, 0
+        for email in recipient_emails:
+            ok = await send_email(email, subject, html)
+            if ok:
+                sent += 1
+            else:
+                failed += 1
+        return {"sent": sent, "failed": failed}
+
+    @staticmethod
+    async def send_new_application_notification(candidate_name: str, candidate_email: str, job_title: str, source: str, resume_link: str | None = None) -> bool:
         """
         Internal notification to HR for new application.
         """

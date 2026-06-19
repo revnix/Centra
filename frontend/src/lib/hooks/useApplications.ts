@@ -19,7 +19,7 @@ export function useApplications() { // ✨ NEW - OPTIMIZATION
     return useQuery({
         queryKey: applicationKeys.lists(),
         queryFn: () => applicationsApi.list(),
-        staleTime: 30_000, // 30 s — pipeline data changes frequently
+        staleTime: 5 * 60_000, // 5 min — invalidated explicitly on mutations
     });
 }
 

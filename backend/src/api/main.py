@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
 import os
 from src.api.core.config import settings
 from src.api.routes import (
@@ -15,7 +16,6 @@ from src.api.routes import (
     onboarding,
     uploads,
     langgraph,
-    indeed,
     applications,
     interviews,
 )
@@ -67,6 +67,17 @@ async def lifespan(app: FastAPI):
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
 
     await _migrate_enum_values()
+
+    # Warm up Neon DB in background so the first user request hits a live connection
+    async def _warmup_db():
+        from sqlalchemy import text
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            print("DEBUG: DB warmup successful")
+        except Exception as e:
+            print(f"DEBUG: DB warmup failed (will retry on first request): {e}")
+    asyncio.ensure_future(_warmup_db())
 
     print(f"DEBUG: CORS ALLOWED_ORIGINS = {settings.ALLOWED_ORIGINS}")
     print("DEBUG: Application lifespan started and directories verified")
@@ -122,11 +133,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Routes
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_PREFIX}/jobs", tags=["jobs"])
 app.include_router(integrations.router, prefix=f"{settings.API_V1_PREFIX}/integrations", tags=["integrations"])
-app.include_router(indeed.router, prefix=f"{settings.API_V1_PREFIX}/indeed", tags=["indeed"])
 
 # Admin Routes
 app.include_router(admin_users.router, prefix=f"{settings.API_V1_PREFIX}/admin/users", tags=["admin-users"])

@@ -13,11 +13,9 @@ class JobService:
         query = select(Posts)
         
         if status:
-            # Case-insensitive match just in case
-            # query = query.where(func.lower(Posts.status) == status.lower())
             query = query.where(Posts.status == status)
             
-        query = query.offset(skip).limit(limit)
+        query = query.order_by(Posts.created_at.desc()).offset(skip).limit(limit)
         
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -29,7 +27,7 @@ class JobService:
         if status:
             query = query.where(Posts.status == status)
             
-        query = query.offset(skip).limit(limit)
+        query = query.order_by(Posts.created_at.desc()).offset(skip).limit(limit)
         
         result = await self.db.execute(query)
         return result.scalars().all()
@@ -80,51 +78,79 @@ class JobService:
 
     async def improve_job(self, job_id: int, feedback: str):
         import asyncio
-        from src.flow.prompts.human.jd_prompt import JD_GENERATION_PROMPT
+        from src.flow.prompts.human.jd_prompt import JD_IMPROVE_PROMPT
         from src.flow.model.llm_manager import get_llm
         from src.flow.model.structure.jd import JobPost
         from datetime import datetime, timezone
         from fastapi.concurrency import run_in_threadpool
-        
+
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-        
-        # Prepare inputs for the agent based on existing job data
-        messages = JD_GENERATION_PROMPT.format_messages(
+
+        # Build current content so the AI makes targeted edits, not a full rewrite
+        def _fmt(items):
+            return "\n".join(f"- {i}" for i in (items or [])) or "Not specified"
+
+        current_responsibilities = _fmt((db_job.metadata_json or {}).get("responsibilities", []))
+
+        messages = JD_IMPROVE_PROMPT.format_messages(
+            current_description=db_job.description or "",
+            current_requirements=_fmt(db_job.requirements),
+            current_skills=_fmt(db_job.required_skills),
+            current_responsibilities=current_responsibilities,
             job_title=db_job.title,
             location=db_job.location or "Remote",
-            skills=", ".join(db_job.required_skills or []),
-            company_name=db_job.company_name or "Our Company",
             employment_type=db_job.job_type.value if db_job.job_type else "Full-time",
             experience_level=db_job.experience_level.value if db_job.experience_level else "Mid",
             feedback=feedback
         )
-        
+
         # LLM CALL
         llm = get_llm().with_structured_output(JobPost)
         response = await run_in_threadpool(llm.invoke, messages)
-        
+
         # Convert to dict
         post_data = response.model_dump() if hasattr(response, 'model_dump') else response
-        
+
+        new_requirements = post_data.get("requirements", db_job.requirements or [])
+        new_skills = post_data.get("skills", db_job.required_skills or [])
+        new_responsibilities = post_data.get("responsibilities", (db_job.metadata_json or {}).get("responsibilities", []))
+        new_preferred = post_data.get("preferred_qualifications", db_job.preferred_qualifications or [])
+        new_benefits = post_data.get("benefits", db_job.benefits or [])
+        new_summary = post_data.get("summary", "")
+
+        # Rebuild the full structured description to keep display format consistent
+        def _list(items):
+            return "\n".join(f"• {i}" for i in (items or []))
+
+        full_description = f"🔹 JOB SUMMARY\n{new_summary}"
+        if new_responsibilities:
+            full_description += f"\n\n🔹 KEY RESPONSIBILITIES\n{_list(new_responsibilities)}"
+        if new_skills:
+            full_description += f"\n\n🔹 REQUIRED SKILLS\n{_list(new_skills)}"
+        if new_requirements:
+            full_description += f"\n\n🔹 QUALIFICATIONS\n{_list(new_requirements)}"
+        if new_preferred:
+            full_description += f"\n\n🔹 PREFERRED QUALIFICATIONS\n{_list(new_preferred)}"
+
         # Update the job record
         db_job.title = post_data.get("job_title", db_job.title)
-        db_job.description = post_data.get("summary", db_job.description)
-        db_job.required_skills = post_data.get("skills", db_job.required_skills)
-        db_job.preferred_skills = post_data.get("preferred_qualifications", db_job.preferred_skills)
-        db_job.requirements = post_data.get("requirements", db_job.requirements)
-        db_job.preferred_qualifications = post_data.get("preferred_qualifications", db_job.preferred_qualifications)
-        db_job.benefits = post_data.get("benefits", db_job.benefits)
-        
+        db_job.description = full_description
+        db_job.required_skills = new_skills
+        db_job.preferred_skills = post_data.get("preferred_skills", db_job.preferred_skills)
+        db_job.requirements = new_requirements
+        db_job.preferred_qualifications = new_preferred
+        db_job.benefits = new_benefits
+
         metadata = db_job.metadata_json or {}
-        metadata["responsibilities"] = post_data.get("responsibilities", [])
-        metadata["requirements"] = post_data.get("requirements", [])
-        metadata["preferred_qualifications"] = post_data.get("preferred_qualifications", [])
-        metadata["benefits"] = post_data.get("benefits", [])
+        metadata["responsibilities"] = new_responsibilities
+        metadata["requirements"] = new_requirements
+        metadata["preferred_qualifications"] = new_preferred
+        metadata["benefits"] = new_benefits
         metadata["improved_at_utc"] = datetime.now(timezone.utc).isoformat()
         db_job.metadata_json = metadata
-        
+
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
@@ -160,7 +186,10 @@ class JobService:
 
     async def get_dashboard_stats(self, user_id: int):
         from sqlalchemy import func
+        from sqlalchemy import desc
         from src.api.models.job import JobStatus
+        from src.api.models.application import Application
+        from src.api.models.user import User
         
         # Total jobs for this user
         total_query = select(func.count()).select_from(Posts).where(Posts.created_by == user_id)
@@ -175,29 +204,69 @@ class JobService:
         pending_result = await self.db.execute(pending_query)
         pending_actions = pending_result.scalar()
         
+        # Fetch 5 most recent activities (latest applications by updated_at)
+        recent_query = select(Application, Posts.title, User.full_name).join(
+            Posts, Application.job_id == Posts.id
+        ).join(
+            User, Application.candidate_id == User.id
+        ).where(
+            Posts.created_by == user_id
+        ).order_by(desc(Application.updated_at)).limit(5)
+        
+        recent_result = await self.db.execute(recent_query)
+        recent_activity = []
+        for app, job_title, candidate_name in recent_result.all():
+            label = "New application"
+            if app.status.value == "SHORTLISTED":
+                label = "Candidate shortlisted"
+            elif app.status.value == "INTERVIEW_SCHEDULED":
+                label = "Interview scheduled"
+            elif app.status.value == "HIRED":
+                label = "Candidate hired"
+            elif app.status.value == "REJECTED":
+                label = "Candidate rejected"
+                
+            recent_activity.append({
+                "label": label,
+                "sub": f"{candidate_name} for {job_title}",
+                "time": app.updated_at.isoformat() if app.updated_at else app.created_at.isoformat(),
+                "badge": app.status.value.capitalize(),
+                "status": app.status.value
+            })
+        
         return {
             "total_jobs": total_jobs,
-            "pending_actions": pending_actions
+            "pending_actions": pending_actions,
+            "recent_activity": recent_activity
         }
 
     async def publish_job(self, job_id: int, user_id: int):
         from src.api.models.job import JobStatus
         from datetime import datetime, timezone
-        from src.api.integrations.indeed import IndeedService
-        
+        from src.api.services.indeed_service import IndeedService
+
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-            
+
         db_job.status = JobStatus.PUBLISHED
         db_job.published_at = datetime.now(timezone.utc)
-        
+
         await self.db.commit()
         await self.db.refresh(db_job)
-        
+
         # Trigger Indeed Upload
         indeed_service = IndeedService(self.db)
-        await indeed_service.upload_job(db_job, user_id)
+        try:
+            await indeed_service.post_job_to_indeed(
+                user_id=user_id,
+                title=db_job.title,
+                description=db_job.description or "",
+                location=db_job.location or "Remote",
+                company=db_job.company_name or ""
+            )
+        except Exception:
+            pass  # Indeed upload failure should not block job publish
         
         return db_job
 

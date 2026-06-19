@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
     Users, Briefcase, Zap, ArrowRight, FileText, TrendingUp,
@@ -13,12 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { useDashboardStats } from "@/lib/hooks/useJobs";
 
 // ─── Animation Variants ────────────────────────────────────────────────────────
+// Cap delay at 200ms so the page never feels artificially slow
 const fadeUp = {
-    hidden: { opacity: 0, y: 24 },
+    hidden: { opacity: 0, y: 16 },
     visible: (i: number) => ({
         opacity: 1,
         y: 0,
-        transition: { delay: i * 0.07, duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+        transition: { delay: Math.min(i * 0.04, 0.2), duration: 0.3, ease: [0.22, 1, 0.36, 1] },
     }),
 };
 
@@ -117,7 +119,7 @@ function PipelineFunnel() {
                             className={`h-full rounded-full ${stage.color}`}
                             initial={{ width: 0 }}
                             animate={{ width: `${(stage.count / max) * 100}%` }}
-                            transition={{ duration: 0.8, delay: i * 0.1, ease: "easeOut" }}
+                            transition={{ duration: 0.5, delay: i * 0.05, ease: "easeOut" }}
                         />
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.light} w-8 text-center shrink-0`}>
@@ -129,22 +131,36 @@ function PipelineFunnel() {
     );
 }
 
-// ─── Activity Feed ─────────────────────────────────────────────────────────────
-const recentActivity = [
-    { icon: FileText, color: "text-indigo-600 bg-indigo-50", label: "New application", sub: "Senior React Developer", time: "2m ago", badge: "Applied" },
-    { icon: UserCheck, color: "text-emerald-600 bg-emerald-50", label: "Candidate shortlisted", sub: "Backend Engineer", time: "18m ago", badge: "Shortlisted" },
-    { icon: Calendar, color: "text-violet-600 bg-violet-50", label: "Interview scheduled", sub: "Product Designer", time: "1h ago", badge: "Interview" },
-    { icon: CheckCircle2, color: "text-teal-600 bg-teal-50", label: "Offer accepted", sub: "DevOps Engineer", time: "3h ago", badge: "Hired" },
-    { icon: GitPullRequest, color: "text-amber-600 bg-amber-50", label: "Job post published", sub: "ML Engineer", time: "5h ago", badge: "Published" },
-];
-
 const badgeColors: Record<string, string> = {
     Applied: "bg-indigo-100 text-indigo-700",
     Shortlisted: "bg-emerald-100 text-emerald-700",
     Interview: "bg-violet-100 text-violet-700",
     Hired: "bg-teal-100 text-teal-700",
     Published: "bg-amber-100 text-amber-700",
+    Rejected: "bg-rose-100 text-rose-700",
 };
+
+// Helper function to calculate relative time
+function getRelativeTime(timestampStr: string) {
+    if (!timestampStr) return "Just now";
+    
+    const timestamp = new Date(timestampStr).getTime();
+    const now = new Date().getTime();
+    const diffInSeconds = Math.floor((now - timestamp) / 1000);
+
+    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays}d ago`;
+    
+    return new Date(timestampStr).toLocaleDateString();
+}
 
 // ─── Quick Action ──────────────────────────────────────────────────────────────
 interface QuickActionProps {
@@ -182,7 +198,7 @@ export default function DashboardPage() {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-    const statCards: StatCardProps[] = [
+    const statCards: StatCardProps[] = useMemo(() => [
         {
             title: "Total Applications",
             value: 12,
@@ -222,7 +238,7 @@ export default function DashboardPage() {
             href: "/dashboard/generated-jobs",
             index: 2,
         },
-    ];
+    ], [stats?.total_jobs, stats?.pending_actions]);
 
     if (isLoading) {
         return (
@@ -290,30 +306,56 @@ export default function DashboardPage() {
                             </Link>
                         </div>
                         <div className="divide-y divide-slate-50">
-                            {recentActivity.map((item, i) => (
-                                <motion.div
-                                    key={i}
-                                    custom={i}
-                                    variants={fadeUp}
-                                    initial="hidden"
-                                    animate="visible"
-                                    className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors group cursor-pointer"
-                                >
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                                        <item.icon className="h-4 w-4" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-800">{item.label}</p>
-                                        <p className="text-xs text-slate-500 truncate">{item.sub}</p>
-                                    </div>
-                                    <div className="flex items-center gap-3 flex-shrink-0">
-                                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeColors[item.badge]}`}>
-                                            {item.badge}
-                                        </span>
-                                        <span className="text-xs text-slate-400">{item.time}</span>
-                                    </div>
-                                </motion.div>
-                            ))}
+                            {stats?.recent_activity && stats.recent_activity.length > 0 ? (
+                                stats.recent_activity.map((item: any, i: number) => {
+                                    // Determine icon and color based on status
+                                    let Icon = FileText;
+                                    let color = "text-indigo-600 bg-indigo-50";
+                                    
+                                    if (item.status === 'SHORTLISTED') {
+                                        Icon = UserCheck;
+                                        color = "text-emerald-600 bg-emerald-50";
+                                    } else if (item.status === 'INTERVIEW_SCHEDULED') {
+                                        Icon = Calendar;
+                                        color = "text-violet-600 bg-violet-50";
+                                    } else if (item.status === 'HIRED') {
+                                        Icon = CheckCircle2;
+                                        color = "text-teal-600 bg-teal-50";
+                                    } else if (item.status === 'REJECTED') {
+                                        Icon = Target;
+                                        color = "text-rose-600 bg-rose-50";
+                                    }
+
+                                    return (
+                                        <motion.div
+                                            key={i}
+                                            custom={i}
+                                            variants={fadeUp}
+                                            initial="hidden"
+                                            animate="visible"
+                                            className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                                        >
+                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+                                                <Icon className="h-4 w-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-slate-800">{item.label}</p>
+                                                <p className="text-xs text-slate-500 truncate">{item.sub}</p>
+                                            </div>
+                                            <div className="flex items-center gap-3 flex-shrink-0">
+                                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeColors[item.badge] || badgeColors.Applied}`}>
+                                                    {item.badge}
+                                                </span>
+                                                <span className="text-xs text-slate-400">{getRelativeTime(item.time)}</span>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })
+                            ) : (
+                                <div className="px-6 py-8 text-center text-slate-500 text-sm">
+                                    No recent activity found.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </motion.div>

@@ -33,7 +33,7 @@ export function useCandidates(
         queryKey: candidateKeys.list(jobId, params || {}),
         queryFn: () => candidatesApi.getByJob(jobId, params),
         enabled: !!jobId,
-        staleTime: 30000,
+        staleTime: 5 * 60_000,
     });
 }
 

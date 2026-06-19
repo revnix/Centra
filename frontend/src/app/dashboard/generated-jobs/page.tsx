@@ -1,12 +1,12 @@
 'use client'; // ✅ UNCHANGED
 
-import { useState, useEffect, useMemo } from 'react'; // ✨ NEW - OPTIMIZATION (added useMemo)
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query'; // ✨ NEW - OPTIMIZATION
 import { useJobs, usePublishJob, useDeleteJob } from '@/lib/hooks/useJobs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -38,13 +38,17 @@ export default function GeneratedJobsPage() {
     const { data: jobsResponse, isLoading } = useJobs();
     const publishJob = usePublishJob();
 
-    const jobs = jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'ACTIVE'].includes(j.status)) || [];
+    const jobs = useMemo(
+        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'ACTIVE'].includes(j.status)) ?? [],
+        [jobsResponse]
+    );
 
-    // Publish Dialog State // ✅ UNCHANGED
-    const [showPublishDialog, setShowPublishDialog] = useState(false); // ✅ UNCHANGED
-    const [selectedJob, setSelectedJob] = useState<any>(null); // ✅ UNCHANGED
-    const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]); // ✅ UNCHANGED
-    const [isPublishing, setIsPublishing] = useState(false); // ✅ UNCHANGED
+    // Publish Dialog State
+    const [showPublishDialog, setShowPublishDialog] = useState(false);
+    const [selectedJob, setSelectedJob] = useState<any>(null);
+    const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [publishSuccess, setPublishSuccess] = useState(false);
 
     // Feedback Dialog State // ✅ UNCHANGED
     const [showFeedbackDialog, setShowFeedbackDialog] = useState(false); // ✅ UNCHANGED
@@ -56,6 +60,39 @@ export default function GeneratedJobsPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const deleteJob = useDeleteJob();
 
+    // Send to Team Dialog State
+    const [showTeamDialog, setShowTeamDialog] = useState(false);
+    const [teamDialogJob, setTeamDialogJob] = useState<any>(null);
+    const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
+    const [isSendingToTeam, setIsSendingToTeam] = useState(false);
+
+    // Prefetch team members on mount so the dialog opens instantly
+    const { data: teamMembers = [] } = useQuery({
+        queryKey: ['team-members'],
+        queryFn: () => jobsApi.getTeamMembers(),
+        staleTime: 10 * 60 * 1000,
+    });
+
+    const handleOpenTeamDialog = (job: any) => {
+        setTeamDialogJob(job);
+        setSelectedTeamEmails([]);
+        setShowTeamDialog(true);
+    };
+
+    const handleSendToTeam = async () => {
+        if (!teamDialogJob || selectedTeamEmails.length === 0) return;
+        setIsSendingToTeam(true);
+        try {
+            const result = await jobsApi.sendToTeam(teamDialogJob.id, selectedTeamEmails);
+            toast.success(result.message);
+            setShowTeamDialog(false);
+        } catch (error: any) {
+            toast.error(`Failed to send: ${error.message || "Unknown error"}`);
+        } finally {
+            setIsSendingToTeam(false);
+        }
+    };
+
     // Multi-select State (none selected by default)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -64,21 +101,17 @@ export default function GeneratedJobsPage() {
     const allSelected = jobs.length > 0 && selectedIds.size === jobs.length;
     const someSelected = selectedIds.size > 0 && !allSelected;
 
-    const toggleSelect = (id: string) => {
+    const toggleSelect = useCallback((id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             next.has(id) ? next.delete(id) : next.add(id);
             return next;
         });
-    };
+    }, []);
 
-    const toggleSelectAll = () => {
-        if (allSelected) {
-            setSelectedIds(new Set());
-        } else {
-            setSelectedIds(new Set(jobs.map(j => j.id)));
-        }
-    };
+    const toggleSelectAll = useCallback(() => {
+        setSelectedIds(prev => prev.size === jobs.length ? new Set() : new Set(jobs.map(j => j.id)));
+    }, [jobs]);
 
     const handleBulkDelete = async () => {
         setIsBulkDeleting(true);
@@ -151,6 +184,7 @@ export default function GeneratedJobsPage() {
 
     const handleOpenPublishDialog = (job: any) => {
         setSelectedJob(job);
+        setPublishSuccess(false);
         setShowPublishDialog(true);
     };
 
@@ -193,9 +227,9 @@ export default function GeneratedJobsPage() {
                 const jobUrl = `${window.location.origin}/jobs/${selectedJob.id}/apply`;
 
                 if (account?.platform === 'linkedin') {
-                    // Use full description for LinkedIn as per user requirement to preserve formatting and content
-                    const text = selectedJob.description || selectedJob.short_description || `We are hiring a ${selectedJob.title}!`;
-                    // Pass the job URL as article_url for clickable link preview
+                    const snippet = (selectedJob.short_description || selectedJob.description || '').substring(0, 500).trimEnd();
+                    const tag = `#${(selectedJob.title || '').replace(/\s+/g, '')}`;
+                    const text = `🚀 We're Hiring: ${selectedJob.title}!\n\n📍 ${selectedJob.location || 'Remote'} | 💼 ${selectedJob.job_type || 'Full-time'} | 🏢 ${selectedJob.department || 'Engineering'}\n\n${snippet}${snippet.length >= 500 ? '...' : ''}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
                     return integrationsApi.linkedin.publish(text, jobUrl);
                 } else if (account?.platform === 'indeed') {
                     // Revert to backend-side publish which now has improved WAF bypass headers
@@ -211,16 +245,10 @@ export default function GeneratedJobsPage() {
             await Promise.all(publishPromises);
 
             // 2. Mark as published in our DB
-            publishJob.mutate(selectedJob.id, {
-                onSuccess: () => {
-                    toast.success("Job published successfully to selected platforms!");
-                    setShowPublishDialog(false);
-                    router.refresh();
-                },
-                onError: (error: any) => {
-                    toast.error(`Job posted to socials but failed to update local status: ${error.message}`);
-                }
-            });
+            await publishJob.mutateAsync(selectedJob.id);
+
+            setPublishSuccess(true);
+            router.refresh();
 
         } catch (error: any) {
             console.error("Publish error:", error);
@@ -366,20 +394,11 @@ export default function GeneratedJobsPage() {
                                     </Link>
                                     <Button
                                         variant="outline"
-                                        onClick={async () => {
-                                            try {
-                                                const loadingToast = toast.loading("Sending to Operation Manager...");
-                                                await jobsApi.sendToManager(job.id);
-                                                toast.dismiss(loadingToast);
-                                                toast.success("Job details sent to Operation Manager!");
-                                            } catch (error: any) {
-                                                toast.error(`Failed to send: ${error.message || "Unknown error"}`);
-                                            }
-                                        }}
+                                        onClick={() => handleOpenTeamDialog(job)}
                                         className="whitespace-nowrap flex gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                                     >
-                                        <Share2 className="h-4 w-4" />
-                                        Send to Manager
+                                        <Users className="h-4 w-4" />
+                                        Send to Team
                                     </Button>
                                     <Button
                                         onClick={() => handleOpenPublishDialog(job)}
@@ -430,87 +449,92 @@ export default function GeneratedJobsPage() {
                 </div>
             )}
 
-            {/* Publish Dialog - Account Selection */}
-            <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
+            {/* Publish Dialog - Account Selection / Success */}
+            <Dialog open={showPublishDialog} onOpenChange={(open) => { setShowPublishDialog(open); if (!open) setPublishSuccess(false); }}>
                 <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Rocket className="h-5 w-5 text-green-600" />
-                            Publish Job Post
-                        </DialogTitle>
-                        <DialogDescription>
-                            Select the social media accounts to publish this job post to.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                        <p className="text-sm text-slate-600">
-                            Connected accounts ({selectedAccounts.length} selected):
-                        </p>
-
-                        {connectedAccounts.map((account) => {
-                            const Icon = account.icon;
-                            const isSelected = selectedAccounts.includes(account.id);
-
-                            return (
-                                <div
-                                    key={account.id}
-                                    onClick={() => handleAccountToggle(account.id)}
-                                    className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-colors ${isSelected
-                                        ? 'border-green-300 bg-green-50'
-                                        : 'border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    <Checkbox
-                                        checked={isSelected}
-                                        onCheckedChange={() => handleAccountToggle(account.id)}
-                                    />
-                                    <div className={`p-2 rounded-lg ${account.color} text-white`}>
-                                        <Icon className="h-4 w-4" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-medium text-slate-900">{account.name}</h4>
-                                        <p className="text-sm text-slate-500">{account.handle}</p>
-                                    </div>
-                                    {isSelected && (
-                                        <Check className="h-5 w-5 text-green-600" />
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        {connectedAccounts.length === 0 && (
-                            <div className="text-center py-6 text-slate-500">
-                                <p>No accounts connected.</p>
-                                <Link href="/dashboard/integrations" className="text-blue-600 hover:underline text-sm">
-                                    Go to Integrations
-                                </Link>
+                    {publishSuccess ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-center gap-4">
+                            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                                <CheckCircle2 className="h-10 w-10 text-green-600" />
                             </div>
-                        )}
-                    </div>
+                            <h2 className="text-2xl font-bold text-slate-900">Job Published!</h2>
+                            <p className="text-slate-500 text-sm max-w-xs">
+                                Your job post for <span className="font-semibold text-slate-700">{selectedJob?.title}</span> has been published successfully to the selected platforms.
+                            </p>
+                            <Button
+                                className="mt-2 bg-green-600 hover:bg-green-700 text-white px-8"
+                                onClick={() => setShowPublishDialog(false)}
+                            >
+                                Done
+                            </Button>
+                        </div>
+                    ) : (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <Rocket className="h-5 w-5 text-green-600" />
+                                    Publish Job Post
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Select the social media accounts to publish this job post to.
+                                </DialogDescription>
+                            </DialogHeader>
 
-                    <DialogFooter className="flex gap-2">
-                        <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleFinalPublish}
-                            disabled={isPublishing || selectedAccounts.length === 0}
-                            className="bg-green-600 hover:bg-green-700"
-                        >
-                            {isPublishing ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Publishing...
-                                </>
-                            ) : (
-                                <>
-                                    <Rocket className="mr-2 h-4 w-4" />
-                                    Publish to {selectedAccounts.length} Account{selectedAccounts.length !== 1 ? 's' : ''}
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
+                            <div className="space-y-4 py-4">
+                                <p className="text-sm text-slate-600">
+                                    Connected accounts ({selectedAccounts.length} selected):
+                                </p>
+
+                                {connectedAccounts.map((account) => {
+                                    const Icon = account.icon;
+                                    const isSelected = selectedAccounts.includes(account.id);
+                                    return (
+                                        <div
+                                            key={account.id}
+                                            onClick={() => handleAccountToggle(account.id)}
+                                            className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'border-green-300 bg-green-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            <Checkbox checked={isSelected} onCheckedChange={() => handleAccountToggle(account.id)} />
+                                            <div className={`p-2 rounded-lg ${account.color} text-white`}>
+                                                <Icon className="h-4 w-4" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-medium text-slate-900">{account.name}</h4>
+                                                <p className="text-sm text-slate-500">{account.handle}</p>
+                                            </div>
+                                            {isSelected && <Check className="h-5 w-5 text-green-600" />}
+                                        </div>
+                                    );
+                                })}
+
+                                {connectedAccounts.length === 0 && (
+                                    <div className="text-center py-6 text-slate-500">
+                                        <p>No accounts connected.</p>
+                                        <Link href="/dashboard/integrations" className="text-blue-600 hover:underline text-sm">
+                                            Go to Integrations
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
+
+                            <DialogFooter className="flex gap-2">
+                                <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleFinalPublish}
+                                    disabled={isPublishing || selectedAccounts.length === 0}
+                                    className="bg-green-600 hover:bg-green-700"
+                                >
+                                    {isPublishing ? (
+                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Publishing...</>
+                                    ) : (
+                                        <><Rocket className="mr-2 h-4 w-4" />Publish to {selectedAccounts.length} Account{selectedAccounts.length !== 1 ? 's' : ''}</>
+                                    )}
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
 
@@ -589,6 +613,75 @@ export default function GeneratedJobsPage() {
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     Delete Permanently
                                 </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Send to Team Dialog ── */}
+            <Dialog open={showTeamDialog} onOpenChange={setShowTeamDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-indigo-600" />
+                            Send to Team
+                        </DialogTitle>
+                        <DialogDescription>
+                            Select team members to send this job post for review. None are selected by default.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 py-4">
+                        {teamMembers.length === 0 ? (
+                            <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
+                        ) : (
+                            teamMembers.map((member) => {
+                                const isSelected = selectedTeamEmails.includes(member.email);
+                                return (
+                                    <div
+                                        key={member.email}
+                                        onClick={() => setSelectedTeamEmails(prev =>
+                                            prev.includes(member.email)
+                                                ? prev.filter(e => e !== member.email)
+                                                : [...prev, member.email]
+                                        )}
+                                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                            isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <Checkbox
+                                            checked={isSelected}
+                                            onCheckedChange={() => setSelectedTeamEmails(prev =>
+                                                prev.includes(member.email)
+                                                    ? prev.filter(e => e !== member.email)
+                                                    : [...prev, member.email]
+                                            )}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-slate-900 text-sm">{member.label}</p>
+                                            <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                        </div>
+                                        {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    <DialogFooter className="flex gap-2">
+                        <Button variant="outline" onClick={() => setShowTeamDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSendToTeam}
+                            disabled={isSendingToTeam || selectedTeamEmails.length === 0}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                            {isSendingToTeam ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</>
+                            ) : (
+                                <><Users className="mr-2 h-4 w-4" />Send to {selectedTeamEmails.length || ''} {selectedTeamEmails.length === 1 ? 'Member' : selectedTeamEmails.length > 1 ? 'Members' : 'Team'}</>
                             )}
                         </Button>
                     </DialogFooter>
