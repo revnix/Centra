@@ -20,9 +20,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL"
-    )
+    DATABASE_URL: str = ""
 
     # Security
     SECRET_KEY: str = os.getenv(
