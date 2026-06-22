@@ -22,15 +22,33 @@ class JobService:
     
     async def get_my_jobs(self, user_id: int, skip: int = 0, limit: int = 100, status: str = None):
         from sqlalchemy import func
-        query = select(Posts).where(Posts.created_by == user_id)
-        
+        from src.api.models.application import Application
+
+        app_count_subq = (
+            select(Application.job_id, func.count(Application.id).label("application_count"))
+            .group_by(Application.job_id)
+            .subquery()
+        )
+
+        query = (
+            select(Posts, func.coalesce(app_count_subq.c.application_count, 0).label("application_count"))
+            .outerjoin(app_count_subq, Posts.id == app_count_subq.c.job_id)
+            .where(Posts.created_by == user_id)
+        )
+
         if status:
             query = query.where(Posts.status == status)
-            
+
         query = query.order_by(Posts.created_at.desc()).offset(skip).limit(limit)
-        
+
         result = await self.db.execute(query)
-        return result.scalars().all()
+        rows = result.all()
+
+        jobs = []
+        for post, count in rows:
+            post.application_count = count
+            jobs.append(post)
+        return jobs
 
     async def get_job(self, job_id: int):
         import json

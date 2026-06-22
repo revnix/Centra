@@ -82,10 +82,7 @@ class Posts(Base):
     application_deadline = Column(DateTime(timezone=True), nullable=True, comment="Application deadline")
     
     # Skills and Requirements
-<<<<<<< HEAD
     # NOTE: DB columns are character varying[] — must use ARRAY(String), not JSON
-=======
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
     required_skills = Column(ARRAY(String), nullable=True, comment="Required skills")
     preferred_skills = Column(ARRAY(String), nullable=True, comment="Preferred skills")
     requirements = Column(ARRAY(String), nullable=True, comment="Mandatory requirements/qualifications")

@@ -367,8 +367,6 @@ async def send_interview_invite(
         "message": f"Interview invitation sent to {candidate.email}",
         "status": application.status
     }
-<<<<<<< HEAD
-=======
 
 
 class UpdateStatusRequest(BaseModel):
@@ -404,4 +402,3 @@ async def update_application_status(
     await db.commit()
     await db.refresh(application, ["candidate", "job", "interview_session"])
     return application
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
