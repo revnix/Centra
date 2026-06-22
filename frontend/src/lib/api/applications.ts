@@ -89,8 +89,6 @@ export const applicationsApi = {
     invite: async (id: string, subject: string, message: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/invite`, { subject, message });
     },
-<<<<<<< HEAD
-=======
 
     /**
      * Update the status of an application (move between pipeline stages)
@@ -98,5 +96,4 @@ export const applicationsApi = {
     updateStatus: async (id: string, status: string): Promise<any> => {
         return apiClient.patch<any>(`/applications/${id}/status`, { status });
     },
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 };

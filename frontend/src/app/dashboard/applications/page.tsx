@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { api } from "@/lib/api"; // ✅ UNCHANGED — kept for invite/delete mutations
-import { useApplications, applicationKeys } from "@/lib/hooks/useApplications"; // ✨ NEW - OPTIMIZATION
-import { useQueryClient } from "@tanstack/react-query"; // ✨ NEW - OPTIMIZATION
+import { api } from "@/lib/api";
+import { useApplications, applicationKeys } from "@/lib/hooks/useApplications";
+import { useQueryClient } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import {
@@ -29,18 +29,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, Search, Filter, Loader2, Trash2, Mail, Send, Download } from "lucide-react";
 import Link from "next/link";
-<<<<<<< HEAD
 import { useState, useEffect } from "react";
-=======
-import { useState, useEffect } from "react"; // ✅ UNCHANGED (useEffect still needed for selectedIds sync)
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-<<<<<<< HEAD
 
 interface Application {
     id: string;
@@ -75,10 +70,9 @@ const defaultMessage = (candidateName: string, jobTitle: string) =>
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ApplicationsPage() {
+    const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState("");
     const [cityFilter, setCityFilter] = useState("all");
-    const [applications, setApplications] = useState<Application[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isDownloading, setIsDownloading] = useState(false);
 
@@ -88,64 +82,10 @@ export default function ApplicationsPage() {
     const [inviteMessage, setInviteMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
 
-    const fetchApplications = async () => {
-        try {
-            const res = await api.applications.list();
-            setApplications(res);
-            setSelectedIds(new Set((res as any[]).map((app) => app.id)));
-        } catch (error: any) {
-            console.error("Failed to fetch applications:", error);
-            toast.error(`Error loading applications: ${error.message || "Please try again"}`);
-=======
-
-interface Application {
-    id: string;
-    status: string;
-    match_score?: number;
-    ai_score?: number;
-    email_delivery_status?: string;
-    email_logs?: string;
-    city?: string;
-    qualification?: string;
-    expected_salary?: number;
-    salary_filter_status?: string;
-    created_at?: string;
-    candidate?: { full_name?: string; email?: string };
-    job?: { title?: string };
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const getInitials = (name: string) =>
-    name ? name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() : "??";
-
-const defaultSubject = (jobTitle: string, candidateName: string) =>
-    `Interview Invitation – ${jobTitle}`;
-
-const defaultMessage = (candidateName: string, jobTitle: string) =>
-    `We are pleased to inform you that after reviewing your application for the ${jobTitle} position, we would like to invite you for an interview.\n\nPlease reply to this email or contact us to schedule a convenient time.\n\nWe look forward to speaking with you.`;
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function ApplicationsPage() { // ✅ UNCHANGED
-    const queryClient = useQueryClient(); // ✨ NEW - OPTIMIZATION
-    const [searchTerm, setSearchTerm] = useState(""); // ✅ UNCHANGED
-    const [cityFilter, setCityFilter] = useState("all"); // ✅ UNCHANGED
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()); // ✅ UNCHANGED
-    const [isDownloading, setIsDownloading] = useState(false); // ✅ UNCHANGED
-
-    // ── Invite modal state // ✅ UNCHANGED
-    const [inviteApp, setInviteApp] = useState<Application | null>(null); // ✅ UNCHANGED
-    const [inviteSubject, setInviteSubject] = useState(""); // ✅ UNCHANGED
-    const [inviteMessage, setInviteMessage] = useState(""); // ✅ UNCHANGED
-    const [isSending, setIsSending] = useState(false); // ✅ UNCHANGED
-
-    // ✨ NEW - OPTIMIZATION: React Query replaces the manual useState/useEffect/fetchApplications pattern.
-    // First visit: fetches from network. Every subsequent visit: instant 0ms cache hit.
+    // React Query replaces manual useState/useEffect/fetchApplications pattern.
     const { data: applications = [], isLoading } = useApplications();
 
-    // ✨ NEW - OPTIMIZATION: auto-select all applications when the cached data first arrives.
-    // Preserves the original behaviour where all apps started selected for bulk resume download.
+    // Auto-select all applications when data first arrives (for bulk resume download).
     useEffect(() => {
         if (applications.length > 0) {
             setSelectedIds(new Set((applications as any[]).map((app) => app.id)));
@@ -157,7 +97,7 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
         const name = app.candidate?.full_name || "Candidate";
         const job = app.job?.title || "our open position";
         setInviteApp(app);
-        setInviteSubject(defaultSubject(job, name));
+        setInviteSubject(defaultSubject(job));
         setInviteMessage(defaultMessage(name, job));
     };
 
@@ -180,48 +120,7 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
             await api.applications.invite(inviteApp.id, inviteSubject.trim(), inviteMessage.trim());
             toast.success(`Interview invitation sent to ${inviteApp.candidate?.email || "candidate"}!`);
             closeInviteModal();
-            queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); // ✨ NEW - OPTIMIZATION — refreshes list after invite
-        } catch (err: any) {
-            console.error("Invite error:", err);
-            toast.error(`Failed to send invite: ${err.message || "Please try again."}`);
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
-        } finally {
-            setIsSending(false);
-        }
-    };
-
-<<<<<<< HEAD
-    useEffect(() => {
-        fetchApplications();
-    }, []);
-
-    // ── Invite modal
-    const openInviteModal = (app: Application) => {
-        const name = app.candidate?.full_name || "Candidate";
-        const job = app.job?.title || "our open position";
-        setInviteApp(app);
-        setInviteSubject(defaultSubject(job));
-        setInviteMessage(defaultMessage(name, job));
-    };
-
-    const closeInviteModal = () => {
-        setInviteApp(null);
-        setInviteSubject("");
-        setInviteMessage("");
-    };
-
-    const handleSendInvite = async () => {
-        if (!inviteApp) return;
-        if (!inviteSubject.trim() || !inviteMessage.trim()) {
-            toast.error("Subject and message are required.");
-            return;
-        }
-        setIsSending(true);
-        try {
-            await (api.applications as any).invite(inviteApp.id, inviteSubject.trim(), inviteMessage.trim());
-            toast.success(`Interview invitation sent to ${inviteApp.candidate?.email || "candidate"}!`);
-            closeInviteModal();
-            fetchApplications();
+            queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
             console.error("Invite error:", err);
             toast.error(`Failed to send invite: ${err.message || "Please try again."}`);
@@ -238,21 +137,11 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
             )
         )
             return;
-=======
-    // ── Delete
-    const handleDelete = async (id: string, name: string) => {
-        if (
-            !window.confirm(
-                `Are you sure you want to permanently delete the application for ${name}? This will remove all interview data and cannot be undone.`
-            )
-        )
-            return;
 
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
         try {
             await api.applications.delete(id);
             toast.success(`Application for ${name} deleted successfully`);
-            queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); // ✨ NEW - OPTIMIZATION — refreshes list after delete
+            queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
             console.error("Delete error:", err);
             toast.error(`Failed to delete application: ${err.message || "Unauthorized"}`);
@@ -281,15 +170,8 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
           })
         : [];
 
-<<<<<<< HEAD
-    // ── Selection
-    const allFilteredSelected =
-        filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id));
+    const allFilteredSelected = filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id));
     const someFilteredSelected = filteredApps.some((app) => selectedIds.has(app.id));
-=======
-    const allFilteredSelected = filteredApps.length > 0 && filteredApps.every(app => selectedIds.has(app.id));
-    const someFilteredSelected = filteredApps.some(app => selectedIds.has(app.id));
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 
     const handleSelectAll = () => {
         setSelectedIds((prev) => {
@@ -325,27 +207,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
         const zip = new JSZip();
         let failed = 0;
 
-<<<<<<< HEAD
-        await Promise.all(
-            toDownload.map(async (app) => {
-                try {
-                    const resumeUrl = app.candidate?.candidate_profile?.resume_url!;
-                    const response = await fetch(resumeUrl);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const blob = await response.blob();
-                    const name = (app.candidate?.full_name || "Unknown")
-                        .replace(/[^a-zA-Z0-9 _-]/g, "")
-                        .replace(/\s+/g, "_");
-                    const job = (app.job?.title || "Unknown_Job")
-                        .replace(/[^a-zA-Z0-9 _-]/g, "")
-                        .replace(/\s+/g, "_");
-                    zip.file(`${name}_${job}.pdf`, blob);
-                } catch {
-                    failed++;
-                }
-            })
-        );
-=======
         await Promise.all(toDownload.map(async (app) => {
             try {
                 const resumeUrl = app.candidate?.candidate_profile?.resume_url;
@@ -362,7 +223,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                 failed++;
             }
         }));
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 
         try {
             const content = await zip.generateAsync({ type: "blob" });
@@ -382,7 +242,9 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
 
     const handleDownloadSingle = async (app: Application) => {
         try {
-            const response = await fetch(app.candidate?.candidate_profile?.resume_url!);
+            const resumeUrl = app.candidate?.candidate_profile?.resume_url;
+            if (!resumeUrl) return;
+            const response = await fetch(resumeUrl);
             if (!response.ok) throw new Error();
             const blob = await response.blob();
             const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
@@ -405,10 +267,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
     // ── Render
     return (
         <div className="space-y-8">
-<<<<<<< HEAD
-=======
-
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -508,10 +366,7 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                                                 className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
                                             />
                                         </TableCell>
-<<<<<<< HEAD
 
-=======
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                                         {/* Candidate */}
                                         <TableCell className="pl-4 font-medium">
                                             <div className="flex items-center gap-3">
@@ -555,13 +410,7 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                                         {/* Applied */}
                                         <TableCell className="text-muted-foreground">
                                             {app.created_at
-<<<<<<< HEAD
-                                                ? formatDistanceToNow(new Date(app.created_at), {
-                                                      addSuffix: true,
-                                                  })
-=======
                                                 ? formatDistanceToNow(new Date(app.created_at), { addSuffix: true })
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                                                 : "N/A"}
                                         </TableCell>
 
@@ -587,13 +436,7 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                                                     </span>
                                                 </div>
                                             ) : (
-<<<<<<< HEAD
-                                                <span className="text-xs text-muted-foreground italic">
-                                                    Pending
-                                                </span>
-=======
                                                 <span className="text-xs text-muted-foreground italic">Pending</span>
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                                             )}
                                         </TableCell>
 
@@ -634,10 +477,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                                         {/* Actions */}
                                         <TableCell className="text-right pr-6">
                                             <div className="flex justify-end items-center gap-1">
-<<<<<<< HEAD
-                                                {/* Download resume */}
-=======
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                                                 {app.candidate?.candidate_profile?.resume_url && (
                                                     <Button
                                                         variant="ghost"
@@ -715,7 +554,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                 </Card>
             </motion.div>
 
-<<<<<<< HEAD
             {/* ── Invite for Interview Modal ─────────────────────────────────── */}
             <Dialog
                 open={!!inviteApp}
@@ -723,10 +561,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                     if (!open) closeInviteModal();
                 }}
             >
-=======
-            {/* ── Invite for Interview Modal ────────────────────────────── */}
-            <Dialog open={!!inviteApp} onOpenChange={(open) => { if (!open) closeInviteModal(); }}>
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                 <DialogContent className="sm:max-w-[560px]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-xl">
@@ -742,10 +576,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
-<<<<<<< HEAD
-=======
-                        {/* Subject */}
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                         <div className="space-y-1.5">
                             <Label htmlFor="invite-subject" className="text-sm font-medium">
                                 Subject
@@ -758,11 +588,6 @@ export default function ApplicationsPage() { // ✅ UNCHANGED
                                 className="focus-visible:ring-indigo-500"
                             />
                         </div>
-<<<<<<< HEAD
-=======
-
-                        {/* Message */}
->>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                         <div className="space-y-1.5">
                             <Label htmlFor="invite-message" className="text-sm font-medium">
                                 Message
