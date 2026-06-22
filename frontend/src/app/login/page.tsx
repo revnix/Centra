@@ -28,41 +28,33 @@ export default function LoginPage() {
                 password,
             });
 
-            console.log("Login successful, response:", response);
-
             const { access_token, user } = response;
 
             if (!user) {
-                console.error("Login response missing user object:", response);
                 throw new Error("Invalid server response: missing user data");
             }
 
             if (!access_token) {
-                console.error("Login response missing access_token:", response);
                 throw new Error("Invalid server response: missing access token");
             }
 
             const role = user.role?.toLowerCase();
-            console.log("User role:", role);
 
             localStorage.setItem("userRole", role);
             localStorage.setItem("userEmail", email);
             localStorage.setItem("access_token", access_token);
+            apiClient.setToken(access_token); // warm in-memory token cache immediately
 
             // Set cookies for middleware
             document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
             document.cookie = `user_role=${role}; path=/; max-age=86400; SameSite=Lax`;
 
-            // Redirect based on role
-            // Use safe navigation
             if (role === "admin" || role === "reviewer") {
                 window.location.href = "/dashboard";
             } else {
                 window.location.href = "/portal/status";
             }
         } catch (err: any) {
-            console.error("Login error object:", err);
-            // Handle different error shapes
             let errorMessage = "Failed to sign in. Please check your credentials.";
 
             if (err?.message) {
@@ -76,7 +68,6 @@ export default function LoginPage() {
                 errorMessage = "An unknown error occurred. (Empty error object)";
             }
 
-            console.error("Resolved error message:", errorMessage);
             setError(errorMessage);
         } finally {
             setIsLoading(false);

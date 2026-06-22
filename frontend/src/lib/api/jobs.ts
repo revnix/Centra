@@ -39,6 +39,7 @@ const mapJob = (job: any): Job => ({
     benefits: job.benefits || [],
     application_url: job.application_url,
     status: job.status,
+    effective_status: job.effective_status,
     // Backward compatibility fields
     desiredSkills: job.preferred_skills || [],
     candidateCount: job.application_count || 0,
@@ -172,6 +173,20 @@ export const jobsApi = {
     },
 
     /**
+     * Fetch the configured team member list
+     */
+    getTeamMembers: async (): Promise<{ label: string; email: string }[]> => {
+        return apiClient.get<{ label: string; email: string }[]>('/jobs/team-members');
+    },
+
+    /**
+     * Send job details to selected team members
+     */
+    sendToTeam: async (jobId: string, emails: string[]): Promise<{ message: string; sent: number; failed: number }> => {
+        return apiClient.post<{ message: string; sent: number; failed: number }>(`/jobs/${jobId}/send-to-team`, { emails });
+    },
+
+    /**
      * Submit Operation Manager review
      */
     review: async (
@@ -186,6 +201,14 @@ export const jobsApi = {
      */
     getStats: async (): Promise<{ total_jobs: number; pending_actions: number }> => {
         return apiClient.get<{ total_jobs: number; pending_actions: number }>('/jobs/stats/dashboard');
+    },
+
+    /**
+     * Extend job application deadline
+     */
+    extendDeadline: async (jobId: string, expiresAt: string): Promise<Job> => {
+        const response = await apiClient.patch<any>(`/jobs/${jobId}/extend-deadline`, { expires_at: expiresAt });
+        return mapJob(response);
     },
 };
 

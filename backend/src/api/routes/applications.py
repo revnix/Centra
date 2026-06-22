@@ -61,10 +61,11 @@ async def guest_apply(
     if resume_file:
         from src.api.utils.cloudinary_upload import upload_file
         content = await resume_file.read()
+        safe_email = email.replace('@', '_at_').replace('+', '_')
         resume_url = await upload_file(
-            content, 
-            resume_file.filename, 
-            folder=f"evalyn/resumes/{email}"
+            content,
+            resume_file.filename,
+            folder=f"evalyn/resumes/{safe_email}"
         )
     
     # Parse skills from JSON string
@@ -167,6 +168,29 @@ async def list_my_applications(
     applications = await app_service.get_applications_by_user_id(current_user.id)
     return applications
 
+@router.get("/by-job/{job_id}", response_model=List[ApplicationResponse])
+async def list_applications_by_job(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all applications for a specific job (HR/Admin only)."""
+    from sqlalchemy.future import select
+    from sqlalchemy.orm import joinedload, noload
+    from src.api.models.application import Application
+
+    result = await db.execute(
+        select(Application)
+        .where(Application.job_id == job_id)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            noload(Application.interview_session),   # avoids MissingGreenlet on serialization
+        )
+        .order_by(Application.match_score.desc().nullslast())
+    )
+    return result.scalars().all()
+
 @router.get("", response_model=List[ApplicationResponse])
 async def list_applications(
     skip: int = 0,
@@ -175,12 +199,7 @@ async def list_applications(
     db: AsyncSession = Depends(get_db)
 ):
     """List all applications (Admin only)."""
-    # In a real app, restrict this to Admin/Recruiter roles
-    # if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
-    #     raise HTTPException(status_code=403, detail="Not authorized")
-    
     app_service = ApplicationService(db)
-    # We need to implement a list method in service
     applications = await app_service.list_applications(skip, limit)
     return applications
 @router.get("/{application_id}", response_model=ApplicationResponse)
@@ -348,3 +367,41 @@ async def send_interview_invite(
         "message": f"Interview invitation sent to {candidate.email}",
         "status": application.status
     }
+<<<<<<< HEAD
+=======
+
+
+class UpdateStatusRequest(BaseModel):
+    status: str
+
+
+@router.patch("/{application_id}/status", response_model=ApplicationResponse)
+async def update_application_status(
+    application_id: int,
+    body: UpdateStatusRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Move an application to any pipeline stage."""
+    from sqlalchemy.future import select
+    from src.api.models.application import Application, ApplicationStatus
+
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        new_status = ApplicationStatus(body.status.upper())
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}")
+
+    result = await db.execute(select(Application).where(Application.id == application_id))
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.status = new_status
+    db.add(application)
+    await db.commit()
+    await db.refresh(application, ["candidate", "job", "interview_session"])
+    return application
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6

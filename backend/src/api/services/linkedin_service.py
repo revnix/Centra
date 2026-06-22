@@ -98,10 +98,10 @@ class LinkedInService:
 
     async def post_to_linkedin(self, user_id: int, text: str, article_url: Optional[str] = None) -> Dict[str, Any]:
         """Post a message to LinkedIn with optional article link.
-        
+
         Args:
             user_id: The user's ID
-            text: The post text/commentary
+            text: The post text/commentary (full job description — will be formatted for LinkedIn)
             article_url: Optional URL to share as an article (creates a link preview card)
         """
         result = await self.db.execute(
@@ -120,11 +120,15 @@ class LinkedInService:
             "X-Restli-Protocol-Version": "2.0.0",
             "Content-Type": "application/json",
         }
-        
-        # LinkedIn URN should be stored as 'person:URN' or similar
-        # For member social, it's usually urn:li:person:<id>
+
         author = f"urn:li:person:{integration.platform_user_id}"
-        
+
+        # LinkedIn shareCommentary.text has a hard 3000-character limit.
+        # Truncate gracefully so the API doesn't reject with 422.
+        MAX_LEN = 2900  # leave room for the apply link appended below
+        if len(text) > MAX_LEN:
+            text = text[:MAX_LEN].rsplit(" ", 1)[0] + "..."
+
         # Prepare share content
         share_content = {
             "shareCommentary": {
@@ -132,25 +136,30 @@ class LinkedInService:
             },
             "shareMediaCategory": "NONE"
         }
-        
+
         # If an article URL is provided, create a rich share card (ARTICLE)
         if article_url:
             if not article_url.startswith('http'):
                 article_url = f"https://{article_url}"
-            
-            share_content["shareMediaCategory"] = "ARTICLE"
-            share_content["media"] = [
-                {
-                    "status": "READY",
-                    "description": {
-                        "text": "Submit your application for this position."
-                    },
-                    "originalUrl": article_url,
-                    "title": {
-                        "text": "View Job Details & Apply"
+
+            if "localhost" in article_url or "127.0.0.1" in article_url:
+                # LinkedIn rejects localhost URLs in media blocks with 422 error
+                # Fallback: append to text
+                share_content["shareCommentary"]["text"] = f"{text}\n\nApply here: {article_url}"
+            else:
+                share_content["shareMediaCategory"] = "ARTICLE"
+                share_content["media"] = [
+                    {
+                        "status": "READY",
+                        "description": {
+                            "text": "Submit your application for this position."
+                        },
+                        "originalUrl": article_url,
+                        "title": {
+                            "text": "View Job Details & Apply"
+                        }
                     }
-                }
-            ]
+                ]
         
         payload = {
             "author": author,

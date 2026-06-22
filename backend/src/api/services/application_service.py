@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, noload  # ✨ noload added for P2 fix
 from src.api.models.application import Application, ApplicationStatus
 from src.api.models.candidate import CandidateProfile
 from src.api.models.user import User, UserRole
@@ -30,6 +30,16 @@ class ApplicationService:
         if existing:
             return existing
 
+        from src.api.services.job_service import JobService
+        job_service = JobService(self.db)
+        job = await job_service.get_job(job_id)
+        if not job:
+            raise ValueError("Job not found")
+            
+        from src.api.models.job import JobStatus
+        if job.effective_status != JobStatus.PUBLISHED:
+            raise ValueError("Applications for this position are closed.")
+
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
@@ -37,7 +47,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=str(expected_salary) if expected_salary is not None else None,
+            expected_salary=float(expected_salary) if expected_salary is not None else None,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )
@@ -90,7 +100,11 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                # ✨ OPTIMIZATION: noload prevents a lazy async load of interview_session during
+                # Pydantic serialization. Without this, removing the joinedload causes a
+                # MissingGreenlet crash because the Optional field is still in ApplicationResponse.
+                # noload() sets the attribute to None immediately — zero DB cost, zero crash.
+                noload(Application.interview_session),
             )
             .offset(skip)
             .limit(limit)

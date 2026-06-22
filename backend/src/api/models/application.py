@@ -8,14 +8,18 @@ class ApplicationStatus(str, enum.Enum):
     APPLIED = "APPLIED"
     SCREENING = "SCREENING"
     SHORTLISTED = "SHORTLISTED"
+    INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
     INTERVIEW_INVITED = "INTERVIEW_INVITED"
     INTERVIEW_PENDING = "INTERVIEW_PENDING" # Keeping for backward compatibility
     INTERVIEW_IN_PROGRESS = "INTERVIEW_IN_PROGRESS"
     INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
-    OFFER = "OFFER"
     REJECTED = "REJECTED"
-    HIRED = "HIRED"
+    REFERENCE_CHECK = "REFERENCE_CHECK"
+    OFFER_EXTENDED = "OFFER_EXTENDED"
+    OFFER = "OFFER"
+    OFFER_ACCEPTED = "OFFER_ACCEPTED"
     ONBOARDING = "ONBOARDING"
+    HIRED = "HIRED"
     WITHDRAWN = "WITHDRAWN"
 
 class Application(Base):
@@ -28,8 +32,8 @@ class Application(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Foreign Keys
-    job_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False)
-    candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    job_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)  # ✨ OPTIMIZATION
+    candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # ✨ OPTIMIZATION
     
     # Status & AI Scoring
     status = Column(SqlEnum(ApplicationStatus), default=ApplicationStatus.APPLIED, nullable=False, index=True)
@@ -44,15 +48,14 @@ class Application(Base):
     qualification = Column(String(200), nullable=True, comment="Highest qualification")
     
     # Salary
-    # Salary
-    expected_salary = Column(String(100), nullable=True, comment="Candidate's expected salary")
+    expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
     salary_filter_status = Column(String(50), nullable=True, comment="within_budget | above_budget | not_checked")
 
     # Email Delivery Status
     email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(JSON, nullable=True, comment="Failure reasons or SMTP logs")
     
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # ✨ OPTIMIZATION — ORDER BY created_at DESC on every list call
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships

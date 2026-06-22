@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,6 +9,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
+=======
+"use client"; // ✅ UNCHANGED
+
+import { useState } from "react"; // ✨ NEW - OPTIMIZATION (removed unused useEffect, useCallback)
+import { motion } from "framer-motion"; // ✅ UNCHANGED
+import { useRouter } from "next/navigation"; // ✅ UNCHANGED
+import { useApplications, useUpdateApplicationStatus } from "@/lib/hooks/useApplications"; // ✨ NEW - OPTIMIZATION
+import { Card, CardContent } from "@/components/ui/card"; // ✅ UNCHANGED
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // ✅ UNCHANGED
+import { Badge } from "@/components/ui/badge"; // ✅ UNCHANGED
+import { Loader2, CheckCircle2 } from "lucide-react"; // ✅ UNCHANGED
+import { toast } from "sonner"; // ✅ UNCHANGED
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +48,10 @@ type ColumnDef = {
     avatarText: string;
     cardsBg: string;
     muted?: true;
+<<<<<<< HEAD
+=======
+    showNotes?: true;
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 };
 
 const COLUMNS: ColumnDef[] = [
@@ -93,6 +111,33 @@ const COLUMNS: ColumnDef[] = [
         cardsBg: "bg-orange-50/30",
     },
     {
+<<<<<<< HEAD
+=======
+        label: "Rejected",
+        status: "REJECTED",
+        topStrip: "bg-slate-400",
+        headerText: "text-slate-500",
+        countBg: "bg-slate-100",
+        countText: "text-slate-500",
+        avatarBg: "bg-slate-100",
+        avatarText: "text-slate-500",
+        cardsBg: "bg-slate-50/60",
+        muted: true,
+    },
+    {
+        label: "Reference Check",
+        status: "REFERENCE_CHECK",
+        topStrip: "bg-cyan-500",
+        headerText: "text-cyan-700",
+        countBg: "bg-cyan-100",
+        countText: "text-cyan-700",
+        avatarBg: "bg-cyan-100",
+        avatarText: "text-cyan-700",
+        cardsBg: "bg-cyan-50/30",
+        showNotes: true,
+    },
+    {
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
         label: "Offer Extended",
         status: "OFFER_EXTENDED",
         topStrip: "bg-emerald-500",
@@ -117,6 +162,7 @@ const COLUMNS: ColumnDef[] = [
     {
         label: "Onboarding",
         status: "ONBOARDING",
+<<<<<<< HEAD
         topStrip: "bg-cyan-500",
         headerText: "text-cyan-700",
         countBg: "bg-cyan-100",
@@ -124,6 +170,15 @@ const COLUMNS: ColumnDef[] = [
         avatarBg: "bg-cyan-100",
         avatarText: "text-cyan-700",
         cardsBg: "bg-cyan-50/30",
+=======
+        topStrip: "bg-sky-500",
+        headerText: "text-sky-700",
+        countBg: "bg-sky-100",
+        countText: "text-sky-700",
+        avatarBg: "bg-sky-100",
+        avatarText: "text-sky-700",
+        cardsBg: "bg-sky-50/30",
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
     },
     {
         label: "Hired",
@@ -136,6 +191,7 @@ const COLUMNS: ColumnDef[] = [
         avatarText: "text-green-700",
         cardsBg: "bg-green-50/30",
     },
+<<<<<<< HEAD
     {
         label: "Rejected",
         status: "REJECTED",
@@ -150,6 +206,30 @@ const COLUMNS: ColumnDef[] = [
     },
 ];
 
+=======
+];
+
+// Build a map from status → next status for quick lookup
+const NEXT_STATUS: Record<string, string> = {};
+COLUMNS.forEach((col, i) => {
+    if (i < COLUMNS.length - 1) {
+        NEXT_STATUS[col.status] = COLUMNS[i + 1].status;
+    }
+});
+// INTERVIEW_INVITED is shown in the INTERVIEW_SCHEDULED column; advance to the same next stage
+NEXT_STATUS["INTERVIEW_INVITED"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
+
+// Build a reverse map: status → previous status
+const PREV_STATUS: Record<string, string> = {};
+COLUMNS.forEach((col, i) => {
+    if (i > 0) {
+        PREV_STATUS[col.status] = COLUMNS[i - 1].status;
+    }
+});
+// INTERVIEW_INVITED goes back to SHORTLISTED (same prev as INTERVIEW_SCHEDULED)
+PREV_STATUS["INTERVIEW_INVITED"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
+
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 // ─── Summary bar config ───────────────────────────────────────────────────────
 
 const SUMMARY: { label: string; statuses: string[] | null; color: string }[] = [
@@ -158,7 +238,11 @@ const SUMMARY: { label: string; statuses: string[] | null; color: string }[] = [
     { label: "Shortlisted", statuses: ["SHORTLISTED"], color: "text-violet-600" },
     {
         label: "Interviewing",
+<<<<<<< HEAD
         statuses: ["INTERVIEW_SCHEDULED", "INTERVIEW_COMPLETED"],
+=======
+        statuses: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "INTERVIEW_COMPLETED"],
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
         color: "text-amber-600",
     },
     {
@@ -203,6 +287,7 @@ const emailPill = (
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 export default function PipelinePage() {
     const router = useRouter();
     const [applications, setApplications] = useState<Application[]>([]);
@@ -215,6 +300,114 @@ export default function PipelinePage() {
             .catch(console.error)
             .finally(() => setIsLoading(false));
     }, []);
+=======
+export default function PipelinePage() { // ✅ UNCHANGED
+    const router = useRouter(); // ✅ UNCHANGED
+    const [movingIds, setMovingIds] = useState<Set<string>>(new Set()); // ✅ UNCHANGED
+
+    // ✨ NEW - OPTIMIZATION: React Query replaces manual useState/useEffect/useCallback fetch.
+    // On first visit: fetches from network. On every subsequent visit: serves from cache instantly (0ms).
+    const { data: applications = [], isLoading } = useApplications();
+
+    // ✨ NEW - OPTIMIZATION: Mutations now go through React Query, which auto-invalidates
+    // the applications list cache after success — no manual fetchApplications() needed.
+    const updateStatus = useUpdateApplicationStatus();
+
+    const handleRefCheck = async ( // ✨ NEW - OPTIMIZATION (removed useCallback dependency on fetchApplications)
+        e: React.MouseEvent,
+        app: Application,
+        targetStatus: "OFFER_EXTENDED" | "REJECTED"
+    ) => {
+        e.stopPropagation(); // ✅ UNCHANGED
+        setMovingIds((prev) => new Set(prev).add(app.id)); // ✅ UNCHANGED
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: targetStatus }); // ✨ NEW - OPTIMIZATION
+            if (targetStatus === "OFFER_EXTENDED") { // ✅ UNCHANGED
+                toast.success("Reference cleared! Moving to Offer Extended."); // ✅ UNCHANGED
+            } else { // ✅ UNCHANGED
+                toast.error("Reference failed. Candidate rejected."); // ✅ UNCHANGED
+            }
+            // ✨ NEW - OPTIMIZATION: no fetchApplications() needed — invalidation happens in hook's onSuccess
+        } catch { // ✅ UNCHANGED
+            toast.error("Failed to update candidate"); // ✅ UNCHANGED
+        } finally { // ✅ UNCHANGED
+            setMovingIds((prev) => { // ✅ UNCHANGED
+                const next = new Set(prev); // ✅ UNCHANGED
+                next.delete(app.id); // ✅ UNCHANGED
+                return next; // ✅ UNCHANGED
+            }); // ✅ UNCHANGED
+        }
+    };
+
+    const handleMoveToNext = async (e: React.MouseEvent, app: Application) => { // ✨ NEW - OPTIMIZATION
+        e.stopPropagation(); // ✅ UNCHANGED
+        const nextStatus = NEXT_STATUS[app.status?.toUpperCase()]; // ✅ UNCHANGED
+        if (!nextStatus) return; // ✅ UNCHANGED
+
+        setMovingIds((prev) => new Set(prev).add(app.id)); // ✅ UNCHANGED
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: nextStatus }); // ✨ NEW - OPTIMIZATION
+            const nextLabel = // ✅ UNCHANGED
+                COLUMNS.find((c) => c.status === nextStatus)?.label ?? nextStatus; // ✅ UNCHANGED
+            toast.success(`Candidate moved to ${nextLabel}`); // ✅ UNCHANGED
+            // ✨ NEW - OPTIMIZATION: no fetchApplications() needed — invalidation happens in hook's onSuccess
+        } catch { // ✅ UNCHANGED
+            toast.error("Failed to move candidate"); // ✅ UNCHANGED
+        } finally { // ✅ UNCHANGED
+            setMovingIds((prev) => { // ✅ UNCHANGED
+                const next = new Set(prev); // ✅ UNCHANGED
+                next.delete(app.id); // ✅ UNCHANGED
+                return next; // ✅ UNCHANGED
+            }); // ✅ UNCHANGED
+        }
+    };
+
+    const handleMoveBack = async (e: React.MouseEvent, app: Application) => {
+        e.stopPropagation();
+        const prevStatus = PREV_STATUS[app.status?.toUpperCase()];
+        if (!prevStatus) return;
+        setMovingIds((prev) => new Set(prev).add(app.id));
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: prevStatus });
+            const prevLabel = COLUMNS.find((c) => c.status === prevStatus)?.label ?? prevStatus;
+            toast.success(`Candidate moved back to ${prevLabel}`);
+        } catch {
+            toast.error("Failed to move candidate back");
+        } finally {
+            setMovingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(app.id);
+                return next;
+            });
+        }
+    };
+
+    const handleInterviewAction = async ( // ✨ NEW - OPTIMIZATION (removed useCallback dependency)
+        e: React.MouseEvent,
+        app: Application,
+        targetStatus: "REFERENCE_CHECK" | "REJECTED"
+    ) => {
+        e.stopPropagation(); // ✅ UNCHANGED
+        setMovingIds((prev) => new Set(prev).add(app.id)); // ✅ UNCHANGED
+        try {
+            await updateStatus.mutateAsync({ id: app.id, status: targetStatus }); // ✨ NEW - OPTIMIZATION
+            if (targetStatus === "REFERENCE_CHECK") { // ✅ UNCHANGED
+                toast.success("Moving to Reference Check"); // ✅ UNCHANGED
+            } else { // ✅ UNCHANGED
+                toast.error("Candidate rejected"); // ✅ UNCHANGED
+            }
+            // ✨ NEW - OPTIMIZATION: no fetchApplications() needed — invalidation happens in hook's onSuccess
+        } catch { // ✅ UNCHANGED
+            toast.error("Failed to update candidate"); // ✅ UNCHANGED
+        } finally { // ✅ UNCHANGED
+            setMovingIds((prev) => { // ✅ UNCHANGED
+                const next = new Set(prev); // ✅ UNCHANGED
+                next.delete(app.id); // ✅ UNCHANGED
+                return next; // ✅ UNCHANGED
+            }); // ✅ UNCHANGED
+        }
+    };
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 
     if (isLoading) {
         return (
@@ -226,9 +419,19 @@ export default function PipelinePage() {
 
     const grouped = COLUMNS.map((col) => ({
         ...col,
+<<<<<<< HEAD
         cards: applications.filter(
             (app) => (app.status || "").toUpperCase() === col.status
         ),
+=======
+        cards: applications.filter((app) => {
+            const s = (app.status || "").toUpperCase();
+            if (col.status === "INTERVIEW_SCHEDULED") {
+                return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED";
+            }
+            return s === col.status;
+        }),
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
     }));
 
     const statCount = (statuses: string[] | null) =>
@@ -308,6 +511,20 @@ export default function PipelinePage() {
                                         const name = app.candidate?.full_name || "Unknown";
                                         const score = app.match_score ?? app.ai_score ?? 0;
                                         const ep = emailPill(app.email_delivery_status);
+<<<<<<< HEAD
+=======
+                                        const nextStatus = NEXT_STATUS[app.status?.toUpperCase()];
+                                        const nextLabel =
+                                            nextStatus
+                                                ? COLUMNS.find((c) => c.status === nextStatus)?.label
+                                                : null;
+                                        const prevStatus = PREV_STATUS[app.status?.toUpperCase()];
+                                        const prevLabel =
+                                            prevStatus
+                                                ? COLUMNS.find((c) => c.status === prevStatus)?.label
+                                                : null;
+                                        const isMoving = movingIds.has(app.id);
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 
                                         return (
                                             <motion.div
@@ -350,7 +567,16 @@ export default function PipelinePage() {
                                                         <div className="border-t border-slate-100" />
 
                                                         {/* AI Score badge */}
+<<<<<<< HEAD
                                                         {score > 0 ? (
+=======
+                                                        {col.status === "HIRED" ? (
+                                                            <span className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 w-full">
+                                                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                Hired
+                                                            </span>
+                                                        ) : score > 0 ? (
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                                                             <Badge
                                                                 variant="outline"
                                                                 className={`w-full justify-center text-xs font-semibold h-6 ${scoreStyle(score)}`}
@@ -375,6 +601,107 @@ export default function PipelinePage() {
                                                             />
                                                             {ep.label}
                                                         </div>
+<<<<<<< HEAD
+=======
+
+                                                        {/* Reference Check notes */}
+                                                        {col.showNotes && (
+                                                            <RefCheckNotes appId={app.id} />
+                                                        )}
+
+                                                        {/* Reference Check actions */}
+                                                        {col.status === "REFERENCE_CHECK" && (
+                                                            <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex gap-1.5">
+                                                                    <button
+                                                                        onClick={(e) => handleRefCheck(e, app, "OFFER_EXTENDED")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Cleared"}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => handleRefCheck(e, app, "REJECTED")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Failed"}
+                                                                    </button>
+                                                                </div>
+                                                                {prevLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveBack(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="w-full text-xs border border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        ← Back
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Interview Completed: Reference Check or Reject */}
+                                                        {col.status === "INTERVIEW_COMPLETED" && (
+                                                            <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex gap-1.5">
+                                                                    <button
+                                                                        onClick={(e) => handleInterviewAction(e, app, "REFERENCE_CHECK")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓ Reference Check"}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => handleInterviewAction(e, app, "REJECTED")}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : "✗ Reject"}
+                                                                    </button>
+                                                                </div>
+                                                                {prevLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveBack(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="w-full text-xs border border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        ← Back
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Move to Next Stage + Move Back (all other columns except REFERENCE_CHECK and INTERVIEW_COMPLETED) */}
+                                                        {col.status !== "REFERENCE_CHECK" && col.status !== "INTERVIEW_COMPLETED" && (nextLabel || prevLabel) && (
+                                                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                {prevLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveBack(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="text-xs border border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                                                                    >
+                                                                        ← Back
+                                                                    </button>
+                                                                )}
+                                                                {nextLabel && (
+                                                                    <button
+                                                                        onClick={(e) => handleMoveToNext(e, app)}
+                                                                        disabled={isMoving}
+                                                                        className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {isMoving ? (
+                                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                                        ) : (
+                                                                            <>
+                                                                                <span>→</span>
+                                                                                <span>Move to {nextLabel}</span>
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
                                                     </CardContent>
                                                 </Card>
                                             </motion.div>
@@ -389,3 +716,35 @@ export default function PipelinePage() {
         </div>
     );
 }
+<<<<<<< HEAD
+=======
+
+// ─── Reference Check Notes ────────────────────────────────────────────────────
+
+function RefCheckNotes({ appId }: { appId: string }) {
+    const key = `ref_check_notes_${appId}`;
+    const [notes, setNotes] = useState(() => {
+        if (typeof window === "undefined") return "";
+        return localStorage.getItem(key) ?? "";
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        setNotes(value);
+        localStorage.setItem(key, value);
+    };
+
+    return (
+        <div onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs font-medium text-cyan-700 mb-1">Reference Notes</p>
+            <textarea
+                value={notes}
+                onChange={handleChange}
+                placeholder="e.g. Police clearance pending, Previous employer confirmed..."
+                rows={3}
+                className="w-full text-xs rounded-lg border border-cyan-200 bg-cyan-50/60 px-2 py-1.5 text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-cyan-400"
+            />
+        </div>
+    );
+}
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6

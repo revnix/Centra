@@ -5,7 +5,17 @@ import { api } from "@/lib/api";
 import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
+import { ArrowLeft, Mail, Download, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
+
+function getViewableResumeUrl(url: string): string {
+    if (!url.includes('cloudinary.com')) return url;
+    if (url.includes('/raw/upload/')) {
+        // Legacy raw uploads: use Google Docs viewer to display inline
+        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    // New auto-type uploads (image/upload): viewable inline directly
+    return url;
+}
 import {
     Dialog,
     DialogContent,
@@ -31,6 +41,13 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [resendSubject, setResendSubject] = useState("");
     const [resendMessage, setResendMessage] = useState("");
     const [isResending, setIsResending] = useState(false);
+
+    // Editable email dialog for Onboarding & Reject
+    const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | null>(null);
+    const [emailSubject, setEmailSubject] = useState("");
+    const [emailMessage, setEmailMessage] = useState("");
+    const [isEmailSending, setIsEmailSending] = useState(false);
+
     const router = useRouter();
 
     useEffect(() => {
@@ -48,35 +65,36 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         fetchApplication();
     }, [id]);
 
-    const handleReject = async () => {
-        setIsActionLoading(true);
-        try {
-            await api.applications.reject(id);
-            toast.success("Candidate rejected successfully");
-            // Refresh data
-            const updated = await api.applications.get(id);
-            setApp(updated);
-        } catch (error) {
-            toast.error("Failed to reject candidate");
-            console.error(error);
-        } finally {
-            setIsActionLoading(false);
+    const openEmailDialog = (mode: 'onboarding' | 'reject') => {
+        const candidateName = app?.candidate?.full_name || "Candidate";
+        const jobTitle = app?.job?.title || "the position";
+        if (mode === 'onboarding') {
+            setEmailSubject(`Congratulations! You've Been Selected – ${jobTitle}`);
+            setEmailMessage(`Dear ${candidateName},\n\nWe are thrilled to inform you that after reviewing your application and interview performance, we have decided to extend an offer for the ${jobTitle} position.\n\nPlease reply to this email to confirm your acceptance. Our HR team will reach out with the full offer details and onboarding instructions.\n\nWelcome to the team!\n\nBest regards,\nHR Team`);
+        } else {
+            setEmailSubject(`Update on Your Application – ${jobTitle}`);
+            setEmailMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position and participating in our selection process.\n\nAfter careful consideration, we regret to inform you that we will not be moving forward with your application at this time. This was a difficult decision as we received many strong applications.\n\nWe appreciate your interest and wish you the very best in your future endeavors.\n\nBest regards,\nHR Team`);
         }
+        setEmailDialogMode(mode);
     };
 
-    const handleHire = async () => {
-        setIsActionLoading(true);
+    const handleSendEmailAction = async () => {
+        if (!emailDialogMode) return;
+        setIsEmailSending(true);
         try {
-            await api.applications.hire(id);
-            toast.success("Candidate hired! Offer letter sent via email.");
-            // Refresh data
+            // Send custom email
+            await api.applications.invite(id, emailSubject.trim(), emailMessage.trim());
+            // Update status to correct value (invite sets INTERVIEW_INVITED by default)
+            const newStatus = emailDialogMode === 'onboarding' ? 'HIRED' : 'REJECTED';
+            await api.applications.updateStatus(id, newStatus);
+            toast.success(emailDialogMode === 'onboarding' ? "Onboarding email sent!" : "Rejection email sent!");
+            setEmailDialogMode(null);
             const updated = await api.applications.get(id);
             setApp(updated);
-        } catch (error) {
-            toast.error("Failed to hire candidate");
-            console.error(error);
+        } catch (error: any) {
+            toast.error(`Failed to send email: ${error.message || "Please try again"}`);
         } finally {
-            setIsActionLoading(false);
+            setIsEmailSending(false);
         }
     };
 
@@ -158,9 +176,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                 <div className="flex gap-2">
                     {profile?.resume_url && (
-                        <a href={resolveUrl(profile.resume_url)} target="_blank" rel="noopener noreferrer">
+                        <a href={getViewableResumeUrl(resolveUrl(profile.resume_url))} target="_blank" rel="noopener noreferrer">
                             <Button variant="outline">
-                                <Download className="w-4 h-4 mr-2" /> View Resume
+                                <Eye className="w-4 h-4 mr-2" /> View Resume
                             </Button>
                         </a>
                     )}
@@ -203,19 +221,19 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                     <Button
                         variant="destructive"
-                        onClick={handleReject}
+                        onClick={() => openEmailDialog('reject')}
                         disabled={isActionLoading || app.status === 'REJECTED' || app.status === 'HIRED'}
                     >
                         <ThumbsDown className="w-4 h-4 mr-2" />
-                        {isActionLoading ? 'Processing...' : 'Reject'}
+                        Reject
                     </Button>
                     <Button
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={handleHire}
+                        onClick={() => openEmailDialog('onboarding')}
                         disabled={isActionLoading || app.status === 'REJECTED' || app.status === 'HIRED'}
                     >
                         <ThumbsUp className="w-4 h-4 mr-2" />
-                        {isActionLoading ? 'Processing...' : 'Hire Candidate'}
+                        Onboarding Email
                     </Button>
                 </div>
             </div>
@@ -500,6 +518,53 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
             </div>
         </div>
+
+        {/* Onboarding / Reject Email Dialog */}
+        <Dialog open={!!emailDialogMode} onOpenChange={(open) => { if (!open) setEmailDialogMode(null); }}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5 text-indigo-600" />
+                        {emailDialogMode === 'onboarding' ? 'Send Onboarding Email' : 'Send Rejection Email'} to {candidate?.full_name || "Candidate"}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Subject</label>
+                        <input
+                            type="text"
+                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950"
+                            value={emailSubject}
+                            onChange={(e) => setEmailSubject(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Message</label>
+                        <textarea
+                            className="flex min-h-[280px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
+                            value={emailMessage}
+                            onChange={(e) => setEmailMessage(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">You can edit this message before sending.</p>
+                    </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => setEmailDialogMode(null)} disabled={isEmailSending}>
+                        Cancel
+                    </Button>
+                    <Button
+                        className={`${emailDialogMode === 'onboarding' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white gap-2`}
+                        onClick={handleSendEmailAction}
+                        disabled={isEmailSending || !emailSubject.trim() || !emailMessage.trim()}
+                    >
+                        {isEmailSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                        {isEmailSending ? "Sending..." : "Send Email"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
             <DialogContent className="sm:max-w-lg">
