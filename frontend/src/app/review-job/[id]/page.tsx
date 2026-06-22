@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState } from "react";
 import { useJob, useReviewJob } from "@/lib/hooks/useJobs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,11 +20,7 @@ export default function JobReviewPage({ params }: { params: Promise<{ id: string
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [action, setAction] = useState<'APPROVED' | 'CHANGES_REQUESTED' | null>(null);
 
-    useEffect(() => {
-        if (job?.manager_feedback) {
-            setFeedback(job.manager_feedback);
-        }
-    }, [job]);
+    // Intentionally not pre-filling feedback — each reviewer starts fresh
 
     const handleSubmit = async (status: 'APPROVED' | 'CHANGES_REQUESTED') => {
         if (status === 'CHANGES_REQUESTED' && !feedback.trim()) {

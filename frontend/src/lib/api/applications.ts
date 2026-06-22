@@ -28,6 +28,13 @@ export const applicationsApi = {
     },
 
     /**
+     * Get all applications for a specific job (ranked by AI score)
+     */
+    getByJob: async (jobId: string): Promise<any[]> => {
+        return apiClient.get<any[]>(`/applications/by-job/${jobId}`);
+    },
+
+    /**
      * Get applications for the current candidate
      */
     getMyApplications: async (): Promise<any[]> => {
@@ -82,4 +89,14 @@ export const applicationsApi = {
     invite: async (id: string, subject: string, message: string): Promise<any> => {
         return apiClient.post<any>(`/applications/${id}/invite`, { subject, message });
     },
+<<<<<<< HEAD
+=======
+
+    /**
+     * Update the status of an application (move between pipeline stages)
+     */
+    updateStatus: async (id: string, status: string): Promise<any> => {
+        return apiClient.patch<any>(`/applications/${id}/status`, { status });
+    },
+>>>>>>> 6574491b552000481d686bf2833db1f3cbec2bb6
 };

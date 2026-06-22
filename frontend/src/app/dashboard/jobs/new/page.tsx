@@ -71,6 +71,8 @@ import { integrationsApi } from "@/lib/api/integrations";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { jobsApi } from "@/lib/api/jobs";
+import { useQueryClient } from "@tanstack/react-query";
+import { jobKeys } from "@/lib/hooks/useJobs";
 
 // --- Schemas ---
 
@@ -88,6 +90,7 @@ const jobBasicSchema = z.object({
     salaryCurrency: z.string().min(1, "Currency is required"),
     salaryPeriod: z.string().min(1, "Period is required"),
     salaryRange: z.string().optional(),
+    applicationDeadline: z.string().optional(),
     aiPrompt: z.string().optional(),
     description: z.string(),
 }).superRefine((data, ctx) => {
@@ -134,8 +137,21 @@ interface ConnectedAccount {
     color: string;
 }
 
+const EXPERIENCE_YEARS: Record<string, string> = {
+    junior: "1+",
+    mid: "3+",
+    senior: "5+",
+    lead: "8+",
+};
+
+function replaceSectionContent(desc: string, sectionName: string, newContent: string): string {
+    const regex = new RegExp(`(🔹 ${sectionName}\\n)([\\s\\S]*?)(?=\\n\\n🔹|$)`);
+    return desc.replace(regex, `$1${newContent}`);
+}
+
 export default function CreateJobPage() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
@@ -237,6 +253,7 @@ export default function CreateJobPage() {
             salaryCurrency: "PKR",
             salaryPeriod: "monthly",
             salaryRange: "",
+            applicationDeadline: "",
             aiPrompt: "",
             description: "",
         },
@@ -249,6 +266,37 @@ export default function CreateJobPage() {
             experienceLevel: "mid",
         },
     });
+
+    // Auto-sync: when skills field changes, update 🔹 REQUIRED SKILLS in description
+    const watchedSkills = form1.watch("requiredSkills");
+    useEffect(() => {
+        const desc = form1.getValues("description");
+        if (!desc || !desc.includes("🔹 REQUIRED SKILLS") || isGeneratingDraft || isGeneratingFromPrompt) return;
+        const skills = (watchedSkills || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+        if (skills.length === 0) return;
+        const newContent = skills.map((s: string) => `• ${s}`).join("\n");
+        const updated = replaceSectionContent(desc, "REQUIRED SKILLS", newContent);
+        if (updated !== desc) form1.setValue("description", updated, { shouldValidate: false });
+    }, [watchedSkills]);
+
+    // Auto-sync: when experience level changes, update years in 🔹 QUALIFICATIONS
+    const watchedExperience = form1.watch("experienceLevel");
+    useEffect(() => {
+        const desc = form1.getValues("description");
+        if (!desc || !desc.includes("🔹 QUALIFICATIONS") || isGeneratingDraft || isGeneratingFromPrompt) return;
+        const yearsPrefix = EXPERIENCE_YEARS[watchedExperience];
+        if (!yearsPrefix) return;
+        const qualMatch = desc.match(/(🔹 QUALIFICATIONS\n)([\s\S]*?)(?=\n\n🔹|$)/);
+        if (!qualMatch) return;
+        const updatedQual = qualMatch[2].replace(
+            /\d+\+?(?:\s*-\s*\d+\+?)?\s*(years?)/gi,
+            `${yearsPrefix} $1`
+        );
+        if (updatedQual !== qualMatch[2]) {
+            const updated = desc.replace(qualMatch[0], qualMatch[1] + updatedQual);
+            form1.setValue("description", updated, { shouldValidate: false });
+        }
+    }, [watchedExperience]);
 
     // Handlers
     const onStep1Submit = (data: Step1Data) => {
@@ -349,7 +397,7 @@ ${formatList(draft.skills)}
 🔹 QUALIFICATIONS
 ${formatList(draft.requirements)}
 
-${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(draft.preferred_qualifications)}\n\n` : ''}${draft.benefits?.length > 0 ? `🔹 BENEFITS\n${formatList(draft.benefits)}\n\n` : ''}🔹 SALARY & COMPENSATION
+${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(draft.preferred_qualifications)}\n\n` : ''}🔹 SALARY & COMPENSATION
 - ${salaryDisplay}`;
 
                 form1.setValue("description", structuredDesc);
@@ -462,7 +510,7 @@ ${formatList(draft.skills)}
 🔹 QUALIFICATIONS
 ${formatList(draft.requirements)}
 
-${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(draft.preferred_qualifications)}\n\n` : ''}${draft.benefits?.length > 0 ? `🔹 BENEFITS\n${formatList(draft.benefits)}\n\n` : ''}🔹 SALARY & COMPENSATION
+${draft.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(draft.preferred_qualifications)}\n\n` : ''}🔹 SALARY & COMPENSATION
 - ${salaryDisplay}`;
 
                 form1.setValue("description", structuredDesc, { shouldValidate: true });
@@ -518,7 +566,12 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                 const account = connectedAccounts.find(a => a.id === accId);
                 if (account?.platform === 'linkedin') {
                     // STRICT REQUIREMENT: Use full AI-generated structured JD, not the short social summary.
-                    const fullDescription = form1.getValues("description");
+                    let fullDescription = form1.getValues("description");
+                    const deadline = form1.getValues("applicationDeadline");
+                    if (deadline) {
+                        const dl = new Date(deadline);
+                        fullDescription += `\n\n⏳ Application Deadline: ${dl.toLocaleDateString()}`;
+                    }
                     return integrationsApi.linkedin.publish(fullDescription);
                 } else if (account?.platform === 'indeed') {
                     // Also ensure Indeed uses the full description for consistency
@@ -704,6 +757,17 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                         <SelectItem value="volunteer">Volunteer</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form1.control}
+                                        name="applicationDeadline"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Application Deadline (Optional)</FormLabel>
+                                                <FormControl><Input type="date" {...field} /></FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -1291,13 +1355,13 @@ ${formatList(jobPost.skills)}
 🔹 QUALIFICATIONS
 ${formatList(jobPost.requirements)}
 
-${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(jobPost.preferred_qualifications)}\n\n` : ''}${jobPost.benefits?.length > 0 ? `🔹 BENEFITS\n${formatList(jobPost.benefits)}\n\n` : ''}🔹 SALARY & COMPENSATION
+${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\n${formatList(jobPost.preferred_qualifications)}\n\n` : ''}🔹 SALARY & COMPENSATION
 - ${salaryDisplay}`;
 
                                                                 // Prepare the job data
                                                                 const jobData = {
                                                                     title: jobPost.job_title || formData.title,
-                                                                    description: finalFullDescription,
+                                                                    description: form1.getValues("description") || finalFullDescription,
                                                                     short_description: jobPost.summary || finalFullDescription.substring(0, 200),
                                                                     location: jobPost.location || formData.location,
                                                                     job_type: formData.type || 'FULL_TIME',
@@ -1314,6 +1378,7 @@ ${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\
                                                                     salary_currency: formData.salaryCurrency || jobPost.suggested_salary_currency || "PKR",
                                                                     salary_period: formData.salaryPeriod || jobPost.suggested_salary_period || "monthly",
                                                                     salary_range: formData.salaryRange,
+                                                                    application_deadline: formData.applicationDeadline ? new Date(formData.applicationDeadline).toISOString() : undefined,
                                                                 };
 
                                                                 console.log('STRICT_DATA_LOG: [Frontend] Sending job data to backend:', JSON.stringify(jobData, null, 2));
@@ -1322,6 +1387,7 @@ ${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\
                                                                 await apiClient.post('/jobs', jobData);
 
                                                                 toast.success("Job saved successfully!");
+                                                                queryClient.invalidateQueries({ queryKey: jobKeys.lists() });
                                                                 router.push("/dashboard/generated-jobs");
                                                             } catch (error: any) {
                                                                 console.error('Save job failed:', error);

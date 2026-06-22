@@ -125,8 +125,8 @@ async def save_job_post(state: EVALN) -> dict:
     jd = state.get("jd", {})
     post = jd.get("post", {})
     
-    # Only save if the JD is approved OR awaiting review
-    if jd.get("status") not in ["approved", "awaiting_review"]:
+    # Only save if the JD is approved (called once, after HR approves)
+    if jd.get("status") not in ["approved"]:
         print(f"Job status is {jd.get('status')}, skipping save.")
         return {
             "jd": {
@@ -165,8 +165,8 @@ async def save_job_post(state: EVALN) -> dict:
         "apply_link": post.get("apply_link"),
     }
     
-    # Pass is_approved flag and existing job ID
-    job_data["is_approved"] = jd.get("status") == "approved"
+    # Always approved at this point (node is only reached after HR approval)
+    job_data["is_approved"] = True
     existing_job_id = jd.get("saved_job", {}).get("job_id")
     
     try:

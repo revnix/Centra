@@ -51,6 +51,7 @@ class OnboardingService:
                 .outerjoin(User, Application.candidate_id == User.id)
                 .outerjoin(Posts, Application.job_id == Posts.id)
                 .order_by(Onboarding.created_at.desc())
+                .limit(200)  # ✨ OPTIMIZATION: prevents runaway query at scale (was unbounded)
             )
             
             result = await self.db.execute(stmt)

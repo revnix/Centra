@@ -15,39 +15,23 @@ def build_workflow():
     """
     Workflow:
     generate JD -> human review -> improve JD -> repeat until approved
-    After approval -> save job post to database
+    After approval -> save job post to database (only ONCE, after approval)
     """
     graph = StateGraph(EVALN)
 
     # Nodes
     graph.add_node("create_post", create_post)
     graph.add_node("human_review", human_review)
-    # graph.add_node("publish_post", publish_post)  # Commented out - replaced with save_job_post
     graph.add_node("save_job_post", save_job_post)
 
     # Entry
     graph.set_entry_point("create_post")
-    
-    # Path decision functions
-    def save_post_router(state: EVALN):
-        """Decide where to go after saving."""
-        jd = state.get("jd", {})
-        if jd.get("status") == "approved":
-            return END
-        return "human_review"
 
-    # Edges
-    graph.add_edge("create_post", "save_job_post")
-    
-    graph.add_conditional_edges(
-        "save_job_post",
-        save_post_router,
-        {
-            "human_review": "human_review",
-            END: END
-        }
-    )
+    # Edges:
+    # create_post goes DIRECTLY to human_review (no premature DB write)
+    graph.add_edge("create_post", "human_review")
 
+    # After human_review: approved -> save_job_post, rejected -> regenerate
     graph.add_conditional_edges(
         "human_review",
         router,
@@ -56,6 +40,10 @@ def build_workflow():
             "create_post": "create_post"
         }
     )
+
+    # After saving: always end (job is written once, on approval)
+    graph.add_edge("save_job_post", END)
+
     return graph.compile()
 
 

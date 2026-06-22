@@ -1,9 +1,7 @@
 import os
 import cloudinary
 import cloudinary.uploader
-from cloudinary.utils import cloudinary_url
 import asyncio
-from typing import Any
 
 # Configure Cloudinary
 cloudinary.config(
@@ -22,7 +20,7 @@ async def upload_file(file_bytes: bytes, filename: str, folder: str) -> str:
         response = cloudinary.uploader.upload(
             file_bytes,
             folder=folder,
-            public_id=filename.split('.')[0] if '.' in filename else filename,
+            public_id=filename,
             resource_type="auto"
         )
         return response.get("secure_url")

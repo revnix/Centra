@@ -31,6 +31,9 @@ export function resolveUrl(url: string | null | undefined): string {
 
 class ApiClient {
     private client: AxiosInstance;
+    // In-memory token cache — avoids a synchronous localStorage hit on every request.
+    // Invalidated on 401 so the next request re-reads from localStorage.
+    private _cachedToken: string | null | undefined = undefined;
 
     constructor() {
         this.client = axios.create({
@@ -58,7 +61,9 @@ class ApiClient {
                     delete config.headers['Content-Type'];
                 }
 
-                console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`, config);
+                if (process.env.NODE_ENV === 'development') {
+                    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+                }
                 return config;
             },
             (error) => {
@@ -71,7 +76,7 @@ class ApiClient {
             (response) => response,
             async (error: AxiosError) => {
                 if (error.response?.status === 401) {
-                    // Clear credentials on authentication error
+                    this._cachedToken = undefined; // invalidate in-memory cache
                     if (typeof window !== 'undefined') {
                         localStorage.removeItem('access_token');
                         localStorage.removeItem('userRole');
@@ -94,10 +99,20 @@ class ApiClient {
     }
 
     private getAccessToken(): string | null {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('access_token');
+        if (typeof window === 'undefined') return null;
+        if (this._cachedToken === undefined) {
+            this._cachedToken = localStorage.getItem('access_token');
         }
-        return null;
+        return this._cachedToken;
+    }
+
+    // Called after login so the new token is used immediately without a full page reload
+    setToken(token: string) {
+        this._cachedToken = token;
+    }
+
+    clearToken() {
+        this._cachedToken = undefined;
     }
 
     private normalizeError(error: AxiosError): { message: string; code: string; details?: any } {
@@ -140,14 +155,14 @@ class ApiClient {
         }
 
         if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-            console.error(`[Network Timeout] ${method} ${url}:`, error.message);
+            console.warn(`[Network Timeout] ${method} ${url}:`, error.message);
             return {
                 message: 'Request timed out. The server is taking too long to respond.',
                 code: 'TIMEOUT',
             };
         }
 
-        console.error(`[Network Error] ${method} ${url}:`, error.message);
+        console.warn(`[Network Error] ${method} ${url}:`, error.message);
 
         return {
             message: error.message || 'Network error',
