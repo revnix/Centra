@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     INDEED_AUTH_URL: str = "https://apis.indeed.com/oauth/v2/authorize"
     INDEED_TOKEN_URL: str = "https://apis.indeed.com/oauth/v2/tokens"
 
+    # WhatsApp Business API
+    WA_PHONE_NUMBER_ID: str = os.getenv("WA_PHONE_NUMBER_ID", "")
+    WA_WABA_ID: str = os.getenv("WA_WABA_ID", "")
+    WA_ACCESS_TOKEN: str = os.getenv("WA_ACCESS_TOKEN", "")
+    WA_VERIFY_TOKEN: str = os.getenv("WA_VERIFY_TOKEN", "")
+    WA_API_VERSION: str = "v25.0"
+    WA_GRAPH_API_URL: str = f"https://graph.facebook.com/{WA_API_VERSION}"
+
     # Email Settings (Resend)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
