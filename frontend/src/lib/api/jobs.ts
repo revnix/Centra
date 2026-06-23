@@ -46,6 +46,9 @@ const mapJob = (job: any): Job => ({
     closedAt: job.expires_at,
     expires_at: job.expires_at,
     manager_feedback: job.manager_feedback,
+    edited_title: job.edited_title,
+    edited_description: job.edited_description,
+    edited_by_email: job.edited_by_email,
 });
 
 export const jobsApi = {
@@ -132,6 +135,18 @@ export const jobsApi = {
 
     review: async (jobId: string, data: { status: JobStatus; feedback?: string }): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/review`, data);
+    },
+
+    submitEdit: async (jobId: string, data: { title: string; description: string; editor_email?: string }): Promise<ApiResponse<Job>> => {
+        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/submit-edit`, data);
+    },
+
+    acceptEdit: async (jobId: string): Promise<ApiResponse<Job>> => {
+        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/accept-edit`);
+    },
+
+    declineEdit: async (jobId: string, feedback?: string): Promise<ApiResponse<Job>> => {
+        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/decline-edit`, { feedback });
     },
 
     getStats: async (): Promise<{ total_jobs: number; pending_actions: number }> => {

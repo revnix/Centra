@@ -19,6 +19,8 @@ from src.api.schemas.job import (
     JobImproveRequest,
     JobResponse,
     JobReviewRequest,
+    JobSubmitEditRequest,
+    JobDeclineEditRequest,
     JobUpdate,
 )
 from src.api.services.email_service import EmailService
@@ -246,6 +248,50 @@ async def review_job(
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
+
+@router.post("/{job_id}/submit-edit", response_model=JobResponse)
+async def submit_edit(
+    job_id: int,
+    edit_data: JobSubmitEditRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public endpoint — team member submits proposed edits to a job post."""
+    job_service = JobService(db)
+    job = await job_service.submit_edit(
+        job_id, edit_data.title, edit_data.description, edit_data.editor_email
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post("/{job_id}/accept-edit", response_model=JobResponse)
+async def accept_edit(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """HR accepts the proposed edit — copies edited content to main fields."""
+    job_service = JobService(db)
+    job = await job_service.accept_edit(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post("/{job_id}/decline-edit", response_model=JobResponse)
+async def decline_edit(
+    job_id: int,
+    request: JobDeclineEditRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """HR declines the proposed edit — clears edit data and stores feedback."""
+    job_service = JobService(db)
+    job = await job_service.decline_edit(job_id, request.feedback)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 @router.patch("/{job_id}/extend-deadline", response_model=JobResponse)
 async def extend_job_deadline(
