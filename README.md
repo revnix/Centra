@@ -168,7 +168,7 @@ From inside `backend/` with the virtual environment active:
 langgraph dev
 ```
 
-| URL | Description |
+| URL | Description | /
 |---|---|
 | http://localhost:8123 | API root |
 | http://localhost:8123/health | Health check (DB connectivity) |
