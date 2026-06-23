@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Text, JSON, ForeignKey, DateTime, Enum as SqlEnum
+from sqlalchemy import Column, Integer, String, Float, Text, JSON, ForeignKey, DateTime, Enum as SqlEnum, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.api.db.base import Base
@@ -57,6 +57,12 @@ class Application(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # ✨ OPTIMIZATION — ORDER BY created_at DESC on every list call
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index('ix_applications_job_id_status', 'job_id', 'status'),
+        Index('ix_applications_candidate_status', 'candidate_id', 'status'),
+        Index('ix_applications_job_id_created_at', 'job_id', 'created_at'),
+    )
 
     # Relationships
     job = relationship("Posts", backref="applications")

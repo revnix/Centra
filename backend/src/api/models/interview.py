@@ -28,7 +28,7 @@ class InterviewSession(Base):
     token = Column(String, unique=True, index=True, nullable=False, comment="Secure token for guest access")
     
     # State
-    status = Column(SqlEnum(InterviewStatus), default=InterviewStatus.PENDING, nullable=False)
+    status = Column(SqlEnum(InterviewStatus), default=InterviewStatus.PENDING, nullable=False, index=True)
     
     # Data
     transcript = Column(JSON, default=list, nullable=False, comment="Full chat history")
@@ -46,7 +46,7 @@ class InterviewSession(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     recording_url = Column(String, nullable=True, comment="URL/Path to screen recording file")
-    expires_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
     recording_path = Column(String, nullable=True, comment="Path to stored screen recording video")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
