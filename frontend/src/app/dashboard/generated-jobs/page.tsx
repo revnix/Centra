@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users, MessageSquare } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users, MessageSquare, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -40,7 +40,7 @@ export default function GeneratedJobsPage() {
     const publishJob = usePublishJob();
 
     const jobs = useMemo(
-        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED'].includes(j.status)) ?? [],
+        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'EDIT_SUBMITTED', 'EDIT_DECLINED'].includes(j.status)) ?? [],
         [jobsResponse]
     );
 
@@ -376,14 +376,21 @@ export default function GeneratedJobsPage() {
                                         </h3>
                                         {/* Status Badge */}
                                         <div className="flex gap-2">
-                                            <Badge 
+                                            <Badge
                                                 variant={
-                                                    job.status === "APPROVED" ? "outline" : 
-                                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
+                                                    job.status === "APPROVED" ? "outline" :
+                                                    job.status === "EDIT_SUBMITTED" ? "outline" :
+                                                    job.status === "EDIT_DECLINED" ? "outline" :
+                                                    job.status === "CHANGES_REQUESTED" ? "destructive" :
                                                     "secondary"
-                                                } 
-                                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                                                }
+                                                className={`capitalize
+                                                    ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                                                    ${job.status === 'EDIT_SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+                                                    ${job.status === 'EDIT_DECLINED' ? 'bg-red-50 text-red-700 border-red-200' : ''}
+                                                `}
                                             >
+                                                {job.status === 'EDIT_SUBMITTED' && <Pencil className="h-3 w-3 mr-1" />}
                                                 {job.status.toLowerCase().replaceAll('_', ' ')}
                                             </Badge>
                                             {job.manager_feedback && (
@@ -425,10 +432,7 @@ export default function GeneratedJobsPage() {
 
                                 <div className="flex items-center gap-3 md:border-l md:border-slate-100 md:pl-6">
                                     <Link href={`/dashboard/jobs/${job.id}`}>
-                                        <Button
-                                            variant="outline"
-                                            className="whitespace-nowrap"
-                                        >
+                                        <Button variant="outline" className="whitespace-nowrap">
                                             Review Details
                                         </Button>
                                     </Link>
