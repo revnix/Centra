@@ -129,4 +129,7 @@ async def linkedin_publish(
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        msg = str(e)
+        if "expired" in msg.lower() or "401" in msg or "unauthorized" in msg.lower():
+            raise HTTPException(status_code=401, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
