@@ -55,7 +55,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const [isSendingToTeam, setIsSendingToTeam] = useState(false);
     const [customEmail, setCustomEmail] = useState("");
 
-    // Prefetch team members on mount so the dialog opens instantly
+    // Prefetch team members on mount so the dialog opens instantlys
     const { data: teamMembers = [] } = useQuery({
         queryKey: ['team-members'],
         queryFn: () => jobsApi.getTeamMembers(),
