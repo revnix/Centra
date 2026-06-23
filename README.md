@@ -165,7 +165,7 @@ uv sync
 From inside `backend/` with the virtual environment active:
 
 ```bash
-uvicorn src.api.main:app --host 0.0.0.0 --port 8123 --reload
+langgraph dev
 ```
 
 | URL | Description |
