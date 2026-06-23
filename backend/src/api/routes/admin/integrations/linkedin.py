@@ -6,8 +6,8 @@ from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 from src.api.services.linkedin_service import LinkedInService
 from src.api.schemas.integration import (
-    LinkedInAuthURLResponse, 
-    LinkedInCallbackRequest, 
+    LinkedInAuthURLResponse,
+    LinkedInCallbackRequest,
     IntegrationResponse,
     LinkedInPublishRequest
 )
@@ -15,8 +15,12 @@ from src.api.models.integration import UserIntegration
 from sqlalchemy.future import select
 from pydantic import BaseModel
 import secrets
+import logging
 from typing import Optional
 from datetime import datetime
+import httpx
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -128,8 +132,13 @@ async def linkedin_publish(
             article_url=publish_data.article_url
         )
         return result
+    except httpx.HTTPStatusError as e:
+        logger.error("LinkedIn API error: %s", e)
+        if e.response.status_code == 401:
+            raise HTTPException(status_code=403, detail="LinkedIn access token is invalid or expired. Please reconnect your LinkedIn account from the Integrations page.")
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        msg = str(e)
-        if "expired" in msg.lower() or "401" in msg or "unauthorized" in msg.lower():
-            raise HTTPException(status_code=401, detail=msg)
-        raise HTTPException(status_code=400, detail=msg)
+        logger.error("LinkedIn publish error (%s): %s", type(e).__name__, e)
+        raise HTTPException(status_code=400, detail=str(e))
