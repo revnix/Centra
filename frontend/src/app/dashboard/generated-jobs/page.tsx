@@ -1,4 +1,4 @@
-'use client'; // ✅ UNCHANGED
+'use client'; // ✅ UNCHANGEDs
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query'; // ✨ NEW - OPTIMIZATION
