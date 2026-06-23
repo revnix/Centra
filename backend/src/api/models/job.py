@@ -1,6 +1,6 @@
 # src/api/models/job.py
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Enum as SQLEnum, Index
 from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
@@ -128,6 +128,13 @@ class Posts(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=True, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index('ix_posts_status_created_at', 'status', 'created_at'),
+        Index('ix_posts_status_deleted_at', 'status', 'deleted_at'),
+        Index('ix_posts_created_by_status', 'created_by', 'status'),
+        Index('ix_posts_created_at', 'created_at'),
+    )
 
     # Relationships
     creator = relationship("User", back_populates="jobs", foreign_keys=[created_by])
