@@ -8,13 +8,6 @@ import type {
     ApiResponse,
 } from '@/lib/types';
 
-/**
- * Job API endpoints
- */
-
-/**
- * Helper to map backend job response to frontend Job type
- */
 const mapJob = (job: any): Job => ({
     id: job.id.toString(),
     title: job.title,
@@ -25,7 +18,7 @@ const mapJob = (job: any): Job => ({
     location_type: job.location_type,
     company_name: job.company_name,
     job_type: job.job_type,
-    type: job.job_type, // Compatibility field
+    type: job.job_type,
     experience_level: job.experience_level,
     salary_min: job.salary_min,
     salary_max: job.salary_max,
@@ -40,7 +33,6 @@ const mapJob = (job: any): Job => ({
     application_url: job.application_url,
     status: job.status,
     effective_status: job.effective_status,
-    // Backward compatibility fields
     desiredSkills: job.preferred_skills || [],
     candidateCount: job.application_count || 0,
     application_count: job.application_count || 0,
@@ -57,9 +49,6 @@ const mapJob = (job: any): Job => ({
 });
 
 export const jobsApi = {
-    /**
-     * Get all jobs with optional filtering (requires authentication)
-     */
     getAll: async (params?: {
         status?: string;
         department?: string;
@@ -70,36 +59,20 @@ export const jobsApi = {
         return jobs.map(mapJob);
     },
 
-    /**
-     * Get published jobs (public, no authentication required)
-     */
-    getPublic: async (params?: {
-        skip?: number;
-        limit?: number;
-    }): Promise<Job[]> => {
+    getPublic: async (params?: { skip?: number; limit?: number }): Promise<Job[]> => {
         const jobs = await apiClient.get<any[]>('/jobs/public', { params });
         return jobs.map(mapJob);
     },
 
-    /**
-     * Get single job by ID
-     */
     getById: async (id: string): Promise<Job> => {
         const job = await apiClient.get<any>(`/jobs/${id}`);
         return mapJob(job);
     },
 
-    /**
-     * Create new job from intent
-     */
     create: async (intent: JobIntent): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>('/jobs', intent);
     },
 
-    /**
-     * Generate an initial AI job draft without creating a record.
-     * If `prompt` is provided, it is used as the primary AI instruction.
-     */
     generateDraft: async (data: {
         title?: string;
         department?: string;
@@ -111,104 +84,62 @@ export const jobsApi = {
         return apiClient.post<any>('/jobs/generate-draft', data);
     },
 
-    /**
-     * Trigger AI generation for job description
-     */
     generateDescription: async (jobId: string): Promise<ApiResponse<AIJobDraft>> => {
         return apiClient.post<ApiResponse<AIJobDraft>>(`/jobs/${jobId}/generate`);
     },
 
-    /**
-     * Approve AI-generated job description
-     */
-    approveDraft: async (
-        jobId: string,
-        editedDescription?: string
-    ): Promise<ApiResponse<Job>> => {
-        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/approve`, {
-            editedDescription,
-        });
+    approveDraft: async (jobId: string, editedDescription?: string): Promise<ApiResponse<Job>> => {
+        return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/approve`, { editedDescription });
     },
 
-    /**
-     * Publish job to portal
-     */
     publish: async (jobId: string): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/publish`);
     },
 
-    /**
-     * Improve job description using AI based on feedback
-     */
     improve: async (jobId: string, feedback: string): Promise<Job> => {
         return apiClient.post<Job>(`/jobs/${jobId}/improve`, { feedback });
     },
 
-    /**
-     * Update job details
-     */
     update: async (jobId: string, updates: Partial<Job>): Promise<ApiResponse<Job>> => {
         return apiClient.put<ApiResponse<Job>>(`/jobs/${jobId}`, updates);
     },
 
-    /**
-     * Delete job
-     */
     delete: async (jobId: string): Promise<ApiResponse<void>> => {
         return apiClient.delete<ApiResponse<void>>(`/jobs/${jobId}`);
     },
 
-    /**
-     * Close job posting
-     */
     close: async (jobId: string): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/close`);
     },
 
-    /**
-     * Send job details to Operation Manager
-     */
     sendToManager: async (jobId: string): Promise<{ message: string }> => {
         return apiClient.post<{ message: string }>(`/jobs/${jobId}/send-to-manager`);
     },
 
-    /**
-     * Fetch the configured team member list
-     */
     getTeamMembers: async (): Promise<{ label: string; email: string }[]> => {
         return apiClient.get<{ label: string; email: string }[]>('/jobs/team-members');
     },
 
-    /**
-     * Send job details to selected team members
-     */
-    sendToTeam: async (jobId: string, emails: string[]): Promise<{ message: string; sent: number; failed: number }> => {
-        return apiClient.post<{ message: string; sent: number; failed: number }>(`/jobs/${jobId}/send-to-team`, { emails });
+    sendToTeam: async (
+        jobId: string,
+        emails: string[],
+    ): Promise<{ message: string; sent: number; failed: number }> => {
+        return apiClient.post<{ message: string; sent: number; failed: number }>(
+            `/jobs/${jobId}/send-to-team`,
+            { emails },
+        );
     },
 
-    /**
-     * Submit Operation Manager review
-     */
-    review: async (
-        jobId: string,
-        data: { status: JobStatus; feedback?: string }
-    ): Promise<ApiResponse<Job>> => {
+    review: async (jobId: string, data: { status: JobStatus; feedback?: string }): Promise<ApiResponse<Job>> => {
         return apiClient.post<ApiResponse<Job>>(`/jobs/${jobId}/review`, data);
     },
 
-    /**
-     * Get dashboard statistics
-     */
     getStats: async (): Promise<{ total_jobs: number; pending_actions: number }> => {
         return apiClient.get<{ total_jobs: number; pending_actions: number }>('/jobs/stats/dashboard');
     },
 
-    /**
-     * Extend job application deadline
-     */
     extendDeadline: async (jobId: string, expiresAt: string): Promise<Job> => {
         const response = await apiClient.patch<any>(`/jobs/${jobId}/extend-deadline`, { expires_at: expiresAt });
         return mapJob(response);
     },
 };
-
