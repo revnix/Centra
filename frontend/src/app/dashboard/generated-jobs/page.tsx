@@ -273,7 +273,7 @@ export default function GeneratedJobsPage() {
             console.error("Publish error:", error);
             const status = error.response?.status;
             const detail = error.response?.data?.detail || error.message;
-            if (status === 401) {
+            if (status === 403) {
                 toast.error("LinkedIn token expired. Please reconnect your LinkedIn account in Integrations.", { duration: 6000 });
             } else {
                 toast.error(`Failed to publish: ${detail}`);

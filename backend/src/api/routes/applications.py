@@ -41,7 +41,7 @@ async def guest_apply(
     skills: str = Form("[]"),
     experience_years: int = Form(0),
     cover_letter: Optional[str] = Form(None),
-    expected_salary: Optional[float] = Form(None),
+    expected_salary: Optional[str] = Form(None),
     city: str = Form(...),
     qualification: str = Form(...),
     resume_file: Optional[UploadFile] = File(None),
