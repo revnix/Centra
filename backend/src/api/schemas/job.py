@@ -132,6 +132,14 @@ class JobReviewRequest(BaseModel):
     status: JobStatus
     feedback: Optional[str] = None
 
+class JobSubmitEditRequest(BaseModel):
+    title: str
+    description: str
+    editor_email: Optional[str] = None
+
+class JobDeclineEditRequest(BaseModel):
+    feedback: Optional[str] = None
+
 class JobResponse(JobBase):
     id: int
     created_by: int
@@ -142,6 +150,9 @@ class JobResponse(JobBase):
     published_at: Optional[datetime] = None
     manager_feedback: Optional[str] = None
     application_count: Optional[int] = 0
+    edited_title: Optional[str] = None
+    edited_description: Optional[str] = None
+    edited_by_email: Optional[str] = None
 
     class Config:
         from_attributes = True
