@@ -53,6 +53,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const [showTeamDialog, setShowTeamDialog] = useState(false);
     const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
     const [isSendingToTeam, setIsSendingToTeam] = useState(false);
+    const [customEmail, setCustomEmail] = useState("");
 
     // Prefetch team members on mount so the dialog opens instantly
     const { data: teamMembers = [] } = useQuery({
@@ -63,14 +64,31 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
 
     const handleOpenTeamDialog = () => {
         setSelectedTeamEmails([]);
+        setCustomEmail("");
         setShowTeamDialog(true);
     };
 
     const handleSendToTeam = async () => {
-        if (!job || selectedTeamEmails.length === 0) return;
+        if (!job) return;
+
+        const allEmails = [...selectedTeamEmails];
+        if (customEmail.trim()) {
+            // Basic email validation
+            if (!/^\S+@\S+\.\S+$/.test(customEmail.trim())) {
+                toast.error("Please enter a valid custom email address");
+                return;
+            }
+            allEmails.push(customEmail.trim());
+        }
+
+        if (allEmails.length === 0) {
+            toast.error("Please select at least one team member or enter a custom email");
+            return;
+        }
+
         setIsSendingToTeam(true);
         try {
-            const result = await jobsApi.sendToTeam(id, selectedTeamEmails);
+            const result = await jobsApi.sendToTeam(id, allEmails);
             toast.success(result.message);
             setShowTeamDialog(false);
         } catch (error: any) {
@@ -558,41 +576,56 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3 py-4">
-                        {teamMembers.length === 0 ? (
-                            <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
-                        ) : (
-                            teamMembers.map((member) => {
-                                const isSelected = selectedTeamEmails.includes(member.email);
-                                return (
-                                    <div
-                                        key={member.email}
-                                        onClick={() => setSelectedTeamEmails(prev =>
-                                            prev.includes(member.email)
-                                                ? prev.filter(e => e !== member.email)
-                                                : [...prev, member.email]
-                                        )}
-                                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                            isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            checked={isSelected}
-                                            onCheckedChange={() => setSelectedTeamEmails(prev =>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-3">
+                            <p className="text-sm font-medium text-slate-700">Team Members</p>
+                            {teamMembers.length === 0 ? (
+                                <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
+                            ) : (
+                                teamMembers.map((member) => {
+                                    const isSelected = selectedTeamEmails.includes(member.email);
+                                    return (
+                                        <div
+                                            key={member.email}
+                                            onClick={() => setSelectedTeamEmails(prev =>
                                                 prev.includes(member.email)
                                                     ? prev.filter(e => e !== member.email)
                                                     : [...prev, member.email]
                                             )}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 text-sm">{member.label}</p>
-                                            <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <Checkbox
+                                                checked={isSelected}
+                                                className="pointer-events-none"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-slate-900 text-sm">{member.label}</p>
+                                                <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            </div>
+                                            {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
                                         </div>
-                                        {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
-                                    </div>
-                                );
-                            })
-                        )}
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Custom Email Address</label>
+                                <div className="relative">
+                                    <MessageSquare className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="e.g. manager@company.com"
+                                        className="pl-10"
+                                        value={customEmail}
+                                        onChange={(e) => setCustomEmail(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-500">Enter a specific email to send the review request to.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter className="flex gap-2">
@@ -601,7 +634,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                         </Button>
                         <Button
                             onClick={handleSendToTeam}
-                            disabled={isSendingToTeam || selectedTeamEmails.length === 0}
+                            disabled={isSendingToTeam || (selectedTeamEmails.length === 0 && !customEmail.trim())}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
                             {isSendingToTeam ? (
