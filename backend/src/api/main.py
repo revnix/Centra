@@ -20,6 +20,7 @@ from src.api.routes import (
     applications,
     auth,
     candidates,
+    gmail,
     integrations,
     interviews,
     jobs,
@@ -34,6 +35,7 @@ from src.api.routes.admin import (
 from src.api.routes.admin.integrations import (
     linkedin as linkedin_integration,
     indeed as indeed_integration,
+    whatsapp as whatsapp_integration,
 )
 
 logger = logging.getLogger(__name__)
@@ -124,6 +126,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Core routes
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(gmail.router, prefix=f"{settings.API_V1_PREFIX}/gmail", tags=["gmail"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_PREFIX}/jobs", tags=["jobs"])
 app.include_router(integrations.router, prefix=f"{settings.API_V1_PREFIX}/integrations", tags=["integrations"])
 
@@ -132,6 +135,7 @@ app.include_router(admin_users.router, prefix=f"{settings.API_V1_PREFIX}/admin/u
 app.include_router(admin_jobs.router, prefix=f"{settings.API_V1_PREFIX}/admin/jobs", tags=["admin-jobs"])
 app.include_router(linkedin_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/linkedin", tags=["admin-integrations-linkedin"])
 app.include_router(indeed_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/indeed", tags=["admin-integrations-indeed"])
+app.include_router(whatsapp_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/whatsapp", tags=["admin-integrations-whatsapp"])
 
 # Hiring workflow routes
 app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["candidates"])

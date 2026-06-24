@@ -31,7 +31,8 @@ import {
     X,
     Loader2,
     CheckCircle2,
-    Lock
+    Lock,
+    MessageSquare
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { integrationsApi } from '@/lib/api/index';
@@ -43,7 +44,7 @@ import { integrationsApi } from '@/lib/api/index';
 
 interface SocialAccount {
     id: string;
-    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'indeed';
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'indeed' | 'whatsapp';
     name: string;
     handle: string;
     avatar: string;
@@ -81,6 +82,15 @@ const initialAccounts: SocialAccount[] = [
         autoPublish: false,
     },
     {
+        id: '4',
+        platform: 'whatsapp',
+        name: 'WhatsApp Business',
+        handle: 'Not connected',
+        avatar: 'WA',
+        connected: false,
+        autoPublish: false,
+    },
+    {
         id: '2',
         platform: 'twitter',
         name: 'TechCorp Careers',
@@ -107,6 +117,14 @@ const jobPlatforms: JobPlatform[] = [
         description: 'World\'s #1 job site with millions of job listings',
         icon: Briefcase,
         color: 'bg-blue-600',
+        requiresCredentials: false,
+    },
+    {
+        id: 'whatsapp',
+        name: 'WhatsApp',
+        description: 'Send candidate notifications and job alerts via WhatsApp',
+        icon: MessageSquare,
+        color: 'bg-[#25D366]',
         requiresCredentials: false,
     },
     {
@@ -146,6 +164,7 @@ const jobPlatforms: JobPlatform[] = [
 const platformConfig: Record<string, { icon: any, color: string, name: string }> = {
     linkedin: { icon: Linkedin, color: 'bg-blue-600', name: 'LinkedIn' },
     indeed: { icon: Briefcase, color: 'bg-blue-600', name: 'Indeed' },
+    whatsapp: { icon: MessageSquare, color: 'bg-[#25D366]', name: 'WhatsApp' },
     twitter: { icon: Twitter, color: 'bg-sky-500', name: 'Twitter/X' },
     facebook: { icon: Facebook, color: 'bg-blue-700', name: 'Facebook' },
     instagram: { icon: Instagram, color: 'bg-gradient-to-br from-purple-600 to-pink-500', name: 'Instagram' },
@@ -154,12 +173,23 @@ const platformConfig: Record<string, { icon: any, color: string, name: string }>
 export default function IntegrationsPage() {
     const [accounts, setAccounts] = useState<SocialAccount[]>(initialAccounts);
     const [linkedInStatus, setLinkedInStatus] = useState<{ connected: boolean; platform_user_id?: string }>({ connected: false });
+    const [whatsappStatus, setWhatsappStatus] = useState<{ connected: boolean; phone_number_id?: string }>({ connected: false });
     const [isLoadingStatus, setIsLoadingStatus] = useState(true);
     const [showPlatformsModal, setShowPlatformsModal] = useState(false);
     const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+    const [showWhatsappCredentialsModal, setShowWhatsappCredentialsModal] = useState(false);
+    const [showWhatsappTestModal, setShowWhatsappTestModal] = useState(false);
     const [selectedPlatform, setSelectedPlatform] = useState<JobPlatform | null>(null);
     const [credentials, setCredentials] = useState({ username: '', password: '' });
+    const [whatsappCredentials, setWhatsappCredentials] = useState({
+        phone_number_id: '',
+        waba_id: '',
+        access_token: '',
+        verify_token: ''
+    });
+    const [whatsappTestMessage, setWhatsappTestMessage] = useState({ to: '', message: '' });
     const [isConnecting, setIsConnecting] = useState(false);
+    const [isSendingTestMessage, setIsSendingTestMessage] = useState(false);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
     const [successPlatformName, setSuccessPlatformName] = useState('');
 
@@ -170,10 +200,14 @@ export default function IntegrationsPage() {
     const fetchStatus = async () => {
         setIsLoadingStatus(true);
         try {
-            const [linkedin, indeed] = await Promise.all([
+            const [linkedin, indeed, whatsapp] = await Promise.all([
                 integrationsApi.linkedin.getStatus().catch(() => ({ connected: false })),
-                integrationsApi.indeed.getStatus().catch(() => ({ connected: false }))
+                integrationsApi.indeed.getStatus().catch(() => ({ connected: false })),
+                integrationsApi.whatsapp.getStatus().catch(() => ({ connected: false }))
             ]);
+
+            setLinkedInStatus(linkedin as any);
+            setWhatsappStatus(whatsapp as any);
 
             setAccounts(prev => prev.map(acc => {
                 if (acc.platform === 'linkedin') {
@@ -184,6 +218,10 @@ export default function IntegrationsPage() {
                     const status = indeed as any;
                     return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
                 }
+                if (acc.platform === 'whatsapp') {
+                    const status = whatsapp as any;
+                    return { ...acc, connected: status.connected, handle: status.phone_number_id ? 'Connected' : 'Not connected' };
+                }
                 return acc;
             }));
         } catch (error) {
@@ -193,9 +231,73 @@ export default function IntegrationsPage() {
         }
     };
 
+    const connectWhatsapp = async () => {
+        if (!whatsappCredentials.phone_number_id || !whatsappCredentials.waba_id ||
+            !whatsappCredentials.access_token || !whatsappCredentials.verify_token) {
+            alert('Please fill in all fields');
+            return;
+        }
+
+        setIsConnecting(true);
+        try {
+            await integrationsApi.whatsapp.connect(whatsappCredentials);
+            alert('WhatsApp connected successfully!');
+            setShowWhatsappCredentialsModal(false);
+            setWhatsappCredentials({
+                phone_number_id: '',
+                waba_id: '',
+                access_token: '',
+                verify_token: ''
+            });
+            await fetchStatus();
+        } catch (error: any) {
+            console.error('Failed to connect WhatsApp:', error);
+            alert(`Failed to connect WhatsApp: ${error.message || 'Unknown error'}`);
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
+    const sendWhatsappTestMessage = async () => {
+        if (!whatsappTestMessage.to || !whatsappTestMessage.message) return;
+
+        setIsSendingTestMessage(true);
+        try {
+            await integrationsApi.whatsapp.sendMessage(
+                whatsappTestMessage.to,
+                whatsappTestMessage.message
+            );
+            alert('Test message sent successfully!');
+            setShowWhatsappTestModal(false);
+            setWhatsappTestMessage({ to: '', message: '' });
+        } catch (error: any) {
+            console.error('Failed to send test message:', error);
+            alert(`Failed to send message: ${error.message || 'Unknown error'}`);
+        } finally {
+            setIsSendingTestMessage(false);
+        }
+    };
+
     const toggleConnection = async (id: string) => {
         const account = accounts.find(a => a.id === id);
         if (!account) return;
+
+        if (account.platform === 'whatsapp') {
+            if (account.connected) {
+                if (confirm('Are you sure you want to disconnect WhatsApp?')) {
+                    try {
+                        await integrationsApi.whatsapp.disconnect();
+                        await fetchStatus();
+                    } catch (error) {
+                        console.error('Failed to disconnect WhatsApp:', error);
+                    }
+                }
+            } else {
+                // Open WhatsApp credentials form
+                setShowWhatsappCredentialsModal(true);
+            }
+            return;
+        }
 
         if (account.platform === 'linkedin' || account.platform === 'indeed') {
             const api = account.platform === 'linkedin' ? integrationsApi.linkedin : integrationsApi.indeed;
@@ -241,6 +343,16 @@ export default function IntegrationsPage() {
     };
 
     const handlePlatformClick = async (platform: JobPlatform) => {
+        if (platform.id === 'whatsapp') {
+            setSelectedPlatform(platform);
+            setShowPlatformsModal(false);
+            await fetchStatus();
+            if (!whatsappStatus.connected) {
+                alert('Please configure WhatsApp credentials in the backend environment variables');
+            }
+            return;
+        }
+
         if (platform.id === 'linkedin' || platform.id === 'indeed') {
             setSelectedPlatform(platform);
             setShowPlatformsModal(false);
@@ -398,7 +510,7 @@ export default function IntegrationsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-6">
-                                    {account.connected && (
+                                    {account.connected && account.platform !== 'whatsapp' && (
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm text-slate-600">Auto-publish</span>
                                             <Switch
@@ -411,6 +523,15 @@ export default function IntegrationsPage() {
                                     <div className="flex items-center gap-2">
                                         {account.connected ? (
                                             <>
+                                                {account.platform === 'whatsapp' && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setShowWhatsappTestModal(true)}
+                                                    >
+                                                        Send Test Message
+                                                    </Button>
+                                                )}
                                                 <Button variant="ghost" size="icon">
                                                     <Settings className="h-4 w-4 text-slate-500" />
                                                 </Button>
@@ -575,6 +696,179 @@ export default function IntegrationsPage() {
                                 <>
                                     <Check className="h-4 w-4 mr-2" />
                                     Connect
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* WhatsApp Credentials Modal */}
+            <Dialog open={showWhatsappCredentialsModal} onOpenChange={setShowWhatsappCredentialsModal}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-3 rounded-lg bg-[#25D366] text-white">
+                                <MessageSquare className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-bold">
+                                    Connect WhatsApp Business
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Enter your WhatsApp Business API credentials to connect your account
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="wa-phone-number-id" className="text-sm font-medium">
+                                Phone Number ID
+                            </Label>
+                            <Input
+                                id="wa-phone-number-id"
+                                placeholder="Enter your Phone Number ID"
+                                value={whatsappCredentials.phone_number_id}
+                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, phone_number_id: e.target.value }))}
+                                className="h-11"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="wa-waba-id" className="text-sm font-medium">
+                                WhatsApp Business Account ID
+                            </Label>
+                            <Input
+                                id="wa-waba-id"
+                                placeholder="Enter your WhatsApp Business Account ID"
+                                value={whatsappCredentials.waba_id}
+                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, waba_id: e.target.value }))}
+                                className="h-11"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="wa-access-token" className="text-sm font-medium">
+                                Access Token
+                            </Label>
+                            <Input
+                                id="wa-access-token"
+                                placeholder="Enter your Temporary Access Token"
+                                value={whatsappCredentials.access_token}
+                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, access_token: e.target.value }))}
+                                className="h-11"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="wa-verify-token" className="text-sm font-medium">
+                                Verify Token
+                            </Label>
+                            <Input
+                                id="wa-verify-token"
+                                placeholder="Enter your Verify Token"
+                                value={whatsappCredentials.verify_token}
+                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, verify_token: e.target.value }))}
+                                className="h-11"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowWhatsappCredentialsModal(false)}
+                            disabled={isConnecting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={connectWhatsapp}
+                            disabled={!whatsappCredentials.phone_number_id || !whatsappCredentials.waba_id || !whatsappCredentials.access_token || !whatsappCredentials.verify_token || isConnecting}
+                            className="bg-[#25D366] hover:bg-[#20bd5a]"
+                        >
+                            {isConnecting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Connecting...
+                                </>
+                            ) : (
+                                <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Connect WhatsApp
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* WhatsApp Test Message Modal */}
+            <Dialog open={showWhatsappTestModal} onOpenChange={setShowWhatsappTestModal}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-3 rounded-lg bg-[#25D366] text-white">
+                                <MessageSquare className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-bold">
+                                    Send WhatsApp Test Message
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Send a test message to verify your WhatsApp integration
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="whatsapp-to" className="text-sm font-medium">
+                                Recipient Phone Number
+                            </Label>
+                            <Input
+                                id="whatsapp-to"
+                                placeholder="e.g., 03448260340 or 923448260340"
+                                value={whatsappTestMessage.to}
+                                onChange={(e) => setWhatsappTestMessage(prev => ({ ...prev, to: e.target.value }))}
+                                className="h-11"
+                            />
+                            <p className="text-xs text-slate-500">
+                                Enter in local format (e.g., 03448260340) or international format (e.g., 923448260340). The system will automatically format it correctly.
+                            </p>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="whatsapp-message" className="text-sm font-medium">
+                                Message
+                            </Label>
+                            <textarea
+                                id="whatsapp-message"
+                                placeholder="Enter your test message"
+                                value={whatsappTestMessage.message}
+                                onChange={(e) => setWhatsappTestMessage(prev => ({ ...prev, message: e.target.value }))}
+                                className="h-24 w-full rounded-md border border-slate-300 p-2 resize-none"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowWhatsappTestModal(false)}
+                            disabled={isSendingTestMessage}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={sendWhatsappTestMessage}
+                            disabled={!whatsappTestMessage.to || !whatsappTestMessage.message || isSendingTestMessage}
+                            className="bg-[#25D366] hover:bg-[#20bd5a]"
+                        >
+                            {isSendingTestMessage ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Sending...
+                                </>
+                            ) : (
+                                <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Send Message
                                 </>
                             )}
                         </Button>

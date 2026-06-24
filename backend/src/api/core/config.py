@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
 
     # Security
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
         "your-secret-key-change-in-production"
@@ -32,12 +33,17 @@ class Settings(BaseSettings):
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [
+        "*",  # Allow all origins in dev to avoid CORS errors
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:8000",
+        "http://localhost:8123",
+        "http://localhost:2024",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
         "http://127.0.0.1:8000",
+        "http://127.0.0.1:8123",
+        "http://127.0.0.1:2024",
         "http://172.22.112.1:3000",  # Network IP for frontend
         "http://172.22.112.1:8123",  # Network IP for backend
         "https://evalyn-omega.vercel.app",
@@ -56,6 +62,11 @@ class Settings(BaseSettings):
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
 
+    # Gmail OAuth
+    GMAIL_CLIENT_ID: str = os.getenv("GMAIL_CLIENT_ID", "")
+    GMAIL_CLIENT_SECRET: str = os.getenv("GMAIL_CLIENT_SECRET", "")
+    GMAIL_REDIRECT_URI: str = os.getenv("GMAIL_REDIRECT_URI", "http://127.0.0.1:8000/api/v1/gmail/callback")
+
     # Indeed API
     INDEED_CLIENT_ID: str = os.getenv("INDEED_CLIENT_ID", "")
     INDEED_CLIENT_SECRET: str = os.getenv("INDEED_CLIENT_SECRET", "")
@@ -64,6 +75,14 @@ class Settings(BaseSettings):
     INDEED_API_ENDPOINT: str = "https://apis.indeed.com"
     INDEED_AUTH_URL: str = "https://apis.indeed.com/oauth/v2/authorize"
     INDEED_TOKEN_URL: str = "https://apis.indeed.com/oauth/v2/tokens"
+
+    # WhatsApp Business API
+    WA_PHONE_NUMBER_ID: str = os.getenv("WA_PHONE_NUMBER_ID", "")
+    WA_WABA_ID: str = os.getenv("WA_WABA_ID", "")
+    WA_ACCESS_TOKEN: str = os.getenv("WA_ACCESS_TOKEN", "")
+    WA_VERIFY_TOKEN: str = os.getenv("WA_VERIFY_TOKEN", "")
+    WA_API_VERSION: str = "v25.0"
+    WA_GRAPH_API_URL: str = f"https://graph.facebook.com/{WA_API_VERSION}"
 
     # Email Settings (Resend)
     RESEND_API_KEY: str = ""

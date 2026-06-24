@@ -84,13 +84,18 @@ export const applicationsApi = {
     },
 
     /**
-     * HR manually sends a custom interview invitation email to a candidate.
+     * HR manually sends a custom email to a candidate, with optional file attachments.
      */
-    invite: async (id: string, data: string | FormData, message?: string): Promise<any> => {
+    invite: async (id: string, data: string | FormData, message?: string, files?: File[]): Promise<any> => {
         if (data instanceof FormData) {
             return apiClient.post<any>(`/applications/${id}/invite`, data);
         }
-        return apiClient.post<any>(`/applications/${id}/invite`, { subject: data, message });
+
+        const body = new FormData();
+        body.append('subject', data);
+        body.append('message', message ?? '');
+        (files ?? []).forEach(f => body.append('attachments', f));
+        return apiClient.post<any>(`/applications/${id}/invite`, body);
     },
 
     /**
