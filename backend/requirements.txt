@@ -31,3 +31,4 @@ instagrapi
 requests
 resend
 cloudinary
+cryptography
