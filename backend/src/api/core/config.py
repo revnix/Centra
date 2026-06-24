@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
 
     # Security
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
         "your-secret-key-change-in-production"

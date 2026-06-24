@@ -1,30 +1,34 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, BackgroundTasks
-from pydantic import BaseModel
-import os
-import uuid
 import json
 from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, BackgroundTasks
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.api.db.session import get_db, AsyncSessionLocal # Use AsyncSessionLocal for background tasks
+from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload, noload
+
 from src.api.core.dependencies import get_current_user
+from src.api.db.session import get_db, AsyncSessionLocal
+from src.api.models.application import Application, ApplicationStatus
 from src.api.models.user import User, UserRole
+from src.api.schemas.application import ApplicationCreate, ApplicationResponse
+from src.api.schemas.candidate import CandidateProfileCreate
+from src.api.schemas.user import UserCreate
 from src.api.services.application_service import ApplicationService
-from src.api.services.interview_service import InterviewService
 from src.api.services.auth_service import AuthService
 from src.api.services.candidate_service import CandidateService
+from src.api.services.email_service import send_email
 from src.api.services.screening_service import ScreeningService
-from src.api.schemas.application import ApplicationCreate, ApplicationResponse
-from src.api.schemas.user import UserCreate
-from src.api.schemas.candidate import CandidateProfileCreate
-from src.api.core.config import settings
 
 router = APIRouter()
 
+
 async def run_screening(application_id: int):
-    """Background task to run screening."""
+    """Background task to run AI screening."""
     async with AsyncSessionLocal() as db:
         service = ScreeningService(db)
         await service.evaluate_and_invite(application_id)
+
 
 @router.post("/guest", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def guest_apply(
@@ -37,11 +41,11 @@ async def guest_apply(
     skills: str = Form("[]"),
     experience_years: int = Form(0),
     cover_letter: Optional[str] = Form(None),
-    expected_salary: Optional[float] = Form(None),
+    expected_salary: Optional[str] = Form(None),
     city: str = Form(...),
     qualification: str = Form(...),
     resume_file: Optional[UploadFile] = File(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Guest Application Flow:
@@ -49,14 +53,12 @@ async def guest_apply(
     2. Check if user exists (or create shadow user)
     3. Create/Update Profile
     4. Create Application
-    5. Generate Interview Token
+    5. Trigger AI Screening
     """
     auth_service = AuthService(db)
     app_service = ApplicationService(db)
-    int_service = InterviewService(db)
     cand_service = CandidateService(db)
 
-    # 1. Handle Resume Upload
     resume_url = None
     if resume_file:
         from src.api.utils.cloudinary_upload import upload_file
@@ -65,40 +67,35 @@ async def guest_apply(
         resume_url = await upload_file(
             content,
             resume_file.filename,
-            folder=f"evalyn/resumes/{safe_email}"
+            folder=f"evalyn/resumes/{safe_email}",
         )
-    
-    # Parse skills from JSON string
+
     try:
         skills_list = json.loads(skills)
-    except:
+    except (json.JSONDecodeError, ValueError):
         skills_list = []
 
-    # 2. User Management
     user = await auth_service.get_user_by_email(email)
     if not user:
         import secrets
-        random_pw = secrets.token_urlsafe(16)
         user_in = UserCreate(
             email=email,
-            password=random_pw,
+            password=secrets.token_urlsafe(16),
             full_name=full_name,
-            role=UserRole.CANDIDATE
+            role=UserRole.CANDIDATE,
         )
         user = await auth_service.create_user(user_in)
-    
-    # 3. Candidate Profile
+
     profile = await cand_service.get_profile_by_user_id(user.id)
     if not profile:
         profile_in = CandidateProfileCreate(
             resume_url=resume_url,
             linkedin_url=linkedin_url,
             skills=skills_list,
-            experience_years=experience_years
+            experience_years=experience_years,
         )
         await cand_service.create_profile(user.id, profile_in)
     else:
-        # Update existing profile with latest info
         if resume_url:
             profile.resume_url = resume_url
         if linkedin_url:
@@ -107,11 +104,8 @@ async def guest_apply(
             profile.skills = skills_list
         if experience_years > 0:
             profile.experience_years = experience_years
-        
         db.add(profile)
-        # We don't need a separate commit here as there's one in service or end of request
-        
-    # 4. Create Application (Handles Notification internally)
+
     application = await app_service.create_application(
         user.id,
         job_id,
@@ -123,23 +117,22 @@ async def guest_apply(
         city=city,
         qualification=qualification,
     )
-    
-    # 5. Trigger AI Screening (Background Tasks)
+
     background_tasks.add_task(run_screening, application.id)
-    
+
     return {
         "message": "Application submitted successfully. Our AI system will review your profile and send an interview invitation via email if you are shortlisted.",
-        "status": "review_pending"
+        "status": "review_pending",
     }
+
 
 @router.post("", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
 async def apply(
     apply_data: ApplicationCreate,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Authenticated user application."""
     app_service = ApplicationService(db)
     application = await app_service.create_application(
         current_user.id,
@@ -152,142 +145,129 @@ async def apply(
         city=apply_data.city,
         qualification=apply_data.qualification,
     )
-    
-    # Trigger AI Screening
     background_tasks.add_task(run_screening, application.id)
-    
     return application
+
 
 @router.get("/me", response_model=List[ApplicationResponse])
 async def list_my_applications(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """List all applications for the current candidate."""
     app_service = ApplicationService(db)
-    applications = await app_service.get_applications_by_user_id(current_user.id)
-    return applications
+    return await app_service.get_applications_by_user_id(current_user.id)
+
 
 @router.get("/by-job/{job_id}", response_model=List[ApplicationResponse])
 async def list_applications_by_job(
     job_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """List all applications for a specific job (HR/Admin only)."""
-    from sqlalchemy.future import select
-    from sqlalchemy.orm import joinedload, noload
-    from src.api.models.application import Application
-
     result = await db.execute(
         select(Application)
         .where(Application.job_id == job_id)
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
-            noload(Application.interview_session),   # avoids MissingGreenlet on serialization
+            noload(Application.interview_session),  # avoids MissingGreenlet on serialization
         )
         .order_by(Application.match_score.desc().nullslast())
     )
     return result.scalars().all()
+
 
 @router.get("", response_model=List[ApplicationResponse])
 async def list_applications(
     skip: int = 0,
     limit: int = 100,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """List all applications (Admin only)."""
     app_service = ApplicationService(db)
-    applications = await app_service.list_applications(skip, limit)
-    return applications
+    return await app_service.list_applications(skip, limit)
+
+
 @router.get("/{application_id}", response_model=ApplicationResponse)
 async def get_application(
     application_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get detailed application by ID."""
     app_service = ApplicationService(db)
     application = await app_service.get_application_by_id(application_id)
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
     return application
 
+
 @router.post("/{application_id}/hire", response_model=ApplicationResponse)
 async def hire_application(
     application_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Hire a candidate and send offer letter."""
     app_service = ApplicationService(db)
     try:
-        application = await app_service.hire_candidate(application_id)
-        return application
+        return await app_service.hire_candidate(application_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
 
 @router.post("/{application_id}/reject", response_model=ApplicationResponse)
 async def reject_application_route(
     application_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Reject an application."""
     app_service = ApplicationService(db)
     try:
-        application = await app_service.reject_application(application_id)
-        return application
+        return await app_service.reject_application(application_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_application(
     application_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Permanently delete an application."""
-    # Restrict to Admin/Reviewer roles
     if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
         raise HTTPException(status_code=403, detail="Not authorized to delete applications")
-        
+
     app_service = ApplicationService(db)
     success = await app_service.delete_application(application_id)
     if not success:
         raise HTTPException(status_code=404, detail="Application not found")
     return None
 
+
 @router.post("/{application_id}/analyze", response_model=ApplicationResponse)
 async def analyze_application_route(
     application_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Trigger AI analysis of the application."""
     app_service = ApplicationService(db)
     try:
-        application = await app_service.analyze_application(application_id)
-        return application
+        return await app_service.analyze_application(application_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
 
 @router.post("/{application_id}/shortlist", response_model=ApplicationResponse)
 async def shortlist_application_route(
     application_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Shortlist candidate and send interview invitation."""
     if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
-         raise HTTPException(status_code=403, detail="Not authorized")
-         
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     app_service = ApplicationService(db)
     try:
-        application = await app_service.shortlist_candidate(application_id)
-        return application
+        return await app_service.shortlist_candidate(application_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -302,30 +282,18 @@ async def send_interview_invite(
     application_id: int,
     invite: InterviewInviteRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    HR manually sends a custom interview invitation email to the candidate.
-    Updates email_delivery_status and marks application as INTERVIEW_INVITED.
-    """
-    from sqlalchemy.future import select
-    from src.api.models.application import Application, ApplicationStatus
-    from src.api.services.email_service import send_email
-
-    result = await db.execute(
-        select(Application)
-        .where(Application.id == application_id)
-    )
+    """HR manually sends a custom interview invitation email to the candidate."""
+    result = await db.execute(select(Application).where(Application.id == application_id))
     application = result.scalars().first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    # Load candidate and job lazily
     await db.refresh(application, ["candidate", "job"])
     candidate = application.candidate
     job = application.job
 
-    # Build a clean branded HTML from the HR's custom message
     html_body = f"""
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px;
                 margin: auto; padding: 30px; border: 1px solid #e2e8f0;
@@ -365,7 +333,7 @@ async def send_interview_invite(
     return {
         "success": True,
         "message": f"Interview invitation sent to {candidate.email}",
-        "status": application.status
+        "status": application.status,
     }
 
 
@@ -378,12 +346,9 @@ async def update_application_status(
     application_id: int,
     body: UpdateStatusRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Move an application to any pipeline stage."""
-    from sqlalchemy.future import select
-    from src.api.models.application import Application, ApplicationStatus
-
     if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
         raise HTTPException(status_code=403, detail="Not authorized")
 

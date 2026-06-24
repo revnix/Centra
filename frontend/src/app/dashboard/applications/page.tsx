@@ -122,7 +122,6 @@ export default function ApplicationsPage() {
             closeInviteModal();
             queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
-            console.error("Invite error:", err);
             toast.error(`Failed to send invite: ${err.message || "Please try again."}`);
         } finally {
             setIsSending(false);
@@ -143,7 +142,6 @@ export default function ApplicationsPage() {
             toast.success(`Application for ${name} deleted successfully`);
             queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
-            console.error("Delete error:", err);
             toast.error(`Failed to delete application: ${err.message || "Unauthorized"}`);
         }
     };

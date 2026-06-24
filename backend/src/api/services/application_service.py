@@ -20,7 +20,7 @@ class ApplicationService:
         phone_number: str = None,
         source: str = "web",
         background_tasks = None,
-        expected_salary: float = None,
+        expected_salary=None,
         city: str = None,
         qualification: str = None,
     ) -> Application:
@@ -47,7 +47,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=float(expected_salary) if expected_salary is not None else None,
+            expected_salary=str(expected_salary) if expected_salary is not None else None,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )

@@ -1,12 +1,13 @@
-'use client'; // ✅ UNCHANGED
+'use client'; // ✅ UNCHANGEDs
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query'; // ✨ NEW - OPTIMIZATION
 import { useJobs, usePublishJob, useDeleteJob } from '@/lib/hooks/useJobs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users, MessageSquare, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -39,7 +40,7 @@ export default function GeneratedJobsPage() {
     const publishJob = usePublishJob();
 
     const jobs = useMemo(
-        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'ACTIVE'].includes(j.status)) ?? [],
+        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'EDIT_SUBMITTED', 'EDIT_DECLINED'].includes(j.status)) ?? [],
         [jobsResponse]
     );
 
@@ -65,6 +66,7 @@ export default function GeneratedJobsPage() {
     const [teamDialogJob, setTeamDialogJob] = useState<any>(null);
     const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
     const [isSendingToTeam, setIsSendingToTeam] = useState(false);
+    const [customEmail, setCustomEmail] = useState("");
 
     // Prefetch team members on mount so the dialog opens instantly
     const { data: teamMembers = [] } = useQuery({
@@ -76,14 +78,31 @@ export default function GeneratedJobsPage() {
     const handleOpenTeamDialog = (job: any) => {
         setTeamDialogJob(job);
         setSelectedTeamEmails([]);
+        setCustomEmail("");
         setShowTeamDialog(true);
     };
 
     const handleSendToTeam = async () => {
-        if (!teamDialogJob || selectedTeamEmails.length === 0) return;
+        if (!teamDialogJob) return;
+        
+        const allEmails = [...selectedTeamEmails];
+        if (customEmail.trim()) {
+            // Basic email validation
+            if (!/^\S+@\S+\.\S+$/.test(customEmail.trim())) {
+                toast.error("Please enter a valid custom email address");
+                return;
+            }
+            allEmails.push(customEmail.trim());
+        }
+
+        if (allEmails.length === 0) {
+            toast.error("Please select at least one team member or enter a custom email");
+            return;
+        }
+
         setIsSendingToTeam(true);
         try {
-            const result = await jobsApi.sendToTeam(teamDialogJob.id, selectedTeamEmails);
+            const result = await jobsApi.sendToTeam(teamDialogJob.id, allEmails);
             toast.success(result.message);
             setShowTeamDialog(false);
         } catch (error: any) {
@@ -221,18 +240,16 @@ export default function GeneratedJobsPage() {
         setIsPublishing(true);
 
         try {
-            // 1. Publish to selected social platforms
+            // 1. Publish to selected social platforms (allSettled — one failed platform won't block DB update)
+            const jobUrl = `${window.location.origin}/jobs/${selectedJob.id}/apply`;
             const publishPromises = selectedAccounts.map(async (accId) => {
                 const account = connectedAccounts.find(a => a.id === accId);
-                const jobUrl = `${window.location.origin}/jobs/${selectedJob.id}/apply`;
-
                 if (account?.platform === 'linkedin') {
                     const snippet = (selectedJob.short_description || selectedJob.description || '').substring(0, 500).trimEnd();
                     const tag = `#${(selectedJob.title || '').replace(/\s+/g, '')}`;
                     const text = `🚀 We're Hiring: ${selectedJob.title}!\n\n📍 ${selectedJob.location || 'Remote'} | 💼 ${selectedJob.job_type || 'Full-time'} | 🏢 ${selectedJob.department || 'Engineering'}\n\n${snippet}${snippet.length >= 500 ? '...' : ''}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
                     return integrationsApi.linkedin.publish(text, jobUrl);
                 } else if (account?.platform === 'indeed') {
-                    // Revert to backend-side publish which now has improved WAF bypass headers
                     return integrationsApi.indeed.postJob({
                         title: selectedJob.title,
                         description: `${selectedJob.description}\n\nApply Now: ${jobUrl}`,
@@ -242,9 +259,27 @@ export default function GeneratedJobsPage() {
                 }
             });
 
-            await Promise.all(publishPromises);
+            const results = await Promise.allSettled(publishPromises);
+            const failed = results.filter(r => r.status === 'rejected');
 
-            // 2. Mark as published in our DB
+            if (failed.length === results.length && results.length > 0) {
+                // All platforms failed — surface the first error, don't mark as published
+                const firstError = (failed[0] as PromiseRejectedResult).reason;
+                const status = firstError?.response?.status;
+                const detail = firstError?.response?.data?.detail || firstError?.message;
+                if (status === 403) {
+                    toast.error("LinkedIn token expired. Please reconnect your LinkedIn account in Integrations.", { duration: 6000 });
+                } else {
+                    toast.error(`Failed to publish: ${detail}`);
+                }
+                return;
+            }
+
+            if (failed.length > 0) {
+                toast.warning(`${failed.length} platform(s) failed to publish, but the job will be marked as published.`);
+            }
+
+            // 2. Mark as published in DB (always runs unless all platforms failed)
             await publishJob.mutateAsync(selectedJob.id);
 
             setPublishSuccess(true);
@@ -252,8 +287,13 @@ export default function GeneratedJobsPage() {
 
         } catch (error: any) {
             console.error("Publish error:", error);
+            const status = error.response?.status;
             const detail = error.response?.data?.detail || error.message;
-            toast.error(`Failed to publish: ${detail}`);
+            if (status === 403) {
+                toast.error("LinkedIn token expired. Please reconnect your LinkedIn account in Integrations.", { duration: 6000 });
+            } else {
+                toast.error(`Failed to publish: ${detail}`);
+            }
         } finally {
             setIsPublishing(false);
         }
@@ -336,15 +376,22 @@ export default function GeneratedJobsPage() {
                                         </h3>
                                         {/* Status Badge */}
                                         <div className="flex gap-2">
-                                            <Badge 
+                                            <Badge
                                                 variant={
-                                                    job.status === "APPROVED" ? "outline" : 
-                                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
+                                                    job.status === "APPROVED" ? "outline" :
+                                                    job.status === "EDIT_SUBMITTED" ? "outline" :
+                                                    job.status === "EDIT_DECLINED" ? "outline" :
+                                                    job.status === "CHANGES_REQUESTED" ? "destructive" :
                                                     "secondary"
-                                                } 
-                                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                                                }
+                                                className={`capitalize
+                                                    ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                                                    ${job.status === 'EDIT_SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+                                                    ${job.status === 'EDIT_DECLINED' ? 'bg-red-50 text-red-700 border-red-200' : ''}
+                                                `}
                                             >
-                                                {job.status.toLowerCase().replace('_', ' ')}
+                                                {job.status === 'EDIT_SUBMITTED' && <Pencil className="h-3 w-3 mr-1" />}
+                                                {job.status.toLowerCase().replaceAll('_', ' ')}
                                             </Badge>
                                             {job.manager_feedback && (
                                                 <Badge 
@@ -385,10 +432,7 @@ export default function GeneratedJobsPage() {
 
                                 <div className="flex items-center gap-3 md:border-l md:border-slate-100 md:pl-6">
                                     <Link href={`/dashboard/jobs/${job.id}`}>
-                                        <Button
-                                            variant="outline"
-                                            className="whitespace-nowrap"
-                                        >
+                                        <Button variant="outline" className="whitespace-nowrap">
                                             Review Details
                                         </Button>
                                     </Link>
@@ -632,41 +676,56 @@ export default function GeneratedJobsPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3 py-4">
-                        {teamMembers.length === 0 ? (
-                            <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
-                        ) : (
-                            teamMembers.map((member) => {
-                                const isSelected = selectedTeamEmails.includes(member.email);
-                                return (
-                                    <div
-                                        key={member.email}
-                                        onClick={() => setSelectedTeamEmails(prev =>
-                                            prev.includes(member.email)
-                                                ? prev.filter(e => e !== member.email)
-                                                : [...prev, member.email]
-                                        )}
-                                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                            isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            checked={isSelected}
-                                            onCheckedChange={() => setSelectedTeamEmails(prev =>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-3">
+                            <p className="text-sm font-medium text-slate-700">Team Members</p>
+                            {teamMembers.length === 0 ? (
+                                <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
+                            ) : (
+                                teamMembers.map((member) => {
+                                    const isSelected = selectedTeamEmails.includes(member.email);
+                                    return (
+                                        <div
+                                            key={member.email}
+                                            onClick={() => setSelectedTeamEmails(prev =>
                                                 prev.includes(member.email)
                                                     ? prev.filter(e => e !== member.email)
                                                     : [...prev, member.email]
                                             )}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 text-sm">{member.label}</p>
-                                            <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <Checkbox
+                                                checked={isSelected}
+                                                className="pointer-events-none"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-slate-900 text-sm">{member.label}</p>
+                                                <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            </div>
+                                            {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
                                         </div>
-                                        {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
-                                    </div>
-                                );
-                            })
-                        )}
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Custom Email Address</label>
+                                <div className="relative">
+                                    <MessageSquare className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="e.g. manager@company.com"
+                                        className="pl-10"
+                                        value={customEmail}
+                                        onChange={(e) => setCustomEmail(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-500">Enter a specific email to send the review request to.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter className="flex gap-2">
@@ -675,7 +734,7 @@ export default function GeneratedJobsPage() {
                         </Button>
                         <Button
                             onClick={handleSendToTeam}
-                            disabled={isSendingToTeam || selectedTeamEmails.length === 0}
+                            disabled={isSendingToTeam || (selectedTeamEmails.length === 0 && !customEmail.trim())}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
                             {isSendingToTeam ? (
