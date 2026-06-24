@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, noload
+from sqlalchemy.sql import func
 
 from src.api.core.dependencies import get_current_user
 from src.api.db.session import get_db, AsyncSessionLocal
@@ -285,12 +286,15 @@ async def send_interview_invite(
     db: AsyncSession = Depends(get_db),
 ):
     """HR manually sends a custom interview invitation email to the candidate."""
-    result = await db.execute(select(Application).where(Application.id == application_id))
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate), joinedload(Application.job))
+        .where(Application.id == application_id)
+    )
     application = result.scalars().first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    await db.refresh(application, ["candidate", "job"])
     candidate = application.candidate
     job = application.job
 
@@ -318,10 +322,14 @@ async def send_interview_invite(
 
     if sent:
         application.email_delivery_status = "SENT"
-        application.status = ApplicationStatus.INTERVIEW_INVITED
-        application.email_logs = f"Manual invite sent by HR. Subject: {invite.subject}"
+        application.status = ApplicationStatus.SENT
+        application.interview_invitation_status = "SENT"
+        application.last_interview_invite_id = sent
+        application.interview_invite_sent_at = func.now()
+        application.email_logs = f"Manual invite sent by HR. Subject: {invite.subject} | ID: {sent}"
     else:
         application.email_delivery_status = "FAILED"
+        application.interview_invitation_status = "FAILED"
         application.email_logs = f"Manual invite failed. Subject: {invite.subject}"
 
     db.add(application)
@@ -357,13 +365,28 @@ async def update_application_status(
     except ValueError:
         raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}")
 
-    result = await db.execute(select(Application).where(Application.id == application_id))
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.interview_session)
+        )
+        .where(Application.id == application_id)
+    )
     application = result.scalars().first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
     application.status = new_status
+    
+    # Sync with interview tracking status
+    if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:
+        if application.interview_invitation_status not in ["ACCEPTED", "DECLINED"]:
+            application.interview_invitation_status = "ACCEPTED"
+            application.email_logs = "Application status moved to INTERVIEW_SCHEDULED."
+
     db.add(application)
     await db.commit()
-    await db.refresh(application, ["candidate", "job", "interview_session"])
+    await db.refresh(application)
     return application
