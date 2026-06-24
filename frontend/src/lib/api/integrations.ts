@@ -144,6 +144,13 @@ export const integrationsApi = {
         },
 
         /**
+         * Connect WhatsApp using Facebook OAuth Code
+         */
+        connectWithFacebook: async (code: string): Promise<{ message: string; connected: boolean; phone_number_id?: string; waba_id?: string }> => {
+            return apiClient.post<{ message: string; connected: boolean; phone_number_id?: string; waba_id?: string }>('/admin/integrations/whatsapp/oauth-connect', { code });
+        },
+
+        /**
          * Get WhatsApp connection status
          */
         getStatus: async (): Promise<WhatsAppStatusResponse> => {
