@@ -8,6 +8,8 @@ class ApplicationStatus(str, enum.Enum):
     APPLIED = "APPLIED"
     SCREENING = "SCREENING"
     SHORTLISTED = "SHORTLISTED"
+    SENT = "SENT"
+    RESPONDED = "RESPONDED"
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
     INTERVIEW_INVITED = "INTERVIEW_INVITED"
     INTERVIEW_PENDING = "INTERVIEW_PENDING" # Keeping for backward compatibility
@@ -54,6 +56,11 @@ class Application(Base):
     # Email Delivery Status
     email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(JSON, nullable=True, comment="Failure reasons or SMTP logs")
+    
+    # Interview Tracking
+    interview_invitation_status = Column(String(50), default="NOT_SENT", index=True, comment="Status of interview invite: NOT_SENT, SENT, DELIVERED, OPENED, RESPONDED, NOT_RESPONDED, DECLINED")
+    last_interview_invite_id = Column(String(255), nullable=True, index=True, comment="Resend message ID for the last interview invite")
+    interview_invite_sent_at = Column(DateTime(timezone=True), nullable=True, index=True, comment="Timestamp of the last interview invitation sent")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # ✨ OPTIMIZATION — ORDER BY created_at DESC on every list call
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

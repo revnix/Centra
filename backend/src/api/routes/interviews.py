@@ -100,7 +100,7 @@ async def get_interview_session(
     
     # If the session is PENDING and there's no transcript, we might want to trigger the first message
     if session.status == InterviewStatus.PENDING and not session.transcript:
-        # We'll trigger it via a separate system call or just let the first "chat" trigger it if empty
+        # Side-effects in GET can be tricky; we'll rely on webhooks and start_interview POST
         pass
         
     return session
@@ -249,7 +249,15 @@ async def start_interview(
     session.status = InterviewStatus.IN_PROGRESS
     session.started_at = datetime.now(timezone.utc)
     
-    # 2. COMMIT BEFORE SLOW AI CALL
+    # Update tracking status to RESPONDED
+    if session.application:
+        from src.api.models.application import ApplicationStatus
+        session.application.interview_invitation_status = "RESPONDED"
+        session.application.status = ApplicationStatus.INTERVIEW_IN_PROGRESS
+        session.application.email_logs = "Candidate started the interview. Status updated to RESPONDED."
+        db.add(session.application)
+
+    # 2. COMMIT
     db.add(session)
     await db.commit()
     await db.refresh(session)

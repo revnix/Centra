@@ -13,15 +13,15 @@ HR_PHONE_NUMBER = "03125932632"
 
 EMAIL_SEND_TIMEOUT = 25  # seconds — well under the 90s frontend timeout
 
-async def send_email(to_email: str, subject: str, html_content: str) -> bool:
+async def send_email(to_email: str, subject: str, html_content: str) -> str | None:
     """
     Centralized email sending function using Resend API.
-    Does NOT crash on failure, logs errors instead.
+    Returns the message ID if successful, otherwise None.
     """
     if not settings.RESEND_API_KEY:
         logger.warning("RESEND_API_KEY is not configured. Email not sent.")
         logger.info(f"Dev Email Log [To: {to_email} | Subject: {subject}]:\n{html_content}")
-        return True
+        return "DEV_MODE_ID"
 
     resend.api_key = settings.RESEND_API_KEY
 
@@ -50,14 +50,15 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
             run_in_threadpool(resend.Emails.send, params),
             timeout=EMAIL_SEND_TIMEOUT,
         )
-        logger.info(f"Email successfully sent to {effective_to}. Response: {result}")
-        return True
+        msg_id = result.get("id") if result else None
+        logger.info(f"Email successfully sent to {effective_to}. ID: {msg_id}")
+        return msg_id
     except asyncio.TimeoutError:
         logger.error(f"Resend API timed out after {EMAIL_SEND_TIMEOUT}s for email to {to_email}")
-        return False
+        return None
     except Exception as e:
         logger.error(f"FAILED to send email via Resend to {to_email}: {str(e)}")
-        return False
+        return None
 
 class EmailService:
     """
@@ -65,7 +66,7 @@ class EmailService:
     """
 
     @staticmethod
-    async def send_interview_invite(candidate_email: str, candidate_name: str, job_title: str, interview_link: str) -> bool:
+    async def send_interview_invite(candidate_email: str, candidate_name: str, job_title: str, interview_link: str) -> str | None:
         """
         Informs candidate they are shortlisted and provides next steps.
         """
@@ -99,7 +100,7 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
-    async def send_rejection_email(candidate_email: str, candidate_name: str, job_title: str) -> bool:
+    async def send_rejection_email(candidate_email: str, candidate_name: str, job_title: str) -> str | None:
         """Informs candidate their application was not successful."""
         subject = f"Update on Your Application for {job_title}"
         html = f"""
@@ -124,7 +125,7 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
-    async def send_shortlist_email(candidate_email: str, candidate_name: str, job_title: str) -> bool:
+    async def send_shortlist_email(candidate_email: str, candidate_name: str, job_title: str) -> str | None:
         """
         Informs candidate they are shortlisted and provides next steps.
         """
@@ -163,7 +164,7 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
-    async def send_hire_email(candidate_email: str, candidate_name: str, job_title: str, company_name: str, salary: str, joining_date: str, onboarding_link: str) -> bool:
+    async def send_hire_email(candidate_email: str, candidate_name: str, job_title: str, company_name: str, salary: str, joining_date: str, onboarding_link: str) -> str | None:
         """
         Sends professional offer letter and onboarding instructions.
         """
@@ -207,7 +208,7 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
-    async def send_onboarding_welcome(candidate_email: str, candidate_name: str, onboarding_link: str) -> bool:
+    async def send_onboarding_welcome(candidate_email: str, candidate_name: str, onboarding_link: str) -> str | None:
         """
         Direct onboarding welcome email.
         """
@@ -226,7 +227,7 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
-    async def send_password_reset_email(email: str, reset_link: str) -> bool:
+    async def send_password_reset_email(email: str, reset_link: str) -> str | None:
         """
         Sends password reset link.
         """
@@ -244,7 +245,7 @@ class EmailService:
         return await send_email(email, subject, html)
 
     @staticmethod
-    async def send_job_to_manager(job_title: str, job_details: str, review_url: str | None = None) -> bool:
+    async def send_job_to_manager(job_title: str, job_details: str, review_url: str | None = None) -> str | None:
         """
         Internal notification to manager for job review.
         """
@@ -288,7 +289,7 @@ class EmailService:
     async def send_job_to_team(job_title: str, job_details: str, recipient_emails: list, review_url: str | None = None) -> dict:
         """
         Send job review request to a list of team members.
-        Returns a dict with sent/failed counts.
+        Returns a dict with sent/failed counts and list of message IDs.
         """
         subject = f"Job Post for Review: {job_title}"
 
@@ -320,16 +321,18 @@ class EmailService:
         """
 
         sent, failed = 0, 0
+        message_ids = []
         for email in recipient_emails:
-            ok = await send_email(email, subject, html)
-            if ok:
+            msg_id = await send_email(email, subject, html)
+            if msg_id:
                 sent += 1
+                message_ids.append(msg_id)
             else:
                 failed += 1
-        return {"sent": sent, "failed": failed}
+        return {"sent": sent, "failed": failed, "message_ids": message_ids}
 
     @staticmethod
-    async def send_new_application_notification(candidate_name: str, candidate_email: str, job_title: str, source: str, resume_link: str | None = None) -> bool:
+    async def send_new_application_notification(candidate_name: str, candidate_email: str, job_title: str, source: str, resume_link: str | None = None) -> str | None:
         """
         Internal notification to HR for new application.
         """
