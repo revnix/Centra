@@ -23,6 +23,7 @@ class ApplicationStatus(str, enum.Enum):
     ONBOARDING = "ONBOARDING"
     HIRED = "HIRED"
     WITHDRAWN = "WITHDRAWN"
+    RESPONDED = "RESPONDED"
 
 class Application(Base):
     """
