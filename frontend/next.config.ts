@@ -6,10 +6,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  reactCompiler: true,
+  reactCompiler: false,
   experimental: {
     // Tree-shake large icon/component libraries — only the icons actually used
     // are bundled. Without this, lucide-react pulls in 500+ icons on every page.

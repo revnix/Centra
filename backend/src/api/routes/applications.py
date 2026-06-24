@@ -272,19 +272,16 @@ async def shortlist_application_route(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-class InterviewInviteRequest(BaseModel):
-    subject: str
-    message: str
-
-
 @router.post("/{application_id}/invite")
 async def send_interview_invite(
     application_id: int,
-    invite: InterviewInviteRequest,
+    subject: str = Form(...),
+    message: str = Form(...),
+    files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """HR manually sends a custom interview invitation email to the candidate."""
+    """HR manually sends a custom email to the candidate, with optional file attachments."""
     result = await db.execute(select(Application).where(Application.id == application_id))
     application = result.scalars().first()
     if not application:
@@ -294,6 +291,13 @@ async def send_interview_invite(
     candidate = application.candidate
     job = application.job
 
+    # Build attachments list for Resend
+    email_attachments = []
+    for f in files:
+        if f.filename:
+            content = await f.read()
+            email_attachments.append({"filename": f.filename, "content": list(content)})
+
     html_body = f"""
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px;
                 margin: auto; padding: 30px; border: 1px solid #e2e8f0;
@@ -302,7 +306,7 @@ async def send_interview_invite(
             <h1 style="color: #2b6cb0; font-size: 24px; margin: 0;">Interview Invitation</h1>
         </div>
         <p>Dear <strong>{candidate.full_name or 'Candidate'}</strong>,</p>
-        <div style="white-space: pre-wrap; margin: 20px 0;">{invite.message}</div>
+        <div style="white-space: pre-wrap; margin: 20px 0;">{message}</div>
         <p style="margin-top: 30px;">Best regards,<br/>
         <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
         Evalyn AI</p>
@@ -314,15 +318,21 @@ async def send_interview_invite(
     </div>
     """
 
-    sent = await send_email(candidate.email, invite.subject, html_body)
+    sent = await send_email(
+        candidate.email,
+        subject,
+        html_body,
+        attachments=email_attachments or None,
+    )
 
     if sent:
         application.email_delivery_status = "SENT"
         application.status = ApplicationStatus.INTERVIEW_INVITED
-        application.email_logs = f"Manual invite sent by HR. Subject: {invite.subject}"
+        attach_note = f" | {len(email_attachments)} attachment(s)" if email_attachments else ""
+        application.email_logs = f"Manual invite sent by HR. Subject: {subject}{attach_note}"
     else:
         application.email_delivery_status = "FAILED"
-        application.email_logs = f"Manual invite failed. Subject: {invite.subject}"
+        application.email_logs = f"Manual invite failed. Subject: {subject}"
 
     db.add(application)
     await db.commit()

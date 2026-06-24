@@ -105,8 +105,14 @@ export const onboardingApi = {
     managerInductionUpdate: (applicationId: number, data: any) => 
         apiClient.put<OnboardingResponse>(`/onboarding/${applicationId}/induction/manager`, data),
         
-    sendWelcomeEmail: (applicationId: number) => 
-        apiClient.post<{ message: string }>(`/onboarding/${applicationId}/send-welcome-email`),
+    sendWelcomeEmail: (applicationId: number, files?: File[]) => {
+        if (files && files.length > 0) {
+            const body = new FormData();
+            files.forEach(f => body.append('files', f));
+            return apiClient.post<{ message: string }>(`/onboarding/${applicationId}/send-welcome-email`, body);
+        }
+        return apiClient.post<{ message: string }>(`/onboarding/${applicationId}/send-welcome-email`);
+    },
 
     /** 
      * HR-specific detailed view of onboarding 
