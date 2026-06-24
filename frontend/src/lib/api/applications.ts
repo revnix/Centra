@@ -86,8 +86,11 @@ export const applicationsApi = {
     /**
      * HR manually sends a custom interview invitation email to a candidate.
      */
-    invite: async (id: string, subject: string, message: string): Promise<any> => {
-        return apiClient.post<any>(`/applications/${id}/invite`, { subject, message });
+    invite: async (id: string, data: string | FormData, message?: string): Promise<any> => {
+        if (data instanceof FormData) {
+            return apiClient.post<any>(`/applications/${id}/invite`, data);
+        }
+        return apiClient.post<any>(`/applications/${id}/invite`, { subject: data, message });
     },
 
     /**
