@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
  * Middleware for route protection and role-based access control
  */
 
-export function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public routes that don't require authentication

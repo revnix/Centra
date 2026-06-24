@@ -17,6 +17,7 @@ class CandidateProfile(Base):
     linkedin_url = Column(String, nullable=True)
     portfolio_url = Column(String, nullable=True)
 
+    skills = Column(ARRAY(String), default=list, nullable=False)
     skills = Column(JSON, default=list, nullable=False)
     experience_years = Column(Integer, default=0)
     bio = Column(Text, nullable=True)

@@ -12,6 +12,19 @@ export interface LinkedInStatusResponse {
     expires_at?: string;
 }
 
+export interface WhatsAppStatusResponse {
+    connected: boolean;
+    phone_number_id?: string;
+    waba_id?: string;
+}
+
+export interface WhatsAppConnectRequest {
+    phone_number_id: string;
+    waba_id: string;
+    access_token: string;
+    verify_token: string;
+}
+
 /**
  * Integrations API endpoints
  */
@@ -116,6 +129,54 @@ export const integrationsApi = {
          */
         postJob: async (jobData: { title: string; description: string; location: string; company: string }): Promise<any> => {
             return apiClient.post<any>('/admin/integrations/indeed/post-job', jobData);
+        }
+    },
+
+    /**
+     * WhatsApp specific endpoints
+     */
+    whatsapp: {
+        /**
+         * Connect WhatsApp with credentials
+         */
+        connect: async (data: WhatsAppConnectRequest): Promise<{ message: string; connected: boolean; phone_number_id?: string; waba_id?: string }> => {
+            return apiClient.post<{ message: string; connected: boolean; phone_number_id?: string; waba_id?: string }>('/admin/integrations/whatsapp/connect', data);
+        },
+
+        /**
+         * Get WhatsApp connection status
+         */
+        getStatus: async (): Promise<WhatsAppStatusResponse> => {
+            return apiClient.get<WhatsAppStatusResponse>('/admin/integrations/whatsapp/status');
+        },
+
+        /**
+         * Send a text message via WhatsApp
+         */
+        sendMessage: async (to: string, message: string): Promise<{ status: string; data: any }> => {
+            return apiClient.post<{ status: string; data: any }>('/admin/integrations/whatsapp/send-message', {
+                to,
+                message
+            });
+        },
+
+        /**
+         * Send a template message via WhatsApp
+         */
+        sendTemplate: async (to: string, templateName: string, languageCode: string = "en_US", components: any[] = []): Promise<{ status: string; data: any }> => {
+            return apiClient.post<{ status: string; data: any }>('/admin/integrations/whatsapp/send-template', {
+                to,
+                template_name: templateName,
+                language_code: languageCode,
+                components
+            });
+        },
+
+        /**
+         * Disconnect WhatsApp
+         */
+        disconnect: async (): Promise<{ message: string }> => {
+            return apiClient.delete<{ message: string }>('/admin/integrations/whatsapp/disconnect');
         }
     }
 };
