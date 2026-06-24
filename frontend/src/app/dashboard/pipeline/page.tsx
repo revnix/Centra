@@ -141,17 +141,6 @@ const COLUMNS: ColumnDef[] = [
         cardsBg: "bg-teal-50/30",
     },
     {
-        label: "Onboarding",
-        status: "ONBOARDING",
-        topStrip: "bg-sky-500",
-        headerText: "text-sky-700",
-        countBg: "bg-sky-100",
-        countText: "text-sky-700",
-        avatarBg: "bg-sky-100",
-        avatarText: "text-sky-700",
-        cardsBg: "bg-sky-50/30",
-    },
-    {
         label: "Hired",
         status: "HIRED",
         topStrip: "bg-green-500",
