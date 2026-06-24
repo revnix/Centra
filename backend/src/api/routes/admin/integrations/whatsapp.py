@@ -8,7 +8,8 @@ from src.api.schemas.integration import (
     WhatsAppSendMessageRequest,
     WhatsAppSendTemplateRequest,
     WhatsAppStatusResponse,
-    WhatsAppConnectRequest
+    WhatsAppConnectRequest,
+    WhatsAppOAuthConnectRequest
 )
 from src.api.services.whatsapp_service import WhatsAppService
 from src.api.models.integration import UserIntegration
@@ -38,6 +39,29 @@ async def connect_whatsapp(
             "connected": True,
             "phone_number_id": request_data.phone_number_id,
             "waba_id": request_data.waba_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/oauth-connect")
+async def oauth_connect_whatsapp(
+    request_data: WhatsAppOAuthConnectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Connect WhatsApp using Facebook OAuth Code."""
+    try:
+        whatsapp_service = WhatsAppService(db)
+        integration = await whatsapp_service.connect_via_oauth(
+            user_id=current_user.id,
+            code=request_data.code
+        )
+        return {
+            "message": "WhatsApp connected successfully via Facebook",
+            "connected": True,
+            "phone_number_id": integration.extra_data.get("phone_number_id"),
+            "waba_id": integration.extra_data.get("waba_id")
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

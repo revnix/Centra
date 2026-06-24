@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     
 
     
-    FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
+    FACEBOOK_API_ENDPOINT: str = "https://graph.facebook.com/v25.0"
+    FACEBOOK_APP_ID: str = os.getenv("FACEBOOK_APP_ID", "")
+    FACEBOOK_APP_SECRET: str = os.getenv("FACEBOOK_APP_SECRET", "")
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
 

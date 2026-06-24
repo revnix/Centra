@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "172.20.96.1:3000",
     "172.20.96.1",
+    "revolute-jerica-uncombatant.ngrok-free.dev",
+    "https://revolute-jerica-uncombatant.ngrok-free.dev"
   ],
   async redirects() {
     return [
