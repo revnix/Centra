@@ -280,10 +280,14 @@ async def send_interview_invite(
     message: str = Form(...),
     attachments: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db)
 ):
     """HR manually sends a custom interview invitation email to the candidate, with optional file attachments."""
-    result = await db.execute(select(Application).where(Application.id == application_id))
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate), joinedload(Application.job))
+        .where(Application.id == application_id)
+    )
     application = result.scalars().first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")

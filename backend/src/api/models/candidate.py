@@ -25,7 +25,4 @@ class CandidateProfile(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    # Relationships
-    user = relationship("User", backref="candidate_profiles") # Changing backref to candidate_profiles (plural) or using uselist=False
-    # Actually, better to configure it explicitly on User or here with uselist=False
     user = relationship("User", back_populates="candidate_profile")

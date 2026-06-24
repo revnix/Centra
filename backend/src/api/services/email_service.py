@@ -238,7 +238,7 @@ class EmailService:
             <p>If you have any questions, feel free to contact HR.</p>
         </div>
         """
-        return await send_email(candidate_email, subject, html)
+        return await send_email(candidate_email, subject, html, attachments=attachments)
 
     @staticmethod
     async def send_password_reset_email(email: str, reset_link: str) -> str | None:
