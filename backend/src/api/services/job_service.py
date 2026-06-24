@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import cast, String
 from src.api.models.job import Posts
 from src.api.schemas.job import JobCreate, JobUpdate
 
@@ -223,7 +224,7 @@ class JobService:
         pending_actions = pending_result.scalar()
         
         # Fetch 5 most recent activities (latest applications by updated_at)
-        recent_query = select(Application, Posts.title, User.full_name).join(
+        recent_query = select(Application, cast(Posts.title, String), cast(User.full_name, String)).join(
             Posts, Application.job_id == Posts.id
         ).join(
             User, Application.candidate_id == User.id
