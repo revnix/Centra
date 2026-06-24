@@ -1,28 +1,35 @@
-# src/api/main.py 
-
-from fastapi import FastAPI, Request, Depends
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import FastAPI, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 from src.api.core.config import settings
+from src.api.db.session import engine, get_db
 from src.api.routes import (
+    applications,
     auth,
-    jobs,
-    integrations,
     candidates,
+    integrations,
+    interviews,
+    jobs,
+    langgraph,
     onboarding,
     uploads,
-    langgraph,
-    applications,
-    interviews,
 )
 from src.api.routes.admin import (
     users as admin_users,
     jobs as admin_jobs,
-    integrations as admin_integrations,
 )
 from src.api.routes.admin.integrations import (
     linkedin as linkedin_integration,
@@ -30,15 +37,11 @@ from src.api.routes.admin.integrations import (
     whatsapp as whatsapp_integration,
 )
 
-from src.api.db.session import engine, get_db
-from src.api.db.base import Base
-from contextlib import asynccontextmanager
-import uvicorn
+logger = logging.getLogger(__name__)
 
 
 async def _migrate_enum_values():
     """Add new ApplicationStatus values to the PostgreSQL enum type if they don't exist."""
-    from sqlalchemy import text
     new_values = [
         "INTERVIEW_SCHEDULED",
         "REFERENCE_CHECK",
@@ -52,16 +55,14 @@ async def _migrate_enum_values():
                 await conn.execute(
                     text(f"ALTER TYPE applicationstatus ADD VALUE IF NOT EXISTS '{val}'")
                 )
-        print("DEBUG: ApplicationStatus enum migration complete")
+        logger.info("ApplicationStatus enum migration complete")
     except Exception as e:
         # Non-fatal: SQLite doesn't have named enum types; skip silently
-        print(f"DEBUG: Enum migration skipped ({type(e).__name__}: {e})")
+        logger.debug("Enum migration skipped (%s: %s)", type(e).__name__, e)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Ensure upload directories exist
-    from starlette.concurrency import run_in_threadpool
     await run_in_threadpool(os.makedirs, settings.UPLOAD_DIR, exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
@@ -69,62 +70,49 @@ async def lifespan(app: FastAPI):
 
     await _migrate_enum_values()
 
-    # Warm up Neon DB in background so the first user request hits a live connection
     async def _warmup_db():
-        from sqlalchemy import text
         try:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-            print("DEBUG: DB warmup successful")
+            logger.info("DB warmup successful")
         except Exception as e:
-            print(f"DEBUG: DB warmup failed (will retry on first request): {e}")
-    asyncio.ensure_future(_warmup_db())
+            logger.warning("DB warmup failed (will retry on first request): %s", e)
 
-    print(f"DEBUG: CORS ALLOWED_ORIGINS = {settings.ALLOWED_ORIGINS}")
-    print("DEBUG: Application lifespan started and directories verified")
+    asyncio.ensure_future(_warmup_db())
+    logger.info("Application startup complete. CORS origins: %s", settings.ALLOWED_ORIGINS)
     yield
-    # Shutdown
 
 
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# Global Exception Handler
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail, "code": getattr(exc, "code", None)}
+        content={"detail": exc.detail, "code": getattr(exc, "code", None)},
     )
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    import traceback
-    print(f"GLOBAL ERROR CAUGHT: {type(exc).__name__}: {str(exc)}")
-    traceback.print_exc()
-    
-    # Extract as much info as possible
-    message = str(exc) or "An unexpected error occurred"
-    
+    logger.exception("Unhandled error on %s %s", request.method, request.url)
     return JSONResponse(
         status_code=500,
         content={
-            "detail": f"Internal Server Error: {message}",
-            "type": type(exc).__name__
-        }
+            "detail": f"Internal Server Error: {str(exc) or 'An unexpected error occurred'}",
+            "type": type(exc).__name__,
+        },
     )
 
-# Mount static files for uploads
+
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
-# CORS — allow all origins in dev to prevent browser "Network Error"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -133,23 +121,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Routes
+# Core routes
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_PREFIX}/jobs", tags=["jobs"])
 app.include_router(integrations.router, prefix=f"{settings.API_V1_PREFIX}/integrations", tags=["integrations"])
 
-# Admin Routes
+# Admin routes
 app.include_router(admin_users.router, prefix=f"{settings.API_V1_PREFIX}/admin/users", tags=["admin-users"])
 app.include_router(admin_jobs.router, prefix=f"{settings.API_V1_PREFIX}/admin/jobs", tags=["admin-jobs"])
 app.include_router(linkedin_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/linkedin", tags=["admin-integrations-linkedin"])
 app.include_router(indeed_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/indeed", tags=["admin-integrations-indeed"])
 app.include_router(whatsapp_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/whatsapp", tags=["admin-integrations-whatsapp"])
 
-# Hiring Workflow Routes
+# Hiring workflow routes
 app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["candidates"])
 app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applications", tags=["applications"])
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
@@ -158,15 +144,14 @@ app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", t
 app.include_router(langgraph.router, tags=["langgraph"])
 
 
-
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
     try:
-        from sqlalchemy import text
         await db.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "database_error": str(e)}
+
 
 @app.get("/")
 def root():
@@ -174,5 +159,4 @@ def root():
 
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run("src.api.main:app", host="0.0.0.0", port=8123, reload=True)

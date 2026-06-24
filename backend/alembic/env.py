@@ -22,6 +22,10 @@ if db_url:
     # asyncpg doesn't support sslmode parameter in the connection string directly
     if "?sslmode=" in db_url:
         db_url = db_url.split("?")[0]
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.

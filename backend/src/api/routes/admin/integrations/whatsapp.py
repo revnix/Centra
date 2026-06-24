@@ -71,20 +71,17 @@ async def get_whatsapp_status(
 
 
 @router.get("/webhook")
-async def verify_webhook(mode: str, token: str, challenge: str):
-    """Verify WhatsApp webhook endpoint (GET request).
-    
-    Note: For webhooks, you might want to handle verification globally or store
-    verify token in environment variables or per-user basis.
-    """
-    # For now, we'll use a simple verification. In production, you'd want
-    # to fetch the verify token from the database based on the incoming request.
-    from src.api.core.config import settings
+async def verify_webhook(
+    mode: str, 
+    token: str, 
+    challenge: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Verify WhatsApp webhook endpoint (GET request)."""
     try:
-        # For now, use env var for verify token
-        if mode == "subscribe" and token == settings.WA_VERIFY_TOKEN:
-            return challenge
-        raise Exception("Invalid verification token")
+        from src.api.services.whatsapp_service import WhatsAppService
+        whatsapp_service = WhatsAppService(db)
+        return await whatsapp_service.verify_webhook_token(mode, token, challenge)
     except Exception as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -119,8 +116,10 @@ async def send_whatsapp_message(
         )
         return {"status": "success", "data": result}
     except Exception as e:
+        import httpx
+        if isinstance(e, httpx.HTTPStatusError):
+            print(f"Graph API Error: {e.response.text}")
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @router.post("/send-template")
 async def send_whatsapp_template(
@@ -140,6 +139,9 @@ async def send_whatsapp_template(
         )
         return {"status": "success", "data": result}
     except Exception as e:
+        import httpx
+        if isinstance(e, httpx.HTTPStatusError):
+            print(f"Graph API Error: {e.response.text}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

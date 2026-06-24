@@ -112,7 +112,14 @@ class LinkedInService:
         )
         integration = result.scalars().first()
         if not integration:
-            raise Exception("LinkedIn integration not found for user")
+            raise Exception("LinkedIn integration not found. Please connect your LinkedIn account from the Integrations page.")
+
+        if integration.expires_at is not None:
+            exp = integration.expires_at
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp < datetime.now(timezone.utc):
+                raise ValueError("LinkedIn access token has expired. Please reconnect your LinkedIn account from the Integrations page.")
 
         url = "https://api.linkedin.com/v2/ugcPosts"
         headers = {

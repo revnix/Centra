@@ -3,11 +3,14 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.api.models.integration import UserIntegration
+from src.api.core.config import settings
+from src.api.core.encryption import get_encryption_service
 
 
 class WhatsAppService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.encryption_service = get_encryption_service(settings.ENCRYPTION_KEY)
 
     async def get_integration(self, user_id: int) -> Optional[UserIntegration]:
         """Get WhatsApp integration for a user from database."""
@@ -42,8 +45,8 @@ class WhatsAppService:
         return {
             "phone_number_id": extra_data["phone_number_id"],
             "waba_id": extra_data["waba_id"],
-            "access_token": integration.access_token,
-            "verify_token": extra_data["verify_token"],
+            "access_token": self.encryption_service.decrypt(integration.access_token),
+            "verify_token": self.encryption_service.decrypt(extra_data["verify_token"]),
             "graph_api_url": f"https://graph.facebook.com/v25.0"
         }
 
@@ -140,17 +143,22 @@ class WhatsAppService:
         verify_token: str
     ) -> UserIntegration:
         """Save WhatsApp integration credentials for a user."""
+        encrypted_access_token = self.encryption_service.encrypt(access_token)
+        encrypted_verify_token = self.encryption_service.encrypt(verify_token)
+
         # Check if integration already exists
         existing_integration = await self.get_integration(user_id)
         
+        from sqlalchemy.orm.attributes import flag_modified
         if existing_integration:
             # Update existing integration
-            existing_integration.access_token = access_token
+            existing_integration.access_token = encrypted_access_token
             existing_integration.extra_data = {
                 "phone_number_id": phone_number_id,
                 "waba_id": waba_id,
-                "verify_token": verify_token
+                "verify_token": encrypted_verify_token
             }
+            flag_modified(existing_integration, "extra_data")
             integration = existing_integration
         else:
             # Create new integration
@@ -158,11 +166,11 @@ class WhatsAppService:
                 user_id=user_id,
                 platform="whatsapp",
                 platform_user_id=phone_number_id,  # Use phone number ID as platform_user_id
-                access_token=access_token,
+                access_token=encrypted_access_token,
                 extra_data={
                     "phone_number_id": phone_number_id,
                     "waba_id": waba_id,
-                    "verify_token": verify_token
+                    "verify_token": encrypted_verify_token
                 }
             )
             self.db.add(integration)
@@ -171,10 +179,32 @@ class WhatsAppService:
         await self.db.refresh(integration)
         return integration
 
-    def verify_webhook(self, verify_token_from_user: str, mode: str, token: str, challenge: str) -> str:
-        """Verify WhatsApp webhook using stored verify token."""
-        if mode == "subscribe" and token == verify_token_from_user:
+    async def verify_webhook_token(self, mode: str, token: str, challenge: str) -> str:
+        """Verify WhatsApp webhook using verify tokens from the database."""
+        if mode != "subscribe":
+            raise Exception("Invalid mode")
+
+        # Fetch all whatsapp integrations
+        result = await self.db.execute(
+            select(UserIntegration).where(
+                UserIntegration.platform == "whatsapp"
+            )
+        )
+        integrations = result.scalars().all()
+
+        for integration in integrations:
+            if integration.extra_data and "verify_token" in integration.extra_data:
+                try:
+                    decrypted_token = self.encryption_service.decrypt(integration.extra_data["verify_token"])
+                    if decrypted_token == token:
+                        return challenge
+                except Exception:
+                    continue
+        
+        # Fallback to env var
+        if token == settings.WA_VERIFY_TOKEN:
             return challenge
+
         raise Exception("Invalid verification token")
 
     async def handle_webhook_event(self, event_data: Dict[str, Any]) -> Dict[str, Any]:

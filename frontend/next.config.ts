@@ -6,23 +6,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  reactCompiler: true,
-  experimental: {
-    // Tree-shake large icon/component libraries — only the icons actually used
-    // are bundled. Without this, lucide-react pulls in 500+ icons on every page.
-    optimizePackageImports: [
-      "lucide-react",
-      "framer-motion",
-      "@radix-ui/react-dialog",
-      "@radix-ui/react-dropdown-menu",
-      "@radix-ui/react-select",
-      "@radix-ui/react-tabs",
-      "@radix-ui/react-tooltip",
-    ],
-  },
   // @ts-ignore
   allowedDevOrigins: [
     "http://localhost:3000",
@@ -47,7 +30,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:2024";
+    const backendUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
     return [
       {
         source: "/api/v1/:path*",

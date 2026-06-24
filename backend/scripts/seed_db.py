@@ -8,6 +8,7 @@ from src.api.models.job import Posts, JobStatus, JobType, ExperienceLevel
 from src.api.models.candidate import CandidateProfile
 from src.api.models.application import Application, ApplicationStatus
 from src.api.models.interview import InterviewSession, InterviewStatus
+from src.api.models.onboarding import Onboarding, OnboardingStatus
 from src.api.core.security import get_password_hash
 
 async def seed_all():
@@ -128,6 +129,19 @@ async def seed_all():
             )
             db.add(interview)
             print("Added sample interview session.")
+
+        # 6. Seed Onboarding
+        result = await db.execute(select(Onboarding).where(Onboarding.application_id == application.id))
+        onboarding = result.scalars().first()
+        if not onboarding:
+            onboarding = Onboarding(
+                application_id=application.id,
+                user_id=candidate_user.id,
+                onboarding_token=str(uuid.uuid4()),
+                status=OnboardingStatus.PENDING_CANDIDATE_JOINING
+            )
+            db.add(onboarding)
+            print("Added sample onboarding process.")
 
         await db.commit()
         print("Database seeding completed successfully!")
