@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -36,6 +36,9 @@ export default function InboxPage() {
     const [replyTo, setReplyTo] = useState('');
     const [replySubject, setReplySubject] = useState('');
     const [replyBody, setReplyBody] = useState('');
+    const [allEmails, setAllEmails] = useState<import('@/lib/api/gmail').EmailSummary[]>([]);
+    const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+    const [loadingMore, setLoadingMore] = useState(false);
     const queryClient = useQueryClient();
 
     const { data: status, isLoading: statusLoading } = useQuery({
@@ -48,6 +51,31 @@ export default function InboxPage() {
         queryFn: () => gmailApi.getInbox(),
         enabled: status?.connected === true,
     });
+
+    useEffect(() => {
+        if (inbox) {
+            setAllEmails(inbox.emails);
+            setNextPageToken(inbox.next_page_token);
+        }
+    }, [inbox]);
+
+    const handleLoadMore = async () => {
+        if (!nextPageToken || loadingMore) return;
+        setLoadingMore(true);
+        try {
+            const page = await gmailApi.getInbox(nextPageToken);
+            setAllEmails(prev => [...prev, ...page.emails]);
+            setNextPageToken(page.next_page_token);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    const handleRefresh = () => {
+        setAllEmails([]);
+        setNextPageToken(null);
+        refetchInbox();
+    };
 
     const { data: thread, isLoading: threadLoading } = useQuery({
         queryKey: ['gmail', 'thread', selectedThreadId],
@@ -155,7 +183,7 @@ export default function InboxPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => refetchInbox()}
+                        onClick={handleRefresh}
                         disabled={inboxLoading}
                     >
                         <RefreshCw className={`h-4 w-4 mr-2 ${inboxLoading ? 'animate-spin' : ''}`} />
@@ -173,14 +201,14 @@ export default function InboxPage() {
                             <div className="flex items-center justify-center flex-1">
                                 <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                             </div>
-                        ) : !inbox?.length ? (
+                        ) : !allEmails.length ? (
                             <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-400">
                                 <Mail className="h-12 w-12" />
                                 <p className="text-sm">No emails in inbox</p>
                             </div>
                         ) : (
                             <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
-                                {inbox.map((email) => (
+                                {allEmails.map((email) => (
                                     <button
                                         key={email.id}
                                         onClick={() => handleSelectEmail(email)}
@@ -220,6 +248,22 @@ export default function InboxPage() {
                                         </div>
                                     </button>
                                 ))}
+                                {nextPageToken && (
+                                    <div className="p-3 flex justify-center border-t border-slate-100">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleLoadMore}
+                                            disabled={loadingMore}
+                                            className="text-indigo-600 hover:bg-indigo-50 text-xs"
+                                        >
+                                            {loadingMore ? (
+                                                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                                            ) : null}
+                                            {loadingMore ? 'Loading...' : 'Load more emails'}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

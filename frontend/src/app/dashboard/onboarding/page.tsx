@@ -119,6 +119,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
     };
 
     return (
+        <>
         <div className="p-6 space-y-6 max-w-7xl mx-auto">
             <motion.div 
                 initial={{ opacity: 0, y: -20 }}
@@ -639,6 +640,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+        </>
     );
 }
 
