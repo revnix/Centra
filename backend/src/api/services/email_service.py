@@ -13,10 +13,17 @@ HR_PHONE_NUMBER = "03125932632"
 
 EMAIL_SEND_TIMEOUT = 25  # seconds — well under the 90s frontend timeout
 
-async def send_email(to_email: str, subject: str, html_content: str) -> bool:
+async def send_email(
+    to_email: str,
+    subject: str,
+    html_content: str,
+    attachments: list | None = None,
+) -> bool:
     """
     Centralized email sending function using Resend API.
     Does NOT crash on failure, logs errors instead.
+
+    `attachments` format: [{"filename": "doc.pdf", "content": <bytes or list[int]>}]
     """
     if not settings.RESEND_API_KEY:
         logger.warning("RESEND_API_KEY is not configured. Email not sent.")
@@ -36,6 +43,9 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
             "subject": subject,
             "html": html_content,
         }
+
+        if attachments:
+            params["attachments"] = attachments
 
         # Route replies to the actual HR inbox — the FROM domain (Resend sender)
         # has no MX records, so replies would bounce without this.
@@ -207,7 +217,12 @@ class EmailService:
         return await send_email(candidate_email, subject, html)
 
     @staticmethod
-    async def send_onboarding_welcome(candidate_email: str, candidate_name: str, onboarding_link: str) -> bool:
+    async def send_onboarding_welcome(
+        candidate_email: str,
+        candidate_name: str,
+        onboarding_link: str,
+        attachments: list | None = None,
+    ) -> bool:
         """
         Direct onboarding welcome email.
         """
@@ -223,7 +238,7 @@ class EmailService:
             <p>If you have any questions, feel free to contact HR.</p>
         </div>
         """
-        return await send_email(candidate_email, subject, html)
+        return await send_email(candidate_email, subject, html, attachments=attachments)
 
     @staticmethod
     async def send_password_reset_email(email: str, reset_link: str) -> bool:

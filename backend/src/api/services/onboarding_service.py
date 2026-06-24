@@ -471,7 +471,7 @@ class OnboardingService:
         await self.db.refresh(onboarding)
         return onboarding
 
-    async def send_welcome_email(self, application_id: int) -> bool:
+    async def send_welcome_email(self, application_id: int, attachments: list | None = None) -> bool:
         """
         Sends an onboarding welcome email to the candidate.
         """
@@ -498,7 +498,8 @@ class OnboardingService:
         success = await EmailService.send_onboarding_welcome(
             candidate_email=candidate.email,
             candidate_name=candidate.full_name or candidate.email,
-            onboarding_link=onboarding_link
+            onboarding_link=onboarding_link,
+            attachments=attachments,
         )
         
         return success
