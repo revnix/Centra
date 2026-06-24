@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-from pydantic import BaseModel, EmailStr
-from typing import Optional, Any
-=======
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Any, List, Optional
->>>>>>> e467760 (Gmail integration)
 from datetime import datetime
 from src.api.models.application import ApplicationStatus
 from src.api.schemas.candidate import CandidateProfileCreate
@@ -48,13 +43,9 @@ class ApplicationResponse(ApplicationBase):
     expected_salary: Optional[str] = None
     salary_filter_status: Optional[str] = None
     email_delivery_status: Optional[str] = None
-<<<<<<< HEAD
-    email_logs: Optional[Any] = None
+    email_logs: Optional[List[str]] = None
     interview_invitation_status: Optional[str] = None
     last_interview_invite_id: Optional[str] = None
-=======
-    email_logs: Optional[List[str]] = None
->>>>>>> e467760 (Gmail integration)
     city: Optional[str] = None
     qualification: Optional[str] = None
     interview_invite_sent_at: Optional[datetime] = None
