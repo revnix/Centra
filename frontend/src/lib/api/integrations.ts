@@ -18,6 +18,13 @@ export interface WhatsAppStatusResponse {
     waba_id?: string;
 }
 
+export interface WhatsAppConnectRequest {
+    phone_number_id: string;
+    waba_id: string;
+    access_token: string;
+    verify_token: string;
+}
+
 /**
  * Integrations API endpoints
  */
@@ -129,6 +136,13 @@ export const integrationsApi = {
      * WhatsApp specific endpoints
      */
     whatsapp: {
+        /**
+         * Connect WhatsApp with credentials
+         */
+        connect: async (data: WhatsAppConnectRequest): Promise<{ message: string; connected: boolean; phone_number_id?: string; waba_id?: string }> => {
+            return apiClient.post<{ message: string; connected: boolean; phone_number_id?: string; waba_id?: string }>('/admin/integrations/whatsapp/connect', data);
+        },
+
         /**
          * Get WhatsApp connection status
          */

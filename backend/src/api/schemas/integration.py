@@ -59,3 +59,9 @@ class WhatsAppStatusResponse(BaseModel):
     phone_number_id: str | None = None
     waba_id: str | None = None
 
+class WhatsAppConnectRequest(BaseModel):
+    phone_number_id: str
+    waba_id: str
+    access_token: str
+    verify_token: str
+

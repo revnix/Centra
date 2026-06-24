@@ -3,28 +3,19 @@
 ## Overview
 This document describes the complete WhatsApp Business API integration for Evalyn HR, implemented on 2026-06-23. The integration allows the platform to send candidate notifications and receive messages via WhatsApp.
 
-## Credentials
-```env
-WA_PHONE_NUMBER_ID=1017082234824273
-WA_WABA_ID=859797810243358
-WA_ACCESS_TOKEN="EAAYu3aZCiWlwBR0xZCDqS1tgsUzxFdJPA19lNroxCN5nkQfqaLoJL8DPKgC599mYjkBB96IjoaABFQ7Qn9FxUDYBzX1KbISbF5MAMPeOwHTiogP7qCKPS3Kc1ZAeCSUu5lJMEEw6XFTZBtLQtAsu0qqRJWJO5Rl4kTBbAkmkg9KDNCaWMdZCMtbvpzTTBQMlQri2MEZC10wM1x1gVxvicjOg4yczoxX2ZBFKANYKXjidHoTcbzUpjCmuLJcdckbQXqduZAaeitO1JgdoUaK9HCAYlW5c"
-WA_VERIFY_TOKEN=evalyn_webhook_secret_123
-```
+## Key Changes
+- Updated to store credentials per-user in the database (instead of environment variables)
+- Added user-facing UI to connect WhatsApp using credentials
+- Added `extra_data` column to `UserIntegration` model for platform-specific data
 
 ## Files Modified/Created
 
 ### Backend
 
-#### 1. `backend/src/api/core/config.py`
-- **What we did**: Added WhatsApp Business API configuration settings to the Settings class
-- **Details**:
-  - Added `WA_PHONE_NUMBER_ID`
-  - Added `WA_WABA_ID` (WhatsApp Business Account ID)
-  - Added `WA_ACCESS_TOKEN`
-  - Added `WA_VERIFY_TOKEN`
-  - Added `WA_API_VERSION` (default: "v18.0")
-  - Added `WA_GRAPH_API_URL` (constructed from WA_API_VERSION)
-- **Why**: To access WhatsApp API credentials from environment variables
+#### 1. `backend/src/api/models/integration.py`
+- **What we did**: Updated UserIntegration model
+- **Details**: Added `extra_data` JSON column to store platform-specific data (like WhatsApp phone number ID, WABA ID, etc.)
+- **Why**: To store WhatsApp credentials per-user in the database
 
 #### 2. `backend/src/api/schemas/integration.py`
 - **What we did**: Added WhatsApp-specific Pydantic schemas
@@ -32,29 +23,35 @@ WA_VERIFY_TOKEN=evalyn_webhook_secret_123
   - Added `WhatsAppSendMessageRequest` - Schema for sending text messages
   - Added `WhatsAppSendTemplateRequest` - Schema for sending template messages
   - Added `WhatsAppStatusResponse` - Schema for checking integration status
+  - Added `WhatsAppConnectRequest` - Schema for connecting WhatsApp with credentials
 - **Why**: To validate request/response data for WhatsApp operations
 
-#### 3. `backend/src/api/services/whatsapp_service.py` (Created)
-- **What we did**: Implemented complete WhatsApp service layer
+#### 3. `backend/src/api/services/whatsapp_service.py` (Created/Updated)
+- **What we did**: Updated WhatsApp service to use database credentials
 - **Details**:
-  - `is_connected()` - Checks if WhatsApp credentials are properly configured
-  - `get_headers()` - Returns authorization headers with Bearer token
-  - `send_text_message(to, message)` - Sends text messages using WhatsApp API
-  - `send_template_message(to, template_name, language_code, components)` - Sends pre-approved template messages
-  - `verify_webhook(mode, token, challenge)` - Verifies webhook with WhatsApp servers
+  - `__init__(db)` - Service now requires a database session
+  - `get_integration(user_id)` - Fetches WhatsApp integration from DB
+  - `is_connected(user_id)` - Checks if WhatsApp is connected for user
+  - `get_credentials(user_id)` - Gets credentials from DB
+  - `connect(user_id, ...)` - Saves WhatsApp credentials to DB
+  - `send_text_message(user_id, to, message)` - Sends text messages using WhatsApp API
+  - `send_template_message(user_id, ...)` - Sends pre-approved template messages
+  - `verify_webhook(verify_token, mode, token, challenge)` - Verifies webhook
   - `handle_webhook_event(event_data)` - Handles incoming webhook events
-- **Why**: To encapsulate all WhatsApp API interactions in a reusable service
+  - Phone number normalization still included
+- **Why**: To encapsulate all WhatsApp API interactions in a reusable service that uses DB
 
-#### 4. `backend/src/api/routes/admin/integrations/whatsapp.py` (Created)
-- **What we did**: Created complete WhatsApp API routes
+#### 4. `backend/src/api/routes/admin/integrations/whatsapp.py` (Created/Updated)
+- **What we did**: Updated WhatsApp API routes
 - **Details**:
-  - `GET /status` - Check integration status
+  - `POST /connect` - Connect WhatsApp using credentials
+  - `GET /status` - Check integration status for current user
   - `GET /webhook` - Webhook verification endpoint
   - `POST /webhook` - Receive webhook events
-  - `POST /send-message` - Send text messages
-  - `POST /send-template` - Send template messages
-  - `DELETE /disconnect` - Disconnect integration
-- **Why**: To provide REST API endpoints for WhatsApp functionality
+  - `POST /send-message` - Send text message (authenticated user)
+  - `POST /send-template` - Send template message (authenticated user)
+  - `DELETE /disconnect` - Disconnect integration (removes from DB)
+- **Why**: To provide REST API endpoints for WhatsApp functionality with per-user credentials
 
 #### 5. `backend/src/api/main.py`
 - **What we did**: Integrated WhatsApp router into FastAPI app
@@ -65,7 +62,7 @@ WA_VERIFY_TOKEN=evalyn_webhook_secret_123
 
 #### 6. `backend/src/api/core/.env_example`
 - **What we did**: Added WhatsApp environment variables to example
-- **Details**: Added `WA_PHONE_NUMBER_ID`, `WA_WABA_ID`, `WA_ACCESS_TOKEN`, `WA_VERIFY_TOKEN`
+- **Details**: Added `WA_PHONE_NUMBER_ID`, `WA_WABA_ID`, `WA_ACCESS_TOKEN`, `WA_VERIFY_TOKEN` (for backward compatibility)
 - **Why**: To help users configure WhatsApp integration
 
 ### Frontend
@@ -74,6 +71,8 @@ WA_VERIFY_TOKEN=evalyn_webhook_secret_123
 - **What we did**: Added WhatsApp API client methods
 - **Details**:
   - Added `WhatsAppStatusResponse` interface
+  - Added `WhatsAppConnectRequest` interface
+  - Added `integrationsApi.whatsapp.connect()`
   - Added `integrationsApi.whatsapp.getStatus()`
   - Added `integrationsApi.whatsapp.sendMessage()`
   - Added `integrationsApi.whatsapp.sendTemplate()`
@@ -90,20 +89,24 @@ WA_VERIFY_TOKEN=evalyn_webhook_secret_123
   - Updated `platformConfig` with WhatsApp icon and styling
   - Added state management for WhatsApp:
     - `whatsappStatus` - Connection status
-    - `showWhatsappTestModal` - Modal visibility
+    - `showWhatsappCredentialsModal` - Credentials modal visibility
+    - `whatsappCredentials` - User input for WhatsApp credentials
+    - `showWhatsappTestModal` - Test message modal visibility
     - `whatsappTestMessage` - Test message data
     - `isSendingTestMessage` - Loading state
   - Updated `fetchStatus()` to include WhatsApp
+  - Added `connectWhatsapp()` function
   - Added `sendWhatsappTestMessage()` function
-  - Updated `toggleConnection()` to handle WhatsApp
-  - Updated `handlePlatformClick()` to handle WhatsApp
+  - Updated `toggleConnection()` to open WhatsApp credentials modal when connecting
   - Added "Send Test Message" button in accounts list for WhatsApp
+  - Added complete WhatsApp Credentials Modal UI
   - Added complete WhatsApp Test Message Modal UI
 - **Why**: To provide user-friendly interface for managing WhatsApp integration
 
 ## API Endpoints
 
 ### Admin Routes
+- `POST /api/v1/admin/integrations/whatsapp/connect` - Connect WhatsApp with credentials
 - `GET /api/v1/admin/integrations/whatsapp/status` - Check connection status
 - `POST /api/v1/admin/integrations/whatsapp/webhook` - Receive webhook events
 - `GET /api/v1/admin/integrations/whatsapp/webhook` - Verify webhook
@@ -112,23 +115,32 @@ WA_VERIFY_TOKEN=evalyn_webhook_secret_123
 - `DELETE /api/v1/admin/integrations/whatsapp/disconnect` - Disconnect integration
 
 ## Features
+- ✅ Store WhatsApp credentials per-user in database
+- ✅ User-friendly UI to connect WhatsApp using credentials
 - ✅ Send text messages to candidates
 - ✅ Send template messages
 - ✅ Receive incoming messages via webhook
 - ✅ Webhook verification
 - ✅ Integration management UI
 - ✅ Test message functionality
+- ✅ Phone number normalization (converts local numbers to international format)
 
 ## Webhook Setup
 The webhook endpoint is: `https://your-domain.com/api/v1/admin/integrations/whatsapp/webhook`
 
 ## Usage
-1. Add the WhatsApp credentials to your backend `.env` file (see Credentials section above)
-2. Make sure the backend server is running
-3. Go to the Integrations page in the Evalyn HR dashboard
-4. If WhatsApp is already configured via environment variables, it will show as "Connected"
-5. Click "Send Test Message" to verify the integration works
+1. Go to the Integrations page in the Evalyn HR dashboard
+2. Click "Connect" next to WhatsApp Business
+3. Fill in your WhatsApp Business API credentials (Phone Number ID, WABA ID, Access Token, Verify Token)
+4. Click "Connect WhatsApp"
+5. Once connected, click "Send Test Message" to verify the integration works
 6. Set up the webhook URL in your WhatsApp Business API dashboard to receive incoming messages
+
+## Database Migration
+A database migration is required to add the `extra_data` column to the `user_integrations` table.
+- Column name: `extra_data`
+- Type: JSON (or JSONB for PostgreSQL)
+- Nullable: Yes
 
 ## Implementation Status
 ✅ **Complete** - All planned features have been implemented and tested (backend code validated to be syntactically correct)
@@ -139,3 +151,4 @@ The webhook endpoint is: `https://your-domain.com/api/v1/admin/integrations/what
 - Add message history view
 - Add broadcast messaging to multiple candidates
 - Add analytics for WhatsApp message delivery rates
+- Add permanent token support (using system users) instead of temporary access tokens

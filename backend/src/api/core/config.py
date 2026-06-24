@@ -32,12 +32,17 @@ class Settings(BaseSettings):
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [
+        "*",  # Allow all origins in dev to avoid CORS errors
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:8000",
+        "http://localhost:8123",
+        "http://localhost:2024",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
         "http://127.0.0.1:8000",
+        "http://127.0.0.1:8123",
+        "http://127.0.0.1:2024",
         "http://172.22.112.1:3000",  # Network IP for frontend
         "http://172.22.112.1:8123",  # Network IP for backend
         "https://evalyn-omega.vercel.app",
