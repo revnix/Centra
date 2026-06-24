@@ -2,12 +2,12 @@
 
 import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useJob, usePublishJob, useCloseJob } from "@/lib/hooks/useJobs";
+import { useJob, usePublishJob, useCloseJob, useAcceptEdit, useDeclineEdit } from "@/lib/hooks/useJobs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw, Calendar, Share2 } from "lucide-react";
+import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw, Calendar, Share2, X, FileText } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -35,6 +35,8 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const { data: job, isLoading, error, refetch: refetchJob } = useJob(id);
     const publishMutation = usePublishJob();
     const closeMutation = useCloseJob();
+    const acceptEditMutation = useAcceptEdit();
+    const declineEditMutation = useDeclineEdit();
 
     const [showPublishDialog, setShowPublishDialog] = useState(false);
     const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
@@ -170,6 +172,30 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
         }
     };
 
+    const handleAcceptEdit = async () => {
+        try {
+            await acceptEditMutation.mutateAsync(id);
+            toast.success("Edits accepted! The job post has been updated.");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error: any) {
+            toast.error(`Failed to accept edits: ${error.message || "Unknown error"}`);
+        }
+    };
+
+    const handleDeclineEdit = async (declineFeedback: string) => {
+        try {
+            await declineEditMutation.mutateAsync({ jobId: id, feedback: declineFeedback });
+            toast.success("Edits declined. Feedback has been sent.");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error: any) {
+            toast.error(`Failed to decline edits: ${error.message || "Unknown error"}`);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="space-y-6">
@@ -202,6 +228,111 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
 
     return (
         <div className="max-w-5xl mx-auto space-y-8">
+            {/* Proposed Edits Alert */}
+            {job.status === 'EDIT_SUBMITTED' && (
+                <Alert className="bg-indigo-50 border-indigo-200 text-indigo-900 shadow-lg animate-in fade-in slide-in-from-top-4 duration-500 rounded-2xl border-2">
+                    <Edit className="h-6 w-6 text-indigo-600 mt-1" />
+                    <AlertDescription className="ml-2 w-full">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-4 border-b border-indigo-100">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 animate-pulse">PROPOSED EDITS</Badge>
+                                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Action Required</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mt-1">Review Proposed Changes</h3>
+                                <p className="text-slate-600 mt-1 flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-slate-400" />
+                                    Submitted by: <span className="font-semibold text-indigo-700">{job.edited_by_email || 'A Team Member'}</span>
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    size="lg"
+                                    className="bg-green-600 hover:bg-green-700 text-white px-8 shadow-md transition-all active:scale-95"
+                                    onClick={handleAcceptEdit}
+                                    disabled={acceptEditMutation.isPending}
+                                >
+                                    {acceptEditMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Check className="w-5 h-5 mr-2" />}
+                                    Accept Edits & Update Post
+                                </Button>
+                                <Button
+                                    size="lg"
+                                    variant="outline"
+                                    className="border-red-200 text-red-600 hover:bg-red-50 px-8 transition-all active:scale-95"
+                                    onClick={() => {
+                                        const feedback = window.prompt("Reason for declining (optional):");
+                                        if (feedback !== null) handleDeclineEdit(feedback);
+                                    }}
+                                    disabled={declineEditMutation.isPending}
+                                >
+                                    {declineEditMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <X className="w-5 h-5 mr-2" />}
+                                    Decline Edits
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-bold text-slate-500 uppercase flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                                        Current Title
+                                    </h4>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-sm">
+                                        {job.title}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-bold text-indigo-500 uppercase flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                        Proposed Title
+                                    </h4>
+                                    <div className="p-4 bg-white rounded-xl border-2 border-indigo-200 text-indigo-900 font-bold text-md shadow-sm">
+                                        {job.edited_title || job.title}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-bold text-indigo-500 uppercase flex items-center gap-2">
+                                    <FileText className="w-4 h-4" />
+                                    Proposed Description
+                                </h4>
+                                <div className="text-sm bg-white p-6 rounded-xl border-2 border-indigo-100 max-h-[400px] overflow-y-auto whitespace-pre-wrap text-slate-700 leading-relaxed shadow-sm">
+                                    {job.edited_description || job.description}
+                                </div>
+                            </div>
+                        </div>
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {/* Success Alert for Approved with Edits */}
+            {job.status === 'APPROVED' && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl animate-in fade-in zoom-in duration-300">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-green-900">Post Content Updated</p>
+                        <p className="text-sm text-green-700">The proposed edits have been accepted and the job post is now up to date.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Success Alert for Declined Edits */}
+            {job.status === 'EDIT_DECLINED' && job.manager_feedback && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl animate-in fade-in zoom-in duration-300">
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <X className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-red-900">Edit Decline</p>
+                        <p className="text-sm text-red-700">The edits were rejected. Feedback: "{job.manager_feedback}"</p>
+                    </div>
+                </div>
+            )}
+
             {/* Manager Feedback Alert */}
             {job.manager_feedback && (
                 <Alert className="bg-orange-50 border-orange-200 text-orange-900 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
@@ -224,14 +355,15 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                     <div>
                         <h1 className="text-3xl font-bold text-foreground">{job.title}</h1>
                         <div className="flex items-center gap-3 mt-2">
-                            <Badge 
+                            <Badge
                                 variant={
-                                    job.status === "PUBLISHED" ? "default" : 
-                                    job.status === "APPROVED" ? "outline" : 
-                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
-                                    "secondary"
-                                } 
-                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                                    job.status === "PUBLISHED" ? "default" :
+                                        job.status === "APPROVED" ? "outline" :
+                                            job.status === "CHANGES_REQUESTED" ? "destructive" :
+                                                job.status === "EDIT_SUBMITTED" ? "secondary" :
+                                                    "secondary"
+                                }
+                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''} ${job.status === 'EDIT_SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}`}
                             >
                                 {job.status.toLowerCase().replace('_', ' ')}
                             </Badge>
@@ -592,9 +724,8 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                                     ? prev.filter(e => e !== member.email)
                                                     : [...prev, member.email]
                                             )}
-                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                                isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                                            }`}
+                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                                                }`}
                                         >
                                             <Checkbox
                                                 checked={isSelected}

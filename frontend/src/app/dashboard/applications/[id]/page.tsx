@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
+import { ArrowLeft, Mail, Download, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon } from "lucide-react";
 
 function getViewableResumeUrl(url: string): string {
     if (!url.includes('cloudinary.com')) return url;
@@ -47,6 +47,21 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [emailSubject, setEmailSubject] = useState("");
     const [emailMessage, setEmailMessage] = useState("");
     const [isEmailSending, setIsEmailSending] = useState(false);
+    const [emailFiles, setEmailFiles] = useState<File[]>([]);
+    const emailFileRef = useRef<HTMLInputElement>(null);
+
+    // Resend dialog attachments
+    const [resendFiles, setResendFiles] = useState<File[]>([]);
+    const resendFileRef = useRef<HTMLInputElement>(null);
+
+    const addFiles = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, incoming: FileList | null) => {
+        if (!incoming) return;
+        setter(prev => [...prev, ...Array.from(incoming)]);
+    }, []);
+
+    const removeFile = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, index: number) => {
+        setter(prev => prev.filter((_, i) => i !== index));
+    }, []);
 
     const router = useRouter();
 
@@ -75,6 +90,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
             setEmailSubject(`Update on Your Application – ${jobTitle}`);
             setEmailMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position and participating in our selection process.\n\nAfter careful consideration, we regret to inform you that we will not be moving forward with your application at this time. This was a difficult decision as we received many strong applications.\n\nWe appreciate your interest and wish you the very best in your future endeavors.\n\nBest regards,\nHR Team`);
         }
+        setEmailFiles([]);
         setEmailDialogMode(mode);
     };
 
@@ -82,13 +98,12 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         if (!emailDialogMode) return;
         setIsEmailSending(true);
         try {
-            // Send custom email
-            await api.applications.invite(id, emailSubject.trim(), emailMessage.trim());
-            // Update status to correct value (invite sets INTERVIEW_INVITED by default)
+            await api.applications.invite(id, emailSubject.trim(), emailMessage.trim(), emailFiles);
             const newStatus = emailDialogMode === 'onboarding' ? 'HIRED' : 'REJECTED';
             await api.applications.updateStatus(id, newStatus);
             toast.success(emailDialogMode === 'onboarding' ? "Onboarding email sent!" : "Rejection email sent!");
             setEmailDialogMode(null);
+            setEmailFiles([]);
             const updated = await api.applications.get(id);
             setApp(updated);
         } catch (error: any) {
@@ -119,15 +134,11 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const handleResendEmail = async () => {
         setIsResending(true);
         try {
-            if (app?.status === "REJECTED") {
-                await api.applications.reject(id);
-            } else if (app?.status === "HIRED") {
-                await api.applications.hire(id);
-            } else {
-                await api.applications.shortlist(id);
-            }
+            // Use invite endpoint so custom subject/message + attachments are sent
+            await api.applications.invite(id, resendSubject.trim(), resendMessage.trim(), resendFiles);
             toast.success("Email resent successfully!");
             setShowResendDialog(false);
+            setResendFiles([]);
             setResendMessage("");
             const updated = await api.applications.get(id);
             setApp(updated);
@@ -542,16 +553,51 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium">Message</label>
                         <textarea
-                            className="flex min-h-[280px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
+                            className="flex min-h-[220px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
                             value={emailMessage}
                             onChange={(e) => setEmailMessage(e.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">You can edit this message before sending.</p>
                     </div>
+
+                    {/* File Attachments */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Attachments</label>
+                        <div
+                            className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2.5 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                            onClick={() => emailFileRef.current?.click()}
+                        >
+                            <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-sm text-slate-500">Click to attach files</span>
+                            <input
+                                ref={emailFileRef}
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={e => addFiles(setEmailFiles, e.target.files)}
+                            />
+                        </div>
+                        {emailFiles.length > 0 && (
+                            <ul className="space-y-1">
+                                {emailFiles.map((f, i) => (
+                                    <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 border border-slate-100 px-3 py-1.5 text-xs">
+                                        <span className="truncate text-slate-700 flex items-center gap-1.5">
+                                            <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
+                                            {f.name}
+                                            <span className="text-slate-400 ml-1">({(f.size / 1024).toFixed(0)} KB)</span>
+                                        </span>
+                                        <button onClick={() => removeFile(setEmailFiles, i)} className="ml-2 text-slate-400 hover:text-red-500 shrink-0">
+                                            <XIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
 
                 <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => setEmailDialogMode(null)} disabled={isEmailSending}>
+                    <Button variant="outline" onClick={() => { setEmailDialogMode(null); setEmailFiles([]); }} disabled={isEmailSending}>
                         Cancel
                     </Button>
                     <Button
@@ -589,7 +635,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium">Message</label>
                         <textarea
-                            className="flex min-h-[280px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
+                            className="flex min-h-[220px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
                             value={resendMessage}
                             onChange={(e) => setResendMessage(e.target.value)}
                         />
@@ -597,10 +643,45 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                             The candidate's name will be added as a greeting automatically.
                         </p>
                     </div>
+
+                    {/* File Attachments */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Attachments</label>
+                        <div
+                            className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2.5 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                            onClick={() => resendFileRef.current?.click()}
+                        >
+                            <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-sm text-slate-500">Click to attach files</span>
+                            <input
+                                ref={resendFileRef}
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={e => addFiles(setResendFiles, e.target.files)}
+                            />
+                        </div>
+                        {resendFiles.length > 0 && (
+                            <ul className="space-y-1">
+                                {resendFiles.map((f, i) => (
+                                    <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 border border-slate-100 px-3 py-1.5 text-xs">
+                                        <span className="truncate text-slate-700 flex items-center gap-1.5">
+                                            <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
+                                            {f.name}
+                                            <span className="text-slate-400 ml-1">({(f.size / 1024).toFixed(0)} KB)</span>
+                                        </span>
+                                        <button onClick={() => removeFile(setResendFiles, i)} className="ml-2 text-slate-400 hover:text-red-500 shrink-0">
+                                            <XIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
 
                 <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => setShowResendDialog(false)} disabled={isResending}>
+                    <Button variant="outline" onClick={() => { setShowResendDialog(false); setResendFiles([]); }} disabled={isResending}>
                         Cancel
                     </Button>
                     <Button
