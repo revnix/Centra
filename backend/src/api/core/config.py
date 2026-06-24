@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
 
+    # Gmail OAuth
+    GMAIL_CLIENT_ID: str = os.getenv("GMAIL_CLIENT_ID", "")
+    GMAIL_CLIENT_SECRET: str = os.getenv("GMAIL_CLIENT_SECRET", "")
+    GMAIL_REDIRECT_URI: str = os.getenv("GMAIL_REDIRECT_URI", "http://127.0.0.1:8000/api/v1/gmail/callback")
+
     # Indeed API
     INDEED_CLIENT_ID: str = os.getenv("INDEED_CLIENT_ID", "")
     INDEED_CLIENT_SECRET: str = os.getenv("INDEED_CLIENT_SECRET", "")

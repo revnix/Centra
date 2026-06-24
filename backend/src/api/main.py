@@ -20,6 +20,7 @@ from src.api.routes import (
     applications,
     auth,
     candidates,
+    gmail,
     integrations,
     interviews,
     jobs,
@@ -125,6 +126,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Core routes
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(gmail.router, prefix=f"{settings.API_V1_PREFIX}/gmail", tags=["gmail"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_PREFIX}/jobs", tags=["jobs"])
 app.include_router(integrations.router, prefix=f"{settings.API_V1_PREFIX}/integrations", tags=["integrations"])
 
