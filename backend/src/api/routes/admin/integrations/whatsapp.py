@@ -27,7 +27,7 @@ async def connect_whatsapp(
     """Connect WhatsApp integration with user-provided credentials."""
     try:
         whatsapp_service = WhatsAppService(db)
-        integration = await whatsapp_service.connect(
+        await whatsapp_service.connect(
             user_id=current_user.id,
             phone_number_id=request_data.phone_number_id,
             waba_id=request_data.waba_id,
@@ -76,19 +76,21 @@ async def get_whatsapp_status(
     try:
         whatsapp_service = WhatsAppService(db)
         is_connected = await whatsapp_service.is_connected(current_user.id)
-        
+
         phone_number_id = None
         waba_id = None
         if is_connected:
             integration = await whatsapp_service.get_integration(current_user.id)
-            if integration and integration.extra_data:
-                phone_number_id = integration.extra_data.get("phone_number_id")
-                waba_id = integration.extra_data.get("waba_id")
-        
+            if integration:
+                import json as _json
+                data = _json.loads(str(integration.access_token))
+                phone_number_id = data.get("phone_number_id")
+                waba_id = data.get("waba_id")
+
         return WhatsAppStatusResponse(
             connected=is_connected,
             phone_number_id=phone_number_id,
-            waba_id=waba_id
+            waba_id=waba_id,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
