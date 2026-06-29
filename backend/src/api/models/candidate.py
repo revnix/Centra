@@ -20,9 +20,8 @@ class CandidateProfile(Base):
     skills = Column(JSON, default=list, nullable=False)
     experience_years = Column(Integer, default=0)
     bio = Column(Text, nullable=True)
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     user = relationship("User", back_populates="candidate_profile")

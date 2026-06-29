@@ -1,9 +1,12 @@
 import base64
 import hashlib
 import hmac
+import html as html_lib
 import json
 import logging
 import os
+import re
+import secrets
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Optional
@@ -47,8 +50,16 @@ def _client_config() -> dict:
     }
 
 
-def _make_state(user_id: Any) -> str:
-    data = json.dumps({"user_id": int(user_id)})
+def _generate_pkce() -> tuple[str, str]:
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+def _make_state(user_id: Any, code_verifier: str) -> str:
+    data = json.dumps({"user_id": int(user_id), "cv": code_verifier})
     sig = hmac.new(settings.SECRET_KEY.encode(), data.encode(), hashlib.sha256).hexdigest()[:16]
     payload = f"{data}|{sig}".encode()
     return base64.urlsafe_b64encode(payload).decode().rstrip("=")
@@ -107,23 +118,49 @@ async def _maybe_refresh(creds: Any, integration: Any, db: AsyncSession) -> None
         await db.commit()
 
 
+def _decode_b64(data: str) -> str:
+    padding = (4 - len(data) % 4) % 4
+    return base64.urlsafe_b64decode(data + "=" * padding).decode("utf-8", errors="replace")
+
+
+def _clean_text(text: str) -> str:
+    """Strip angle-bracket URLs and junk from plain-text email bodies."""
+    text = re.sub(r"<[^>]{0,2000}>", "", text)        # <url> or <tag> patterns
+    text = re.sub(r"https?://\S+", "", text)            # bare URLs
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _html_to_text(raw_html: str) -> str:
+    """Convert HTML email body to readable plain text."""
+    text = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", "", raw_html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<p[^>]*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html_lib.unescape(text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def _extract_body(payload: dict) -> str:
     mime = payload.get("mimeType", "")
     if mime == "text/plain":
         raw = payload.get("body", {}).get("data", "")
         if raw:
-            padding = (4 - len(raw) % 4) % 4
-            return base64.urlsafe_b64decode(raw + "=" * padding).decode("utf-8", errors="replace")
+            return _clean_text(_decode_b64(raw))
     if mime == "text/html":
-        html_data = payload.get("body", {}).get("data", "")
-        if html_data:
-            padding = (4 - len(html_data) % 4) % 4
-            return base64.urlsafe_b64decode(html_data + "=" * padding).decode("utf-8", errors="replace")
+        raw = payload.get("body", {}).get("data", "")
+        if raw:
+            return _html_to_text(_decode_b64(raw))
+    # multipart: prefer plain over html
+    plain_body = ""
     for part in payload.get("parts", []):
         body = _extract_body(part)
-        if body:
-            return body
-    return ""
+        if body and not plain_body:
+            plain_body = body
+    return plain_body
 
 
 # ---- Schemas ----
@@ -177,6 +214,7 @@ async def gmail_auth(current_user: User = Depends(get_current_user)):
 
     from google_auth_oauthlib.flow import Flow
 
+    code_verifier, code_challenge = _generate_pkce()
     flow = Flow.from_client_config(
         _client_config(),
         scopes=GMAIL_SCOPES,
@@ -186,7 +224,9 @@ async def gmail_auth(current_user: User = Depends(get_current_user)):
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
-        state=_make_state(current_user.id),
+        state=_make_state(current_user.id, code_verifier),
+        code_challenge=code_challenge,
+        code_challenge_method="S256",
     )
     return {"authorization_url": auth_url}
 
@@ -202,6 +242,7 @@ async def gmail_callback(
 
     state_data = _parse_state(state)
     user_id: int = state_data["user_id"]
+    code_verifier: str = state_data.get("cv", "")
 
     flow = Flow.from_client_config(
         _client_config(),
@@ -210,18 +251,24 @@ async def gmail_callback(
         state=state,
     )
     try:
-        await run_in_threadpool(lambda: flow.fetch_token(code=code))
+        await run_in_threadpool(
+            lambda: flow.fetch_token(code=code, code_verifier=code_verifier)
+        )
     except Exception as exc:
-        logger.error("Gmail token exchange failed: %s", exc)
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/dashboard/inbox?gmail_error=1")
+        logger.error("Gmail token exchange failed: %s", exc, exc_info=True)
+        import urllib.parse
+        err_msg = urllib.parse.quote(str(exc)[:200])
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/dashboard/inbox?gmail_error=1&err={err_msg}")
 
     creds = flow.credentials
 
     try:
-        service = build("gmail", "v1", credentials=creds)
-        profile = await run_in_threadpool(
-            lambda: service.users().getProfile(userId="me").execute()  # type: ignore[attr-defined]
-        )
+        def _get_profile(c):
+            from googleapiclient.discovery import build as _build
+            svc = _build("gmail", "v1", credentials=c)
+            return svc.users().getProfile(userId="me").execute()  # type: ignore[attr-defined]
+
+        profile = await run_in_threadpool(lambda: _get_profile(creds))
         gmail_email = profile.get("emailAddress", "")
     except Exception as exc:
         logger.warning("Could not fetch Gmail profile: %s", exc)
@@ -259,43 +306,58 @@ async def gmail_callback(
 async def gmail_inbox(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    max_results: int = Query(default=20, ge=1, le=100),
+    page_token: Optional[str] = Query(default=None),
+    max_results: int = Query(default=50, ge=1, le=500),
 ):
-    from googleapiclient.discovery import build
-
     creds, integration = await _get_credentials(current_user.id, db)
     await _maybe_refresh(creds, integration, db)
 
-    service = build("gmail", "v1", credentials=creds)
+    def _fetch_page(c, n, pt):
+        from googleapiclient.discovery import build as _build
+        svc = _build("gmail", "v1", credentials=c)
 
-    messages_list = await run_in_threadpool(
-        lambda: service.users().messages().list(  # type: ignore[attr-defined]
-            userId="me", maxResults=max_results, labelIds=["INBOX"]
-        ).execute()
-    )
+        kwargs: dict = {"userId": "me", "maxResults": n, "labelIds": ["INBOX"]}
+        if pt:
+            kwargs["pageToken"] = pt
+        page = svc.users().messages().list(**kwargs).execute()  # type: ignore[attr-defined]
+        msg_ids = page.get("messages", [])
+        next_token = page.get("nextPageToken")
 
-    summaries = []
-    for msg in messages_list.get("messages", []):
-        _msg = msg
-        msg_data = await run_in_threadpool(
-            lambda: service.users().messages().get(  # type: ignore[attr-defined]
-                userId="me",
-                id=_msg["id"],
-                format="metadata",
-                metadataHeaders=["Subject", "From", "Date"],
-            ).execute()
-        )
-        headers = {h["name"]: h["value"] for h in msg_data.get("payload", {}).get("headers", [])}
-        summaries.append({
-            "id": msg_data["id"],
-            "thread_id": msg_data["threadId"],
-            "subject": headers.get("Subject", "(no subject)"),
-            "from_": headers.get("From", ""),
-            "snippet": msg_data.get("snippet", ""),
-            "date": headers.get("Date", ""),
-            "unread": "UNREAD" in msg_data.get("labelIds", []),
-        })
-    return summaries
+        # Batch fetch metadata (all IDs in one HTTP call via Gmail batch API)
+        summaries: list[Optional[dict]] = [None] * len(msg_ids)
+
+        def _on_msg(request_id: str, response: Any, exception: Any) -> None:
+            if exception or not response:
+                return
+            idx = int(request_id)
+            hdrs = {h["name"]: h["value"] for h in response.get("payload", {}).get("headers", [])}
+            summaries[idx] = {
+                "id": response["id"],
+                "thread_id": response["threadId"],
+                "subject": hdrs.get("Subject", "(no subject)"),
+                "from_": hdrs.get("From", ""),
+                "snippet": response.get("snippet", ""),
+                "date": hdrs.get("Date", ""),
+                "unread": "UNREAD" in response.get("labelIds", []),
+            }
+
+        batch = svc.new_batch_http_request(callback=_on_msg)  # type: ignore[attr-defined]
+        for j, msg in enumerate(msg_ids):
+            batch.add(
+                svc.users().messages().get(  # type: ignore[attr-defined]
+                    userId="me",
+                    id=msg["id"],
+                    format="metadata",
+                    metadataHeaders=["Subject", "From", "Date"],
+                ),
+                request_id=str(j),
+            )
+        if msg_ids:
+            batch.execute()
+
+        return {"emails": [s for s in summaries if s is not None], "next_page_token": next_token}
+
+    return await run_in_threadpool(lambda: _fetch_page(creds, max_results, page_token))
 
 
 @router.get("/thread/{thread_id}")
@@ -304,31 +366,30 @@ async def gmail_thread(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from googleapiclient.discovery import build
-
     creds, integration = await _get_credentials(current_user.id, db)
     await _maybe_refresh(creds, integration, db)
 
-    service = build("gmail", "v1", credentials=creds)
-    thread = await run_in_threadpool(
-        lambda: service.users().threads().get(  # type: ignore[attr-defined]
-            userId="me", id=thread_id, format="full"
+    def _fetch_thread(c, tid):
+        from googleapiclient.discovery import build as _build
+        svc = _build("gmail", "v1", credentials=c)
+        thread = svc.users().threads().get(  # type: ignore[attr-defined]
+            userId="me", id=tid, format="full"
         ).execute()
-    )
+        msgs = []
+        for msg in thread.get("messages", []):
+            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+            msgs.append({
+                "id": msg["id"],
+                "thread_id": msg["threadId"],
+                "subject": headers.get("Subject", "(no subject)"),
+                "from_": headers.get("From", ""),
+                "to": headers.get("To", ""),
+                "body": _extract_body(msg.get("payload", {})),
+                "date": headers.get("Date", ""),
+            })
+        return {"thread_id": tid, "messages": msgs}
 
-    messages_out = []
-    for msg in thread.get("messages", []):
-        headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
-        messages_out.append({
-            "id": msg["id"],
-            "thread_id": msg["threadId"],
-            "subject": headers.get("Subject", "(no subject)"),
-            "from_": headers.get("From", ""),
-            "to": headers.get("To", ""),
-            "body": _extract_body(msg.get("payload", {})),
-            "date": headers.get("Date", ""),
-        })
-    return {"thread_id": thread_id, "messages": messages_out}
+    return await run_in_threadpool(lambda: _fetch_thread(creds, thread_id))
 
 
 @router.post("/send")
@@ -337,8 +398,6 @@ async def gmail_send(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from googleapiclient.discovery import build
-
     creds, integration = await _get_credentials(current_user.id, db)
     await _maybe_refresh(creds, integration, db)
 
@@ -352,10 +411,12 @@ async def gmail_send(
     if payload.thread_id:
         send_body["threadId"] = payload.thread_id
 
-    service = build("gmail", "v1", credentials=creds)
-    result = await run_in_threadpool(
-        lambda: service.users().messages().send(  # type: ignore[attr-defined]
-            userId="me", body=send_body
+    def _send(c, body):
+        from googleapiclient.discovery import build as _build
+        svc = _build("gmail", "v1", credentials=c)
+        return svc.users().messages().send(  # type: ignore[attr-defined]
+            userId="me", body=body
         ).execute()
-    )
+
+    result = await run_in_threadpool(lambda: _send(creds, send_body))
     return {"message_id": result.get("id"), "thread_id": result.get("threadId")}

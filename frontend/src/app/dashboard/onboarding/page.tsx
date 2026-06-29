@@ -119,6 +119,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
     };
 
     return (
+        <>
         <div className="p-6 space-y-6 max-w-7xl mx-auto">
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -619,24 +620,24 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                         </div>
                     </div>
 
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={() => { setShowWelcomeDialog(false); setWelcomeFiles([]); }} disabled={isSendingWelcome}>
-                            Cancel
-                        </Button>
-                        <Button
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                            onClick={handleConfirmWelcomeEmail}
-                            disabled={isSendingWelcome}
-                        >
-                            {isSendingWelcome
-                                ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Sending...</>
-                                : <><Mail className="h-4 w-4" />Send Email</>
-                            }
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => { setShowWelcomeDialog(false); setWelcomeFiles([]); }} disabled={isSendingWelcome}>
+                        Cancel
+                    </Button>
+                    <Button
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                        onClick={handleConfirmWelcomeEmail}
+                        disabled={isSendingWelcome}
+                    >
+                        {isSendingWelcome
+                            ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Sending...</>
+                            : <><Mail className="h-4 w-4" />Send Email</>
+                        }
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }
 
