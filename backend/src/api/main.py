@@ -80,8 +80,46 @@ async def lifespan(app: FastAPI):
             logger.warning("DB warmup failed (will retry on first request): %s", e)
 
     asyncio.ensure_future(_warmup_db())
+
+    # Start check_email_replies.py as a managed subprocess
+    proc = None
+    try:
+        import subprocess
+        import sys
+        
+        # Absolute path to check_email_replies.py
+        script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+        script_path = os.path.join(script_dir, "check_email_replies.py")
+        
+        if os.path.exists(script_path):
+            logger.info("Starting background reply polling service subprocess: %s", script_path)
+            proc = subprocess.Popen(
+                [sys.executable, script_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            logger.error("Could not find check_email_replies.py script at: %s", script_path)
+    except Exception as e:
+        logger.exception("Failed to start check_email_replies.py process: %s", e)
+
     logger.info("Application startup complete. CORS origins: %s", settings.ALLOWED_ORIGINS)
     yield
+
+    # Clean up subprocess on application shutdown
+    if proc is not None:
+        logger.info("Stopping background reply polling service subprocess...")
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+            logger.info("Background reply polling service subprocess terminated successfully.")
+        except subprocess.TimeoutExpired:
+            logger.warning("Subprocess did not terminate; killing it...")
+            proc.kill()
+            proc.wait()
+        except Exception as e:
+            logger.error("Error while terminating background process: %s", e)
+
 
 
 app = FastAPI(
