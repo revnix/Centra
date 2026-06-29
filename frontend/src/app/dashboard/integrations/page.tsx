@@ -37,6 +37,13 @@ import {
 import { useState, useEffect } from 'react';
 import { integrationsApi } from '@/lib/api/index';
 
+declare global {
+    interface Window {
+        FB: any;
+        fbAsyncInit: () => void;
+    }
+}
+
 /**
  * Integrations Page
  * Manage connected social media accounts for job posting
@@ -189,12 +196,32 @@ export default function IntegrationsPage() {
     });
     const [whatsappTestMessage, setWhatsappTestMessage] = useState({ to: '', message: '' });
     const [isConnecting, setIsConnecting] = useState(false);
+    const [isFacebookSdkReady, setIsFacebookSdkReady] = useState(false);
     const [isSendingTestMessage, setIsSendingTestMessage] = useState(false);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
     const [successPlatformName, setSuccessPlatformName] = useState('');
 
     useEffect(() => {
         fetchStatus();
+
+        // Initialize Facebook SDK
+        window.fbAsyncInit = function() {
+            window.FB.init({
+                appId            : process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
+                autoLogAppEvents : true,
+                xfbml            : true,
+                version          : 'v25.0'
+            });
+        };
+
+        // Load the SDK asynchronously
+        (function(d, s, id) {
+            let js, fjs = d.getElementsByTagName(s)[0] as any;
+            if (d.getElementById(id)) return;
+            js = d.createElement(s) as any; js.id = id;
+            js.src = "https://connect.facebook.net/en_US/sdk.js";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
     }, []);
 
     const fetchStatus = async () => {
@@ -256,6 +283,44 @@ export default function IntegrationsPage() {
         } finally {
             setIsConnecting(false);
         }
+    };
+
+    const connectWithFacebook = () => {
+        if (!window.FB) {
+            alert("Facebook SDK is not loaded yet.");
+            return;
+        }
+
+        setIsConnecting(true);
+        // IMPORTANT: FB.login rejects async callbacks. Use a sync wrapper with an async IIFE.
+        window.FB.login(function(response: any) {
+            if (response.authResponse) {
+                const authCode = response.authResponse.code || response.authResponse.accessToken;
+                console.log('Facebook login response:', JSON.stringify(response.authResponse));
+                
+                // Fire async work inside a sync callback
+                (async () => {
+                    try {
+                        await integrationsApi.whatsapp.connectWithFacebook(authCode);
+                        alert('WhatsApp connected successfully via Facebook!');
+                        setShowWhatsappCredentialsModal(false);
+                        await fetchStatus();
+                    } catch (error: any) {
+                        console.error('Failed to connect WhatsApp via Facebook:', error);
+                        alert(`Failed to connect WhatsApp: ${error.message || 'Unknown error'}`);
+                    } finally {
+                        setIsConnecting(false);
+                    }
+                })();
+            } else {
+                console.log('User cancelled login or did not fully authorize.');
+                setIsConnecting(false);
+            }
+        }, {
+            config_id: process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID || '',
+            response_type: 'code',
+            override_default_response_type: true
+        });
     };
 
     const sendWhatsappTestMessage = async () => {
@@ -770,6 +835,25 @@ export default function IntegrationsPage() {
                                 className="h-11"
                             />
                         </div>
+
+                        <div className="relative my-2">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-slate-300" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-white px-2 text-slate-500">Or</span>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            className="w-full h-11 border-blue-600 text-blue-600 hover:bg-blue-50"
+                            onClick={connectWithFacebook}
+                            disabled={isConnecting}
+                        >
+                            <Facebook className="mr-2 h-5 w-5" />
+                            Continue with Facebook
+                        </Button>
                     </div>
                     <DialogFooter className="gap-2 sm:gap-0">
                         <Button

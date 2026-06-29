@@ -30,6 +30,11 @@ export interface EmailThread {
     messages: EmailMessage[];
 }
 
+export interface InboxPage {
+    emails: EmailSummary[];
+    next_page_token: string | null;
+}
+
 export interface SendEmailPayload {
     to: string;
     subject: string;
@@ -44,8 +49,10 @@ export const gmailApi = {
     getAuthUrl: () =>
         apiClient.get<{ authorization_url: string }>('/gmail/auth'),
 
-    getInbox: (maxResults = 20) =>
-        apiClient.get<EmailSummary[]>(`/gmail/inbox?max_results=${maxResults}`),
+    getInbox: (pageToken?: string) =>
+        apiClient.get<InboxPage>(
+            pageToken ? `/gmail/inbox?page_token=${encodeURIComponent(pageToken)}` : '/gmail/inbox'
+        ),
 
     getThread: (threadId: string) =>
         apiClient.get<EmailThread>(`/gmail/thread/${threadId}`),
