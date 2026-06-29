@@ -54,6 +54,16 @@ export function StatusBadge({ status, className, showIcon = true }: StatusBadgeP
             color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border-teal-200 dark:border-teal-800",
             icon: Star,
         },
+        sent: {
+            label: "Invite Sent",
+            color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 border-sky-200 dark:border-sky-800",
+            icon: Mail,
+        },
+        responded: {
+            label: "Responded",
+            color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800",
+            icon: CheckCircle2,
+        },
         interview_invited: {
             label: "Invite Sent",
             color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 border-sky-200 dark:border-sky-800",
