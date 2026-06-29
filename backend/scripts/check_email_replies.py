@@ -3,7 +3,7 @@ import time
 import sys
 from datetime import datetime, timedelta
 from imap_tools import MailBox, A
-from sqlalchemy import create_engine, select, update, func
+from sqlalchemy import create_engine, select, update, func, or_
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
@@ -52,49 +52,83 @@ def check_for_replies():
             
             for msg in msgs:
                 subject = str(msg.subject).lower()
-                from_email = str(msg.from_).lower()
+                from_name = ""
+                from_email = str(msg.from_).lower().strip()
+                if '<' in from_email and '>' in from_email:
+                    from_name = from_email.split('<')[0].strip().strip('"').strip("'")
+                    from_email = from_email.split('<')[1].split('>')[0].strip()
                 
-                print(f"[{datetime.now()}] DEBUG: Checking email from {from_email} with subject: {subject}")
+                print(f"[{datetime.now()}] DEBUG: From: '{from_name}' <{from_email}> | Subject: '{subject}'")
                 
-                # Check for various reply patterns (flexible matching)
-                # Matches if subject contains these keywords OR if it's a "Re:" to our invite
-                keywords = ["re:", "reply", "interview", "shortlisted", "regarding", "application", "evalyn", "invitation"]
-                if any(kw in subject for kw in keywords):
-                    print(f"[{datetime.now()}] DEBUG: Keyword match! Pattern found in '{subject}' from {from_email}")
-                    # Try to find the application by candidate email
+                keywords = ["re:", "reply", "interview", "shortlisted", "regarding", "application", "evalyn", "invitation", "accepted", "confirmed"]
+                is_reply = any(kw in subject for kw in keywords) or subject.startswith("re:")
+                
+                if is_reply:
+                    print(f"[{datetime.now()}] DEBUG: Pattern match for reply! Searching DB...")
                     session = SessionLocal()
                     try:
                         from src.api.models.user import User
+                        
+                        # 1. Try exact email match (case-insensitive)
                         stmt = (
                             select(Application)
                             .join(User, Application.candidate_id == User.id)
-                            .where(User.email == from_email)
-                            .where(Application.interview_invitation_status == "SENT")
-                            .order_by(Application.interview_invite_sent_at.desc())
+                            .where(func.lower(User.email) == from_email)
+                            .where(
+                                (Application.interview_invitation_status.in_(["SENT", "DELIVERED", "OPENED"])) | 
+                                (Application.status == ApplicationStatus.SENT)
+                            )
+                            .order_by(Application.created_at.desc())
                         )
                         result = session.execute(stmt)
                         application = result.scalars().first()
                         
+                        # 2. Fallback: Match by name + email fragment (if exact email fails)
+                        if not application and (from_name or len(from_email) > 5):
+                            print(f"[{datetime.now()}] DEBUG: Exact email match failed for {from_email}. Trying name/fragment fallback...")
+                            query = select(Application).join(User, Application.candidate_id == User.id)
+                            
+                            filters = []
+                            if from_name:
+                                filters.append(User.full_name.ilike(f"%{from_name}%"))
+                            
+                            # Also check if the reply email prefix matches (e.g. umerjavedawan vs umerawan)
+                            prefix = from_email.split('@')[0].replace('.', '').replace('_', '')
+                            if len(prefix) > 4:
+                                filters.append(User.email.ilike(f"%{prefix[:4]}%"))
+                                
+                            if filters:
+                                stmt_fb = query.where(or_(*filters)).where(
+                                    (Application.interview_invitation_status.in_(["SENT", "DELIVERED", "OPENED"])) | 
+                                    (Application.status == ApplicationStatus.SENT)
+                                ).order_by(Application.created_at.desc())
+                                result_fb = session.execute(stmt_fb)
+                                application = result_fb.scalars().first()
+                        
                         if application:
-                            print(f"[{datetime.now()}] SUCCESS: Found reply from {from_email}. Updating application {application.id} to RESPONDED.")
+                            print(f"[{datetime.now()}] SUCCESS: Found application {application.id}. Updating to RESPONDED.")
                             application.status = ApplicationStatus.RESPONDED
                             application.interview_invitation_status = "RESPONDED"
                             
-                            # Append to logs
                             new_log = f"Auto-detected reply via IMAP at {datetime.now()}. Subject: {msg.subject}"
-                            logs = application.email_logs or []
-                            if isinstance(logs, list):
-                                logs.append(new_log)
+                            if not application.email_logs:
+                                application.email_logs = []
+                            
+                            current_logs = application.email_logs
+                            if isinstance(current_logs, list):
+                                current_logs.append(new_log)
                             else:
-                                logs = [logs, new_log]
-                            application.email_logs = logs
+                                current_logs = [str(current_logs), new_log]
+                            application.email_logs = current_logs
                                 
                             session.add(application)
                             session.commit()
+                            print(f"[{datetime.now()}] DB UPDATE COMMITTED.")
+                        else:
+                            print(f"[{datetime.now()}] INFO: No 'SENT' application found for {from_email} / {from_name}.")
                             
-                            # Mark email as read
-                            if msg.uid:
-                                mailbox.flag(msg.uid, '\\Seen', True)
+                    except Exception as db_err:
+                        print(f"[{datetime.now()}] DATABASE ERROR: {db_err}")
                     finally:
                         session.close()
         finally:
@@ -133,7 +167,7 @@ def check_timeouts():
 
 if __name__ == "__main__":
     print(f"[{datetime.now()}] STARTING: Gmail Reply Polling Service (Solution 1)")
-    print(f"Checking {IMAP_USER} every 2 minutes...")
+    print(f"Checking {IMAP_USER} every 30 seconds...")
     
     while True:
         try:
@@ -145,5 +179,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[{datetime.now()}] CRITICAL RUNTIME ERROR: {e}")
             
-        # Poll every 2 minutes as requested
-        time.sleep(120)
+        # Poll every 30 seconds as requested
+        time.sleep(30)

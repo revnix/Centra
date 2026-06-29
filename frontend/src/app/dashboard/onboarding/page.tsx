@@ -59,7 +59,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
             alert("Update failed: " + err.message); // ✅ UNCHANGED
         }
     };
-    
+
     // Welcome email attachment state
     const [welcomeFiles, setWelcomeFiles] = useState<File[]>([]);
     const [welcomeEmailId, setWelcomeEmailId] = useState<number | null>(null);
@@ -120,7 +120,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
 
     return (
         <div className="p-6 space-y-6 max-w-7xl mx-auto">
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-900 p-8 rounded-2xl text-white shadow-2xl relative overflow-hidden"
@@ -145,7 +145,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
             </motion.div>
 
             {error && <div className="text-red-500 p-4 bg-red-50 rounded-lg">{error}</div>}
-            
+
             {loading ? (
                 <div className="text-center p-12">Loading...</div>
             ) : (
@@ -155,7 +155,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                             No active onboardings found.
                         </div>
                     )}
-                    
+
                     <AnimatePresence>
                         {onboardings.map((o, idx) => (
                             <motion.div
@@ -183,11 +183,10 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-3">
-                                                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${
-                                                        o.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                                                        o.status.includes('PENDING') ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                                                        'bg-blue-50 text-blue-700 border-blue-100'
-                                                    }`}>
+                                                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${o.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                            o.status.includes('PENDING') ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                                                'bg-blue-50 text-blue-700 border-blue-100'
+                                                        }`}>
                                                         {o.status.replace(/_/g, ' ')}
                                                     </span>
                                                     {o.joining_date && (
@@ -199,8 +198,8 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <Button 
-                                                    variant="secondary" 
+                                                <Button
+                                                    variant="secondary"
                                                     size="sm"
                                                     className="text-xs flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 shadow-md"
                                                     onClick={() => handleOpenDetail(o.application_id)}
@@ -208,8 +207,8 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     <Search className="w-3.5 h-3.5" />
                                                     View Documents
                                                 </Button>
-                                                <Button 
-                                                    variant="outline" 
+                                                <Button
+                                                    variant="outline"
                                                     size="sm"
                                                     className="text-xs flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                                                     onClick={() => handleSendWelcomeEmail(o.application_id)}
@@ -241,9 +240,9 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                             </span>
                                                         )}
                                                     </div>
-                                                    
-                                                    <Button 
-                                                        variant="outline" 
+
+                                                    <Button
+                                                        variant="outline"
                                                         className="w-full text-xs h-9 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                                                         onClick={() => handleOpenDetail(o.application_id)}
                                                     >
@@ -252,7 +251,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     </Button>
 
                                                     {!o.hr_verified && (
-                                                        <Button 
+                                                        <Button
                                                             onClick={() => handleHrVerify(o.application_id)}
                                                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-9 text-xs shadow-md shadow-indigo-100"
                                                         >
@@ -271,8 +270,8 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                 <div className="space-y-3 bg-white border rounded-lg p-4 shadow-sm text-sm">
                                                     <div className="space-y-1">
                                                         <Label className="text-xs">Reporting Time</Label>
-                                                        <Input 
-                                                            defaultValue={o.reporting_time || ""} 
+                                                        <Input
+                                                            defaultValue={o.reporting_time || ""}
                                                             onBlur={(e) => handleHrDetailsUpdate(o.application_id, { reporting_time: e.target.value })}
                                                             placeholder="e.g. 09:00 AM"
                                                             className="h-8"
@@ -280,8 +279,8 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     </div>
                                                     <div className="space-y-1">
                                                         <Label className="text-xs">Office Location</Label>
-                                                        <Input 
-                                                            defaultValue={o.office_location || ""} 
+                                                        <Input
+                                                            defaultValue={o.office_location || ""}
                                                             onBlur={(e) => handleHrDetailsUpdate(o.application_id, { office_location: e.target.value })}
                                                             placeholder="e.g. Floor 2, Room 204"
                                                             className="h-8"
@@ -289,7 +288,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     </div>
                                                     <div className="space-y-1">
                                                         <Label className="text-xs">Shift Timing</Label>
-                                                        <select 
+                                                        <select
                                                             className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
                                                             defaultValue={o.shift_timing || "1st Shift"}
                                                             onChange={(e) => handleHrDetailsUpdate(o.application_id, { shift_timing: e.target.value })}
@@ -319,8 +318,8 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     ].map(item => (
                                                         <label key={item.key} className={`flex items-center justify-between p-1.5 rounded border cursor-pointer hover:bg-slate-50 transition-colors ${(o as any)[item.key] ? 'bg-emerald-50/50 border-emerald-100' : ''}`}>
                                                             <span className="text-xs text-slate-700">{item.label}</span>
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 className="w-3.5 h-3.5 text-emerald-600 rounded"
                                                                 checked={(o as any)[item.key] || false}
                                                                 onChange={() => handleItSetupToggle(o.application_id, o, item.key)}
@@ -343,7 +342,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                     <p className="text-xs text-slate-500">Coordinate post-onboarding tasks with different departments</p>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="grid md:grid-cols-3 gap-6">
                                                 {/* HR Induction */}
                                                 <div className="space-y-3">
@@ -357,7 +356,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                             { key: 'ind_hr_policies_explained', label: 'Policies Briefing' }
                                                         ].map(item => (
                                                             <div key={item.key} className="flex items-center gap-2">
-                                                                <input 
+                                                                <input
                                                                     type="checkbox"
                                                                     checked={(o as any)[item.key] || false}
                                                                     onChange={() => handleInductionToggle(o.application_id, o, item.key, 'hr')}
@@ -380,7 +379,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                             { key: 'ind_it_security_induction', label: 'Security Training' }
                                                         ].map(item => (
                                                             <div key={item.key} className="flex items-center gap-2">
-                                                                <input 
+                                                                <input
                                                                     type="checkbox"
                                                                     checked={(o as any)[item.key] || false}
                                                                     onChange={() => handleInductionToggle(o.application_id, o, item.key, 'it')}
@@ -403,7 +402,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                             { key: 'ind_manager_team_intro', label: 'Team Intro' }
                                                         ].map(item => (
                                                             <div key={item.key} className="flex items-center gap-2">
-                                                                <input 
+                                                                <input
                                                                     type="checkbox"
                                                                     checked={(o as any)[item.key] || false}
                                                                     onChange={() => handleInductionToggle(o.application_id, o, item.key, 'manager')}
@@ -426,7 +425,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                     <AnimatePresence>
                         {selectedCandidateId && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
@@ -484,62 +483,62 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                                                             <p className="text-slate-500 font-medium">No documents uploaded yet by the candidate.</p>
                                                         </div>
                                                     ) : (
-                                                <div className="grid sm:grid-cols-2 gap-5">
-                                                    {detailedInfo.documents.map((doc: any) => (
-                                                        <div 
-                                                            key={doc.id} 
-                                                            className="p-5 border border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group cursor-pointer shadow-sm hover:shadow-md"
-                                                            onClick={() => window.open(getDocumentViewUrl(doc.file_url) || "", "_blank")}
-                                                        >
-                                                            <div className="flex items-start justify-between gap-4">
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-700 transition-colors" title={doc.file_name}>
-                                                                        {doc.file_name}
-                                                                    </p>
-                                                                    <div className="flex items-center gap-2 mt-2">
-                                                                        <span className="text-[10px] uppercase font-black text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
-                                                                            {doc.file_type.toUpperCase()}
-                                                                        </span>
-                                                                        <span className="text-[10px] text-slate-400 font-medium">
-                                                                            Uploaded {new Date(doc.uploaded_at).toLocaleDateString()}
-                                                                        </span>
+                                                        <div className="grid sm:grid-cols-2 gap-5">
+                                                            {detailedInfo.documents.map((doc: any) => (
+                                                                <div
+                                                                    key={doc.id}
+                                                                    className="p-5 border border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group cursor-pointer shadow-sm hover:shadow-md"
+                                                                    onClick={() => window.open(getDocumentViewUrl(doc.file_url) || "", "_blank")}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-4">
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-700 transition-colors" title={doc.file_name}>
+                                                                                {doc.file_name}
+                                                                            </p>
+                                                                            <div className="flex items-center gap-2 mt-2">
+                                                                                <span className="text-[10px] uppercase font-black text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                                                                    {doc.file_type.toUpperCase()}
+                                                                                </span>
+                                                                                <span className="text-[10px] text-slate-400 font-medium">
+                                                                                    Uploaded {new Date(doc.uploaded_at).toLocaleDateString()}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="h-9 w-9 p-0 bg-blue-50 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-xl"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    window.open(getDocumentViewUrl(doc.file_url) || "", "_blank");
+                                                                                }}
+                                                                                title="View in New Tab"
+                                                                            >
+                                                                                <Search className="w-4 h-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="h-9 w-9 p-0 bg-slate-100 text-slate-600 hover:text-slate-700 hover:bg-slate-200 rounded-xl"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const link = document.createElement('a');
+                                                                                    link.href = getDocumentViewUrl(doc.file_url) || "";
+                                                                                    link.download = doc.file_name;
+                                                                                    document.body.appendChild(link);
+                                                                                    link.click();
+                                                                                    document.body.removeChild(link);
+                                                                                }}
+                                                                                title="Download File"
+                                                                            >
+                                                                                <DownloadIcon className="w-4 h-4" />
+                                                                            </Button>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 shrink-0">
-                                                                    <Button 
-                                                                        variant="ghost" 
-                                                                        size="sm" 
-                                                                        className="h-9 w-9 p-0 bg-blue-50 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-xl"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            window.open(getDocumentViewUrl(doc.file_url) || "", "_blank");
-                                                                        }}
-                                                                        title="View in New Tab"
-                                                                    >
-                                                                        <Search className="w-4 h-4" />
-                                                                    </Button>
-                                                                    <Button 
-                                                                        variant="ghost" 
-                                                                        size="sm" 
-                                                                        className="h-9 w-9 p-0 bg-slate-100 text-slate-600 hover:text-slate-700 hover:bg-slate-200 rounded-xl"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            const link = document.createElement('a');
-                                                                            link.href = getDocumentViewUrl(doc.file_url) || "";
-                                                                            link.download = doc.file_name;
-                                                                            document.body.appendChild(link);
-                                                                            link.click();
-                                                                            document.body.removeChild(link);
-                                                                        }}
-                                                                        title="Download File"
-                                                                    >
-                                                                        <DownloadIcon className="w-4 h-4" />
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
+                                                            ))}
                                                         </div>
-                                                    ))}
-                                                </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -550,7 +549,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
 
                                     <div className="p-6 border-t bg-slate-50 flex justify-end gap-3">
                                         <Button variant="outline" onClick={() => setSelectedCandidateId(null)}>Close View</Button>
-                                        <Button 
+                                        <Button
                                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                                             onClick={() => {
                                                 setSelectedCandidateId(null);
@@ -565,120 +564,119 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                     </AnimatePresence>
                 </div>
             )}
-        </div>
+            {/* Welcome Email with Attachment Dialog */}
+            <Dialog open={showWelcomeDialog} onOpenChange={(open) => { if (!open) { setShowWelcomeDialog(false); setWelcomeFiles([]); } }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Mail className="h-5 w-5 text-indigo-600" />
+                            Send Onboarding Welcome Email
+                        </DialogTitle>
+                    </DialogHeader>
 
-        {/* Welcome Email with Attachment Dialog */}
-        <Dialog open={showWelcomeDialog} onOpenChange={(open) => { if (!open) { setShowWelcomeDialog(false); setWelcomeFiles([]); } }}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Mail className="h-5 w-5 text-indigo-600" />
-                        Send Onboarding Welcome Email
-                    </DialogTitle>
-                </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <p className="text-sm text-slate-600">
+                            This will send the onboarding portal link to the candidate. You can optionally attach files (e.g. offer letter, joining instructions).
+                        </p>
 
-                <div className="space-y-4 py-2">
-                    <p className="text-sm text-slate-600">
-                        This will send the onboarding portal link to the candidate. You can optionally attach files (e.g. offer letter, joining instructions).
-                    </p>
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Attachments <span className="text-slate-400 font-normal">(optional)</span></label>
-                        <div
-                            className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2.5 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
-                            onClick={() => welcomeFileRef.current?.click()}
-                        >
-                            <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
-                            <span className="text-sm text-slate-500">Click to attach files</span>
-                            <input
-                                ref={welcomeFileRef}
-                                type="file"
-                                multiple
-                                className="hidden"
-                                onChange={e => {
-                                    if (e.target.files) setWelcomeFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-                                }}
-                            />
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Attachments <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <div
+                                className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2.5 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                                onClick={() => welcomeFileRef.current?.click()}
+                            >
+                                <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
+                                <span className="text-sm text-slate-500">Click to attach files</span>
+                                <input
+                                    ref={welcomeFileRef}
+                                    type="file"
+                                    multiple
+                                    className="hidden"
+                                    onChange={e => {
+                                        if (e.target.files) setWelcomeFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                                    }}
+                                />
+                            </div>
+                            {welcomeFiles.length > 0 && (
+                                <ul className="space-y-1">
+                                    {welcomeFiles.map((f, i) => (
+                                        <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 border border-slate-100 px-3 py-1.5 text-xs">
+                                            <span className="truncate text-slate-700 flex items-center gap-1.5">
+                                                <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
+                                                {f.name}
+                                                <span className="text-slate-400 ml-1">({(f.size / 1024).toFixed(0)} KB)</span>
+                                            </span>
+                                            <button
+                                                onClick={() => setWelcomeFiles(prev => prev.filter((_, idx) => idx !== i))}
+                                                className="ml-2 text-slate-400 hover:text-red-500 shrink-0"
+                                            >
+                                                <CloseIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
-                        {welcomeFiles.length > 0 && (
-                            <ul className="space-y-1">
-                                {welcomeFiles.map((f, i) => (
-                                    <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 border border-slate-100 px-3 py-1.5 text-xs">
-                                        <span className="truncate text-slate-700 flex items-center gap-1.5">
-                                            <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
-                                            {f.name}
-                                            <span className="text-slate-400 ml-1">({(f.size / 1024).toFixed(0)} KB)</span>
-                                        </span>
-                                        <button
-                                            onClick={() => setWelcomeFiles(prev => prev.filter((_, idx) => idx !== i))}
-                                            className="ml-2 text-slate-400 hover:text-red-500 shrink-0"
-                                        >
-                                            <CloseIcon className="h-3.5 w-3.5" />
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
                     </div>
-                </div>
 
-                <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => { setShowWelcomeDialog(false); setWelcomeFiles([]); }} disabled={isSendingWelcome}>
-                        Cancel
-                    </Button>
-                    <Button
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                        onClick={handleConfirmWelcomeEmail}
-                        disabled={isSendingWelcome}
-                    >
-                        {isSendingWelcome
-                            ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Sending...</>
-                            : <><Mail className="h-4 w-4" />Send Email</>
-                        }
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => { setShowWelcomeDialog(false); setWelcomeFiles([]); }} disabled={isSendingWelcome}>
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                            onClick={handleConfirmWelcomeEmail}
+                            disabled={isSendingWelcome}
+                        >
+                            {isSendingWelcome
+                                ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Sending...</>
+                                : <><Mail className="h-4 w-4" />Send Email</>
+                            }
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }
 
 function XIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
-    </svg>
-  )
+    return (
+        <svg
+            {...props}
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+        </svg>
+    )
 }
 
 function DownloadIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" x2="12" y1="15" y2="3" />
-    </svg>
-  )
+    return (
+        <svg
+            {...props}
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" x2="12" y1="15" y2="3" />
+        </svg>
+    )
 }
