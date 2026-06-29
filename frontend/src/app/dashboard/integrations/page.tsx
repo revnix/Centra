@@ -35,12 +35,14 @@ import {
     MessageSquare
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import Script from 'next/script';
 import { integrationsApi } from '@/lib/api/index';
 
 declare global {
     interface Window {
         FB: any;
         fbAsyncInit: () => void;
+        __fbInitialized: boolean;
     }
 }
 
@@ -203,25 +205,6 @@ export default function IntegrationsPage() {
 
     useEffect(() => {
         fetchStatus();
-
-        // Initialize Facebook SDK
-        window.fbAsyncInit = function() {
-            window.FB.init({
-                appId            : process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
-                autoLogAppEvents : true,
-                xfbml            : true,
-                version          : 'v25.0'
-            });
-        };
-
-        // Load the SDK asynchronously
-        (function(d, s, id) {
-            let js, fjs = d.getElementsByTagName(s)[0] as any;
-            if (d.getElementById(id)) return;
-            js = d.createElement(s) as any; js.id = id;
-            js.src = "https://connect.facebook.net/en_US/sdk.js";
-            fjs.parentNode.insertBefore(js, fjs);
-        }(document, 'script', 'facebook-jssdk'));
     }, []);
 
     const fetchStatus = async () => {
@@ -286,8 +269,8 @@ export default function IntegrationsPage() {
     };
 
     const connectWithFacebook = () => {
-        if (!window.FB) {
-            alert("Facebook SDK is not loaded yet.");
+        if (!isFacebookSdkReady || !window.FB) {
+            alert("Facebook SDK is still loading. Please wait a moment and try again.");
             return;
         }
 
@@ -318,7 +301,7 @@ export default function IntegrationsPage() {
             }
         }, {
             config_id: process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID || '',
-            response_type: 'code',
+            response_type: 'token',
             override_default_response_type: true
         });
     };
@@ -469,6 +452,24 @@ export default function IntegrationsPage() {
 
     return (
         <div className="space-y-6 max-w-4xl relative">
+            {/* Facebook JS SDK — next/script onReady fires on every mount (first load + SPA re-nav) */}
+            <Script
+                id="facebook-jssdk"
+                src="https://connect.facebook.net/en_US/sdk.js"
+                strategy="afterInteractive"
+                onReady={() => {
+                    if (!window.__fbInitialized) {
+                        window.FB.init({
+                            appId            : process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
+                            autoLogAppEvents : false,
+                            xfbml            : true,
+                            version          : 'v25.0'
+                        });
+                        window.__fbInitialized = true;
+                    }
+                    setIsFacebookSdkReady(true);
+                }}
+            />
             {/* Success Notification */}
             {showSuccessMessage && (
                 <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
