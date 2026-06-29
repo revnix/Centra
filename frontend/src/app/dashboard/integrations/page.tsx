@@ -196,6 +196,7 @@ export default function IntegrationsPage() {
     });
     const [whatsappTestMessage, setWhatsappTestMessage] = useState({ to: '', message: '' });
     const [isConnecting, setIsConnecting] = useState(false);
+    const [isFacebookSdkReady, setIsFacebookSdkReady] = useState(false);
     const [isSendingTestMessage, setIsSendingTestMessage] = useState(false);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
     const [successPlatformName, setSuccessPlatformName] = useState('');
@@ -211,6 +212,8 @@ export default function IntegrationsPage() {
                 xfbml            : true,
                 version          : 'v25.0'
             });
+
+            setIsFacebookSdkReady(true);
         };
 
         // Load the SDK asynchronously
@@ -218,6 +221,11 @@ export default function IntegrationsPage() {
             let js, fjs = d.getElementsByTagName(s)[0] as any;
             if (d.getElementById(id)) return;
             js = d.createElement(s) as any; js.id = id;
+            js.onload = () => setIsFacebookSdkReady(true);
+            js.onerror = () => {
+                console.error('Failed to load Facebook SDK');
+                setIsFacebookSdkReady(false);
+            };
             js.src = "https://connect.facebook.net/en_US/sdk.js";
             fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'facebook-jssdk'));
@@ -285,7 +293,7 @@ export default function IntegrationsPage() {
     };
 
     const connectWithFacebook = () => {
-        if (!window.FB) {
+        if (!isFacebookSdkReady || !window.FB) {
             alert("Facebook SDK is not loaded yet.");
             return;
         }
@@ -848,10 +856,10 @@ export default function IntegrationsPage() {
                             variant="outline"
                             className="w-full h-11 border-blue-600 text-blue-600 hover:bg-blue-50"
                             onClick={connectWithFacebook}
-                            disabled={isConnecting}
+                            disabled={isConnecting || !isFacebookSdkReady}
                         >
                             <Facebook className="mr-2 h-5 w-5" />
-                            Continue with Facebook
+                            {isFacebookSdkReady ? 'Continue with Facebook' : 'Loading Facebook SDK...'}
                         </Button>
                     </div>
                     <DialogFooter className="gap-2 sm:gap-0">
