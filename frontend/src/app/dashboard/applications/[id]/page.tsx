@@ -74,6 +74,10 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
             }
         };
         fetchApplication();
+
+        // Auto-refresh the application status every 10 seconds in the background
+        const interval = setInterval(fetchApplication, 10_000);
+        return () => clearInterval(interval);
     }, [id]);
 
     const openEmailDialog = (mode: 'onboarding' | 'reject') => {
