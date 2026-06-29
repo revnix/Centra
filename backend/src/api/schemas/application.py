@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from datetime import datetime
 from src.api.models.application import ApplicationStatus
 from src.api.schemas.candidate import CandidateProfileCreate
@@ -40,7 +40,7 @@ class ApplicationResponse(ApplicationBase):
     status: ApplicationStatus
     source: Optional[str] = None
     match_score: Optional[float] = None
-    expected_salary: Optional[str] = None
+    expected_salary: Optional[Union[str, float, int]] = None
     salary_filter_status: Optional[str] = None
     email_delivery_status: Optional[str] = None
     email_logs: Optional[List[str]] = None

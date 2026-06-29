@@ -5,7 +5,12 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  * Handles authentication, request/response interceptors, and error handling
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1';
+const _envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+// Use relative /api/v1 when pointing at localhost so requests work via ngrok/any proxy.
+// Next.js rewrites handle the routing to the actual backend.
+const API_URL = (!_envUrl || _envUrl.includes('localhost') || _envUrl.includes('127.0.0.1'))
+    ? '/api/v1'
+    : _envUrl;
 
 /**
  * The backend base URL (FastAPI) — used to resolve relative /uploads/... URLs.
