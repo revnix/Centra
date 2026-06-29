@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
 
     # Security
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
         "your-secret-key-change-in-production"
@@ -62,6 +63,11 @@ class Settings(BaseSettings):
     FACEBOOK_APP_SECRET: str = os.getenv("FACEBOOK_APP_SECRET", "")
     TWITTER_API_ENDPOINT: str = "https://api.twitter.com"
     INSTAGRAM_API_ENDPOINT: str = "https://graph.facebook.com/v18.0"
+
+    # Gmail OAuth
+    GMAIL_CLIENT_ID: str = os.getenv("GMAIL_CLIENT_ID", "")
+    GMAIL_CLIENT_SECRET: str = os.getenv("GMAIL_CLIENT_SECRET", "")
+    GMAIL_REDIRECT_URI: str = os.getenv("GMAIL_REDIRECT_URI", "http://127.0.0.1:8000/api/v1/gmail/callback")
 
     # Indeed API
     INDEED_CLIENT_ID: str = os.getenv("INDEED_CLIENT_ID", "")

@@ -13,6 +13,7 @@ import { jobsApi } from '@/lib/api/jobs';
 import { applicationsApi } from '@/lib/api/applications';
 import {
     Briefcase,
+    Mail,
     Menu,
     X,
     LogOut,
@@ -33,6 +34,7 @@ const NAVIGATION = [
     { name: 'Pipeline', href: '/dashboard/pipeline', icon: KanbanSquare },
     { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
     { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
+    { name: 'Inbox', href: '/dashboard/inbox', icon: Mail },
 ];
 
 // Prefetch map: nav href → what data to warm up for that page

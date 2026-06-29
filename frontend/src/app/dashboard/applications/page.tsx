@@ -43,7 +43,9 @@ interface Application {
     match_score?: number;
     ai_score?: number;
     email_delivery_status?: string;
-    email_logs?: string;
+    email_logs?: any;
+    interview_invitation_status?: string;
+    interview_invite_sent_at?: string;
     city?: string;
     qualification?: string;
     expected_salary?: number;
@@ -122,7 +124,6 @@ export default function ApplicationsPage() {
             closeInviteModal();
             queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
-            console.error("Invite error:", err);
             toast.error(`Failed to send invite: ${err.message || "Please try again."}`);
         } finally {
             setIsSending(false);
@@ -143,7 +144,6 @@ export default function ApplicationsPage() {
             toast.success(`Application for ${name} deleted successfully`);
             queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
-            console.error("Delete error:", err);
             toast.error(`Failed to delete application: ${err.message || "Unauthorized"}`);
         }
     };
@@ -151,23 +151,23 @@ export default function ApplicationsPage() {
     // ── Filter
     const filteredApps = Array.isArray(applications)
         ? applications.filter((app) => {
-              const candidateName = app?.candidate?.full_name || "Unknown Candidate";
-              const jobTitle = app?.job?.title || "Unknown Job";
-              const email = app?.candidate?.email || "";
-              const term = searchTerm.toLowerCase();
+            const candidateName = app?.candidate?.full_name || "Unknown Candidate";
+            const jobTitle = app?.job?.title || "Unknown Job";
+            const email = app?.candidate?.email || "";
+            const term = searchTerm.toLowerCase();
 
-              const matchesSearch =
-                  candidateName.toLowerCase().includes(term) ||
-                  jobTitle.toLowerCase().includes(term) ||
-                  email.toLowerCase().includes(term);
+            const matchesSearch =
+                candidateName.toLowerCase().includes(term) ||
+                jobTitle.toLowerCase().includes(term) ||
+                email.toLowerCase().includes(term);
 
-              if (cityFilter !== "all") {
-                  const appCity = app.city ? app.city.toLowerCase() : "unknown";
-                  if (appCity !== cityFilter.toLowerCase()) return false;
-              }
+            if (cityFilter !== "all") {
+                const appCity = app.city ? app.city.toLowerCase() : "unknown";
+                if (appCity !== cityFilter.toLowerCase()) return false;
+            }
 
-              return matchesSearch;
-          })
+            return matchesSearch;
+        })
         : [];
 
     const allFilteredSelected = filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id));
@@ -341,7 +341,6 @@ export default function ApplicationsPage() {
                                     <TableHead>Job Role</TableHead>
                                     <TableHead>Applied</TableHead>
                                     <TableHead>Status</TableHead>
-                                    <TableHead>Email Invite</TableHead>
                                     <TableHead>Salary</TableHead>
                                     <TableHead className="text-center">ATS Score</TableHead>
                                     <TableHead className="text-right pr-6">Actions</TableHead>
@@ -351,11 +350,10 @@ export default function ApplicationsPage() {
                                 {filteredApps.map((app) => (
                                     <TableRow
                                         key={app.id}
-                                        className={`group cursor-pointer transition-colors ${
-                                            selectedIds.has(app.id)
-                                                ? "bg-indigo-50/70 dark:bg-indigo-950/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
-                                                : "hover:bg-slate-50 dark:hover:bg-slate-900/50"
-                                        }`}
+                                        className={`group cursor-pointer transition-colors ${selectedIds.has(app.id)
+                                            ? "bg-indigo-50/70 dark:bg-indigo-950/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                                            : "hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                                            }`}
                                     >
                                         <TableCell className="pl-4">
                                             <input
@@ -417,27 +415,6 @@ export default function ApplicationsPage() {
                                         {/* Status */}
                                         <TableCell>
                                             <StatusBadge status={app.status || "APPLIED"} />
-                                        </TableCell>
-
-                                        {/* Email Invite Status */}
-                                        <TableCell>
-                                            {app.email_delivery_status === "SENT" ? (
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                                                        Sent
-                                                    </span>
-                                                </div>
-                                            ) : app.email_delivery_status === "FAILED" ? (
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-rose-500" />
-                                                    <span className="text-xs font-semibold text-rose-700 uppercase tracking-wide">
-                                                        Failed
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground italic">Pending</span>
-                                            )}
                                         </TableCell>
 
                                         {/* Salary */}

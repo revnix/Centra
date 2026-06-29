@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Text, JSON, ForeignKey, DateTime, Enum as SqlEnum
+from sqlalchemy import Column, Integer, String, Float, Text, JSON, ForeignKey, DateTime, Enum as SqlEnum, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.api.db.base import Base
@@ -8,6 +8,8 @@ class ApplicationStatus(str, enum.Enum):
     APPLIED = "APPLIED"
     SCREENING = "SCREENING"
     SHORTLISTED = "SHORTLISTED"
+    SENT = "SENT"
+    RESPONDED = "RESPONDED"
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
     INTERVIEW_INVITED = "INTERVIEW_INVITED"
     INTERVIEW_PENDING = "INTERVIEW_PENDING" # Keeping for backward compatibility
@@ -48,15 +50,26 @@ class Application(Base):
     qualification = Column(String(200), nullable=True, comment="Highest qualification")
     
     # Salary
-    expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
+    expected_salary = Column(String(100), nullable=True, comment="Candidate's expected salary")
     salary_filter_status = Column(String(50), nullable=True, comment="within_budget | above_budget | not_checked")
 
     # Email Delivery Status
     email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(JSON, nullable=True, comment="Failure reasons or SMTP logs")
     
+    # Interview Tracking
+    interview_invitation_status = Column(String(50), default="NOT_SENT", index=True, comment="Status of interview invite: NOT_SENT, SENT, DELIVERED, OPENED, RESPONDED, NOT_RESPONDED, DECLINED")
+    last_interview_invite_id = Column(String(255), nullable=True, index=True, comment="Resend message ID for the last interview invite")
+    interview_invite_sent_at = Column(DateTime(timezone=True), nullable=True, index=True, comment="Timestamp of the last interview invitation sent")
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # ✨ OPTIMIZATION — ORDER BY created_at DESC on every list call
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index('ix_applications_job_id_status', 'job_id', 'status'),
+        Index('ix_applications_candidate_status', 'candidate_id', 'status'),
+        Index('ix_applications_job_id_created_at', 'job_id', 'created_at'),
+    )
 
     # Relationships
     job = relationship("Posts", backref="applications")

@@ -1,14 +1,15 @@
 "use client"; // ✅ UNCHANGED
 
-import { useEffect, useState } from "react"; // ✅ UNCHANGED (useEffect needed for selectedCandidateId sync)
+import { useEffect, useState, useRef } from "react"; // ✅ UNCHANGED (useEffect needed for selectedCandidateId sync)
 import { useQuery, useQueryClient } from "@tanstack/react-query"; // ✨ NEW - OPTIMIZATION
 import { motion, AnimatePresence } from "framer-motion";
 import { onboardingApi, OnboardingResponse, getDocumentViewUrl } from "@/lib/api/onboarding";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle, Search, Clock, ShieldCheck, MonitorCheck, MapPin, UserCheck, Briefcase, Mail } from "lucide-react";
+import { AlertCircle, CheckCircle, Search, Clock, ShieldCheck, MonitorCheck, MapPin, UserCheck, Briefcase, Mail, Paperclip, X as CloseIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
     const queryClient = useQueryClient(); // ✨ NEW - OPTIMIZATION
@@ -59,12 +60,33 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
         }
     };
     
-    const handleSendWelcomeEmail = async (id: number) => { // ✅ UNCHANGED
+    // Welcome email attachment state
+    const [welcomeFiles, setWelcomeFiles] = useState<File[]>([]);
+    const [welcomeEmailId, setWelcomeEmailId] = useState<number | null>(null);
+    const welcomeFileRef = useRef<HTMLInputElement>(null);
+
+    const handleSendWelcomeEmail = async (id: number) => {
+        setWelcomeEmailId(id);
+        setWelcomeFiles([]);
+        // Open file picker — user can skip by clicking "Send" without selecting files
+        setShowWelcomeDialog(true);
+    };
+
+    const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
+    const [isSendingWelcome, setIsSendingWelcome] = useState(false);
+
+    const handleConfirmWelcomeEmail = async () => {
+        if (!welcomeEmailId) return;
+        setIsSendingWelcome(true);
         try {
-            await onboardingApi.sendWelcomeEmail(id); // ✅ UNCHANGED
-            alert("Welcome email sent to candidate!"); // ✅ UNCHANGED
+            await onboardingApi.sendWelcomeEmail(welcomeEmailId, welcomeFiles.length > 0 ? welcomeFiles : undefined);
+            alert("Welcome email sent to candidate!");
+            setShowWelcomeDialog(false);
+            setWelcomeFiles([]);
         } catch (err: any) {
-            alert("Failed to send email: " + err.message); // ✅ UNCHANGED
+            alert("Failed to send email: " + err.message);
+        } finally {
+            setIsSendingWelcome(false);
         }
     };
 
@@ -97,6 +119,7 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
     };
 
     return (
+        <>
         <div className="p-6 space-y-6 max-w-7xl mx-auto">
             <motion.div 
                 initial={{ opacity: 0, y: -20 }}
@@ -544,6 +567,80 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                 </div>
             )}
         </div>
+
+        {/* Welcome Email with Attachment Dialog */}
+        <Dialog open={showWelcomeDialog} onOpenChange={(open) => { if (!open) { setShowWelcomeDialog(false); setWelcomeFiles([]); } }}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5 text-indigo-600" />
+                        Send Onboarding Welcome Email
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                    <p className="text-sm text-slate-600">
+                        This will send the onboarding portal link to the candidate. You can optionally attach files (e.g. offer letter, joining instructions).
+                    </p>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Attachments <span className="text-slate-400 font-normal">(optional)</span></label>
+                        <div
+                            className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2.5 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                            onClick={() => welcomeFileRef.current?.click()}
+                        >
+                            <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-sm text-slate-500">Click to attach files</span>
+                            <input
+                                ref={welcomeFileRef}
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={e => {
+                                    if (e.target.files) setWelcomeFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                                }}
+                            />
+                        </div>
+                        {welcomeFiles.length > 0 && (
+                            <ul className="space-y-1">
+                                {welcomeFiles.map((f, i) => (
+                                    <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 border border-slate-100 px-3 py-1.5 text-xs">
+                                        <span className="truncate text-slate-700 flex items-center gap-1.5">
+                                            <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
+                                            {f.name}
+                                            <span className="text-slate-400 ml-1">({(f.size / 1024).toFixed(0)} KB)</span>
+                                        </span>
+                                        <button
+                                            onClick={() => setWelcomeFiles(prev => prev.filter((_, idx) => idx !== i))}
+                                            className="ml-2 text-slate-400 hover:text-red-500 shrink-0"
+                                        >
+                                            <CloseIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => { setShowWelcomeDialog(false); setWelcomeFiles([]); }} disabled={isSendingWelcome}>
+                        Cancel
+                    </Button>
+                    <Button
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                        onClick={handleConfirmWelcomeEmail}
+                        disabled={isSendingWelcome}
+                    >
+                        {isSendingWelcome
+                            ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Sending...</>
+                            : <><Mail className="h-4 w-4" />Send Email</>
+                        }
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }
 
