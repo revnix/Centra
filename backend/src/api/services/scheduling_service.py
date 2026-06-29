@@ -31,7 +31,7 @@ class SchedulingService:
             f"— triggering WhatsApp-invite email for {candidate_email}"
         )
 
-        email_sent = await EmailService.send_shortlist_notification(
+        msg_id = await EmailService.send_shortlist_notification(
             candidate_email=candidate_email,
             candidate_name=candidate_name,
             job_title=job_title,
@@ -39,5 +39,6 @@ class SchedulingService:
 
         return {
             "success": True,
-            "email_sent": email_sent,
+            "email_sent": bool(msg_id),
+            "message_id": msg_id
         }

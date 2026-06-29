@@ -65,3 +65,5 @@ class WhatsAppConnectRequest(BaseModel):
     access_token: str
     verify_token: str
 
+class WhatsAppOAuthConnectRequest(BaseModel):
+    code: str

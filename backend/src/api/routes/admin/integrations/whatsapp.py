@@ -8,7 +8,8 @@ from src.api.schemas.integration import (
     WhatsAppSendMessageRequest,
     WhatsAppSendTemplateRequest,
     WhatsAppStatusResponse,
-    WhatsAppConnectRequest
+    WhatsAppConnectRequest,
+    WhatsAppOAuthConnectRequest
 )
 from src.api.services.whatsapp_service import WhatsAppService
 from src.api.models.integration import UserIntegration
@@ -26,7 +27,7 @@ async def connect_whatsapp(
     """Connect WhatsApp integration with user-provided credentials."""
     try:
         whatsapp_service = WhatsAppService(db)
-        integration = await whatsapp_service.connect(
+        await whatsapp_service.connect(
             user_id=current_user.id,
             phone_number_id=request_data.phone_number_id,
             waba_id=request_data.waba_id,
@@ -43,6 +44,29 @@ async def connect_whatsapp(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/oauth-connect")
+async def oauth_connect_whatsapp(
+    request_data: WhatsAppOAuthConnectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Connect WhatsApp using Facebook OAuth Code."""
+    try:
+        whatsapp_service = WhatsAppService(db)
+        integration = await whatsapp_service.connect_via_oauth(
+            user_id=current_user.id,
+            code=request_data.code
+        )
+        return {
+            "message": "WhatsApp connected successfully via Facebook",
+            "connected": True,
+            "phone_number_id": integration.extra_data.get("phone_number_id"),
+            "waba_id": integration.extra_data.get("waba_id")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/status", response_model=WhatsAppStatusResponse)
 async def get_whatsapp_status(
     current_user: User = Depends(get_current_user),
@@ -52,19 +76,21 @@ async def get_whatsapp_status(
     try:
         whatsapp_service = WhatsAppService(db)
         is_connected = await whatsapp_service.is_connected(current_user.id)
-        
+
         phone_number_id = None
         waba_id = None
         if is_connected:
             integration = await whatsapp_service.get_integration(current_user.id)
-            if integration and integration.extra_data:
-                phone_number_id = integration.extra_data.get("phone_number_id")
-                waba_id = integration.extra_data.get("waba_id")
-        
+            if integration:
+                import json as _json
+                data = _json.loads(str(integration.access_token))
+                phone_number_id = data.get("phone_number_id")
+                waba_id = data.get("waba_id")
+
         return WhatsAppStatusResponse(
             connected=is_connected,
             phone_number_id=phone_number_id,
-            waba_id=waba_id
+            waba_id=waba_id,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

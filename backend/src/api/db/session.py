@@ -35,12 +35,11 @@ if "neon.tech" in settings.DATABASE_URL:
     _ssl_ctx = ssl_module.create_default_context()
     connect_args["ssl"] = _ssl_ctx
     # Allow more time for Neon cold starts and PgBouncer queuing
-    connect_args["command_timeout"] = 60
+    connect_args["command_timeout"] = 30
     # CRITICAL: Disable prepared statement cache for PgBouncer compatibility
     connect_args["statement_cache_size"] = 0
-    # Keep per-attempt timeout short so cold-start retries stay under 90s total:
-    # 4 attempts × 15s + (1+3+8)s delays = 72s max < 90s frontend timeout
-    connect_args["timeout"] = 15
+    # 2 attempts × 10s + 3s delay = 23s max — fast enough to not freeze the UI
+    connect_args["timeout"] = 10
 
 print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
@@ -87,8 +86,10 @@ AsyncSessionLocal = async_sessionmaker(
 
 _db_logger = logging.getLogger(__name__)
 
-# Exceptions asyncpg raises during a Neon cold-start
-_NEON_WAKE_ERRORS = (TimeoutError, OSError, asyncio.TimeoutError)
+# Exceptions asyncpg raises during a Neon cold-start.
+# CancelledError is included because asyncio's timeout cancels the SSL
+# handshake coroutine before raising TimeoutError — both must be retried.
+_NEON_WAKE_ERRORS = (TimeoutError, OSError, asyncio.TimeoutError, asyncio.CancelledError)
 
 
 async def get_async_db():
@@ -111,8 +112,8 @@ async def get_async_db():
       Phase 2 (single):  Yield one AsyncSession. Connection is now warm.
     """
     if _is_neon:
-        _RETRY_DELAYS = [1, 3, 8]  # seconds to wait between attempts (4 total attempts)
-        last_exc: Exception | None = None
+        _RETRY_DELAYS = [3]  # 2 total attempts: immediate + one retry after 3s (23s max)
+        last_exc: BaseException | None = None
 
         for attempt, delay in enumerate([0] + _RETRY_DELAYS, start=1):
             if delay:
@@ -130,7 +131,7 @@ async def get_async_db():
                 last_exc = exc
                 if attempt > len(_RETRY_DELAYS):
                     _db_logger.error(
-                        "DB unreachable after %d attempts: %s", attempt, exc
+                        "DB unreachable after %d attempt(s): %s", attempt, exc
                     )
                     raise
 

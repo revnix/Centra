@@ -86,11 +86,15 @@ export const applicationsApi = {
     /**
      * HR manually sends a custom email to a candidate, with optional file attachments.
      */
-    invite: async (id: string, subject: string, message: string, files?: File[]): Promise<any> => {
+    invite: async (id: string, data: string | FormData, message?: string, files?: File[]): Promise<any> => {
+        if (data instanceof FormData) {
+            return apiClient.post<any>(`/applications/${id}/invite`, data);
+        }
+
         const body = new FormData();
-        body.append('subject', subject);
-        body.append('message', message);
-        (files ?? []).forEach(f => body.append('files', f));
+        body.append('subject', data);
+        body.append('message', message ?? '');
+        (files ?? []).forEach(f => body.append('attachments', f));
         return apiClient.post<any>(`/applications/${id}/invite`, body);
     },
 
