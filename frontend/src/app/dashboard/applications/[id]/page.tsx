@@ -1,21 +1,11 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Download, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw } from "lucide-react";
-
-function getViewableResumeUrl(url: string): string {
-    if (!url.includes('cloudinary.com')) return url;
-    if (url.includes('/raw/upload/')) {
-        // Legacy raw uploads: use Google Docs viewer to display inline
-        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
-    }
-    // New auto-type uploads (image/upload): viewable inline directly
-    return url;
-}
+import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -32,6 +22,14 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
+function getViewableResumeUrl(url: string): string {
+    if (!url.includes('cloudinary.com')) return url;
+    if (url.includes('/raw/upload/')) {
+        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    return url;
+}
+
 export default function ApplicationReviewPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const [app, setApp] = useState<any>(null);
@@ -47,8 +45,21 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [emailSubject, setEmailSubject] = useState("");
     const [emailMessage, setEmailMessage] = useState("");
     const [isEmailSending, setIsEmailSending] = useState(false);
+    const [emailFiles, setEmailFiles] = useState<File[]>([]);
+    const emailFileRef = useRef<HTMLInputElement>(null);
 
-    const router = useRouter();
+    // Resend dialog attachments
+    const [resendFiles, setResendFiles] = useState<File[]>([]);
+    const resendFileRef = useRef<HTMLInputElement>(null);
+
+    const addFiles = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, incoming: FileList | null) => {
+        if (!incoming) return;
+        setter(prev => [...prev, ...Array.from(incoming)]);
+    }, []);
+
+    const removeFile = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, index: number) => {
+        setter(prev => prev.filter((_, i) => i !== index));
+    }, []);
 
     useEffect(() => {
         const fetchApplication = async () => {
@@ -73,8 +84,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
             setEmailMessage(`Dear ${candidateName},\n\nWe are thrilled to inform you that after reviewing your application and interview performance, we have decided to extend an offer for the ${jobTitle} position.\n\nPlease reply to this email to confirm your acceptance. Our HR team will reach out with the full offer details and onboarding instructions.\n\nWelcome to the team!\n\nBest regards,\nHR Team`);
         } else {
             setEmailSubject(`Update on Your Application – ${jobTitle}`);
-            setEmailMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position and participating in our selection process.\n\nAfter careful consideration, we regret to inform you that we will not be moving forward with your application at this time. This was a difficult decision as we received many strong applications.\n\nWe appreciate your interest and wish you the very best in your future endeavors.\n\nBest regards,\nHR Team`);
+            setEmailMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position and participating in our selection process.\n\nAfter careful consideration, we regret to inform you that we will not be moving forward with your application at this time.\n\nWe appreciate your interest and wish you the very best in your future endeavors.\n\nBest regards,\nHR Team`);
         }
+        setEmailFiles([]);
         setEmailDialogMode(mode);
     };
 
@@ -82,13 +94,12 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         if (!emailDialogMode) return;
         setIsEmailSending(true);
         try {
-            // Send custom email
-            await api.applications.invite(id, emailSubject.trim(), emailMessage.trim());
-            // Update status to correct value (invite sets INTERVIEW_INVITED by default)
+            await api.applications.invite(id, emailSubject.trim(), emailMessage.trim(), emailFiles);
             const newStatus = emailDialogMode === 'onboarding' ? 'HIRED' : 'REJECTED';
             await api.applications.updateStatus(id, newStatus);
             toast.success(emailDialogMode === 'onboarding' ? "Onboarding email sent!" : "Rejection email sent!");
             setEmailDialogMode(null);
+            setEmailFiles([]);
             const updated = await api.applications.get(id);
             setApp(updated);
         } catch (error: any) {
@@ -119,15 +130,10 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const handleResendEmail = async () => {
         setIsResending(true);
         try {
-            if (app?.status === "REJECTED") {
-                await api.applications.reject(id);
-            } else if (app?.status === "HIRED") {
-                await api.applications.hire(id);
-            } else {
-                await api.applications.shortlist(id);
-            }
+            await api.applications.invite(id, resendSubject.trim(), resendMessage.trim(), resendFiles);
             toast.success("Email resent successfully!");
             setShowResendDialog(false);
+            setResendFiles([]);
             setResendMessage("");
             const updated = await api.applications.get(id);
             setApp(updated);
@@ -148,15 +154,12 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
     if (!app) notFound();
 
-    const getInitials = (name: string) => name ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "??";
     const candidate = app.candidate;
     const profile = candidate?.candidate_profile;
     const job = app.job;
 
     return (
-        <>
         <div className="space-y-6 max-w-6xl mx-auto">
-
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                 <div className="flex items-center gap-4">
@@ -239,7 +242,6 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
                 {/* Left Col: Summary & Score */}
                 <div className="space-y-6 md:col-span-2">
                     <Card className="border-border shadow-sm overflow-hidden">
@@ -285,7 +287,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                         </CardContent>
                     </Card>
 
-                    {/* Screen Recording */}
+                    {/* Transcript & Recording */}
                     {app.interview_session?.recording_path && (
                         <Card className="border-border shadow-sm overflow-hidden">
                             <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b">
@@ -295,78 +297,35 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
-                                <div className="aspect-video bg-black flex items-center justify-center">
-                                    <video
-                                        src={resolveUrl(app.interview_session.recording_path)}
-                                        controls
-                                        className="w-full h-full"
-                                        poster="/video-poster.png"
-                                    >
-                                        Your browser does not support the video tag.
-                                    </video>
+                                <div className="aspect-video bg-black">
+                                    <video src={resolveUrl(app.interview_session.recording_path)} controls className="w-full h-full" />
                                 </div>
                             </CardContent>
                         </Card>
                     )}
 
-                    {/* Interview Conversation Transcript */}
                     {app.interview_session?.transcript && app.interview_session.transcript.length > 0 && (
                         <Card className="border-border shadow-sm overflow-hidden">
                             <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b">
                                 <CardTitle className="flex items-center gap-2">
                                     <BotIcon className="w-5 h-5 text-indigo-500" />
-                                    Interview Conversation
+                                    Transcript
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="p-0">
-                                <div className="max-h-[500px] overflow-y-auto p-6 space-y-6">
-                                    {app.interview_session.transcript.map((msg: any, i: number) => (
-                                        <div key={i} className={`flex gap-4 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
-                                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'ai' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                {msg.role === 'ai' ? <BotIcon className="w-4 h-4" /> : <UserIcon className="w-4 h-4" />}
-                                            </div>
-                                            <div className={`flex-1 p-4 rounded-2xl text-sm ${msg.role === 'ai' ? 'bg-slate-100 dark:bg-slate-800 rounded-tl-none' : 'bg-indigo-600 text-white rounded-tr-none'}`}>
-                                                <div className="font-bold mb-1 flex justify-between items-center">
-                                                    <span>{msg.role === 'ai' ? 'Evalyn (AI)' : 'Candidate'}</span>
-                                                    <span className="text-[10px] opacity-70 font-normal">
-                                                        {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                                    </span>
-                                                </div>
-                                                <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                                            </div>
+                            <CardContent className="max-h-[500px] overflow-y-auto p-6 space-y-6">
+                                {app.interview_session.transcript.map((msg: any, i: number) => (
+                                    <div key={i} className={`flex gap-4 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
+                                        <div className={`p-4 rounded-2xl text-sm ${msg.role === 'ai' ? 'bg-slate-100' : 'bg-indigo-600 text-white'}`}>
+                                            <p className="whitespace-pre-wrap">{msg.content}</p>
                                         </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Coding Submission */}
-                    {app.interview_session?.code_submission && (
-                        <Card className="border-border shadow-sm overflow-hidden">
-                            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b">
-                                <CardTitle className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                                        <Code2 className="w-5 h-5" />
-                                        Coding Challenge Solution
                                     </div>
-                                    {app.interview_session?.programming_language && (
-                                        <span className="text-xs font-mono px-2.5 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md border border-slate-300 dark:border-slate-700">
-                                            {app.interview_session.programming_language.charAt(0).toUpperCase() + app.interview_session.programming_language.slice(1)}
-                                        </span>
-                                    )}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <pre className="p-6 bg-slate-950 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed">
-                                    {app.interview_session.code_submission}
-                                </pre>
+                                ))}
                             </CardContent>
                         </Card>
                     )}
                 </div>
 
-                {/* Right Col: Details */}
+                {/* Right Col: Stats & Job */}
                 <div className="space-y-6">
                     <Card className="border-border shadow-sm">
                         <CardContent className="pt-6 text-center space-y-4">
@@ -374,56 +333,17 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                 <ScoreRing score={app.match_score || 0} size="lg" />
                             </div>
                             <div>
-                                <div className="text-2xl font-bold">{(app.interview_session?.overall_score || app.match_score) ? `${(app.interview_session?.overall_score || app.match_score)}/100` : "N/A"}</div>
-                                <div className="text-sm text-muted-foreground">Overall AI Match Score</div>
+                                <div className="text-2xl font-bold">{app.match_score ? `${app.match_score}/100` : "N/A"}</div>
+                                <div className="text-sm text-muted-foreground">Match Score</div>
                             </div>
-
-                            {app.interview_session?.overall_score && (
-                                <div className="grid grid-cols-2 gap-3 w-full pt-2">
-                                    <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-border">
-                                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Technical</div>
-                                        <div className="text-lg font-bold text-indigo-600">{app.interview_session.technical_score || 0}</div>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-border">
-                                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Communication</div>
-                                        <div className="text-lg font-bold text-emerald-600">{app.interview_session.communication_score || 0}</div>
-                                    </div>
-                                </div>
-                            )}
-
                             <Separator />
                             <div className="text-left space-y-3 pt-2">
                                 <div className="flex items-center gap-3 text-sm">
                                     <Mail className="w-4 h-4 text-muted-foreground" />
                                     {candidate?.email}
                                 </div>
-                                {profile?.linkedin_url && (
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                                        <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                                            LinkedIn Profile
-                                        </a>
-                                    </div>
-                                )}
-                                <div className="flex items-center gap-3 text-sm">
-                                    <StatusBadge status={app.status} className="w-fit" />
-                                </div>
+                                <StatusBadge status={app.status} className="w-fit" />
                             </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-border shadow-sm">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm">Job Details</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-sm">
-                            <div className="font-medium mb-1">{job?.title}</div>
-                            <div className="text-muted-foreground mb-2">{job?.company_name} • {job?.location}</div>
-                            <Link href={`/jobs/${job?.id}`}>
-                                <Button variant="link" size="sm" className="px-0 h-auto text-indigo-600">
-                                    View Job Description
-                                </Button>
-                            </Link>
                         </CardContent>
                     </Card>
 
@@ -436,188 +356,101 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Expected</span>
-                                    <span className="text-lg font-bold">
-                                        {Number(app.expected_salary).toLocaleString()}
-                                    </span>
-                                </div>
-                                {app.job?.salary_max && (
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Job Budget Max</span>
-                                        <span className="text-sm font-medium text-muted-foreground">
-                                            {Number(app.job.salary_max).toLocaleString()}
-                                        </span>
-                                    </div>
-                                )}
                                 <div>
-                                    {app.salary_filter_status === 'within_budget' && (
-                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                                            Within Budget
-                                        </span>
-                                    )}
-                                    {app.salary_filter_status === 'above_budget' && (
-                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-3 py-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
-                                            Above Budget
-                                        </span>
-                                    )}
-                                    {app.salary_filter_status === 'not_checked' && (
-                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">
-                                            No budget set on job
-                                        </span>
-                                    )}
+                                    <span className="text-[10px] uppercase font-black text-muted-foreground">Expected</span>
+                                    <div className="text-lg font-bold">{Number(app.expected_salary).toLocaleString()}</div>
                                 </div>
                                 {app.salary_filter_status === 'above_budget' && (
-                                    <p className="text-[11px] text-muted-foreground bg-rose-50 dark:bg-rose-950/20 border border-rose-100 rounded p-2">
-                                        Shortlist email was skipped due to salary. HR can still manually shortlist this candidate.
+                                    <p className="text-[11px] text-rose-600 bg-rose-50 p-2 rounded border border-rose-100">
+                                        Candidate is above job budget.
                                     </p>
                                 )}
                             </CardContent>
                         </Card>
                     )}
-
-                    {(app.email_delivery_status && app.email_delivery_status !== 'PENDING') && (
-                        <Card className="border-border shadow-sm">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm flex items-center justify-between">
-                                    Email Communication
-                                    <div className={`w-2 h-2 rounded-full ${
-                                        app.email_delivery_status === 'SENT' ? 'bg-emerald-500' :
-                                        app.email_delivery_status === 'SKIPPED' ? 'bg-amber-400' :
-                                        'bg-rose-500'
-                                    }`} />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Delivery Status</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`text-xs font-bold ${
-                                            app.email_delivery_status === 'SENT' ? 'text-emerald-600' :
-                                            app.email_delivery_status === 'SKIPPED' ? 'text-amber-600' :
-                                            'text-rose-600'
-                                        }`}>
-                                            {app.email_delivery_status}
-                                        </span>
-                                    </div>
-                                </div>
-                                {app.email_logs && (
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Logs / Details</span>
-                                        <p className="text-xs text-muted-foreground bg-slate-50 dark:bg-slate-900 p-2 rounded border border-slate-100 dark:border-slate-800 break-words italic">
-                                            {app.email_logs}
-                                        </p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
                 </div>
-
             </div>
+
+            {/* Dialogs */}
+            <Dialog open={!!emailDialogMode} onOpenChange={(open) => { if (!open) setEmailDialogMode(null); }}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>{emailDialogMode === 'onboarding' ? 'Onboarding Email' : 'Rejection Email'}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium">Subject</label>
+                            <input type="text" className="w-full p-2 border rounded-md" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium">Message</label>
+                            <textarea className="w-full p-2 border rounded-md min-h-[200px]" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Attachments</label>
+                            <div className="border-2 border-dashed p-4 rounded-md text-center cursor-pointer hover:bg-slate-50" onClick={() => emailFileRef.current?.click()}>
+                                <Paperclip className="h-4 w-4 mx-auto mb-2" />
+                                <span className="text-sm text-slate-500">Attach Files</span>
+                                <input ref={emailFileRef} type="file" multiple className="hidden" onChange={e => addFiles(setEmailFiles, e.target.files)} />
+                            </div>
+                            {emailFiles.length > 0 && (
+                                <ul className="text-xs space-y-1">
+                                    {emailFiles.map((f, i) => (
+                                        <li key={i} className="flex justify-between items-center bg-slate-100 p-2 rounded">
+                                            <span>{f.name}</span>
+                                            <button onClick={() => removeFile(setEmailFiles, i)}><XIcon className="h-3 w-3" /></button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEmailDialogMode(null)}>Cancel</Button>
+                        <Button onClick={handleSendEmailAction} disabled={isEmailSending}>{isEmailSending ? "Sending..." : "Send Email"}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Resend Email</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium">Subject</label>
+                            <input type="text" className="w-full p-2 border rounded-md" value={resendSubject} onChange={e => setResendSubject(e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium">Message</label>
+                            <textarea className="w-full p-2 border rounded-md min-h-[200px]" value={resendMessage} onChange={e => setResendMessage(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Attachments</label>
+                            <div className="border-2 border-dashed p-4 rounded-md text-center cursor-pointer hover:bg-slate-50" onClick={() => resendFileRef.current?.click()}>
+                                <Paperclip className="h-4 w-4 mx-auto mb-2" />
+                                <span className="text-sm text-slate-500">Attach Files</span>
+                                <input ref={resendFileRef} type="file" multiple className="hidden" onChange={e => addFiles(setResendFiles, e.target.files)} />
+                            </div>
+                            {resendFiles.length > 0 && (
+                                <ul className="text-xs space-y-1">
+                                    {resendFiles.map((f, i) => (
+                                        <li key={i} className="flex justify-between items-center bg-slate-100 p-2 rounded">
+                                            <span>{f.name}</span>
+                                            <button onClick={() => removeFile(setResendFiles, i)}><XIcon className="h-3 w-3" /></button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowResendDialog(false)}>Cancel</Button>
+                        <Button onClick={handleResendEmail} disabled={isResending}>{isResending ? "Sending..." : "Send Email"}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
-
-        {/* Onboarding / Reject Email Dialog */}
-        <Dialog open={!!emailDialogMode} onOpenChange={(open) => { if (!open) setEmailDialogMode(null); }}>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Mail className="h-5 w-5 text-indigo-600" />
-                        {emailDialogMode === 'onboarding' ? 'Send Onboarding Email' : 'Send Rejection Email'} to {candidate?.full_name || "Candidate"}
-                    </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-4 py-2">
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Subject</label>
-                        <input
-                            type="text"
-                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950"
-                            value={emailSubject}
-                            onChange={(e) => setEmailSubject(e.target.value)}
-                        />
-                    </div>
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Message</label>
-                        <textarea
-                            className="flex min-h-[280px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
-                            value={emailMessage}
-                            onChange={(e) => setEmailMessage(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">You can edit this message before sending.</p>
-                    </div>
-                </div>
-
-                <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => setEmailDialogMode(null)} disabled={isEmailSending}>
-                        Cancel
-                    </Button>
-                    <Button
-                        className={`${emailDialogMode === 'onboarding' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white gap-2`}
-                        onClick={handleSendEmailAction}
-                        disabled={isEmailSending || !emailSubject.trim() || !emailMessage.trim()}
-                    >
-                        {isEmailSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                        {isEmailSending ? "Sending..." : "Send Email"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Mail className="h-5 w-5 text-indigo-600" />
-                        Resend Email to {candidate?.full_name || "Candidate"}
-                    </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-4 py-2">
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Subject</label>
-                        <input
-                            type="text"
-                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950"
-                            value={resendSubject}
-                            onChange={(e) => setResendSubject(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Message</label>
-                        <textarea
-                            className="flex min-h-[280px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 resize-none"
-                            value={resendMessage}
-                            onChange={(e) => setResendMessage(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            The candidate's name will be added as a greeting automatically.
-                        </p>
-                    </div>
-                </div>
-
-                <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => setShowResendDialog(false)} disabled={isResending}>
-                        Cancel
-                    </Button>
-                    <Button
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                        onClick={handleResendEmail}
-                        disabled={isResending}
-                    >
-                        {isResending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Mail className="h-4 w-4" />
-                        )}
-                        {isResending ? "Sending..." : "Send Email"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-        </>
     );
 }

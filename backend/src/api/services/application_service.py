@@ -20,7 +20,7 @@ class ApplicationService:
         phone_number: str = None,
         source: str = "web",
         background_tasks = None,
-        expected_salary: float = None,
+        expected_salary=None,
         city: str = None,
         qualification: str = None,
     ) -> Application:
@@ -47,7 +47,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=float(expected_salary) if expected_salary is not None else None,
+            expected_salary=str(expected_salary) if expected_salary is not None else None,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )
@@ -142,13 +142,13 @@ class ApplicationService:
         job = application.job
 
         try:
-            sent = await EmailService.send_rejection_email(
+            msg_id = await EmailService.send_rejection_email(
                 candidate_email=candidate.email,
                 candidate_name=candidate.full_name or "Candidate",
                 job_title=job.title if job else "the position",
             )
-            application.email_delivery_status = "SENT" if sent else "FAILED"
-            application.email_logs = "Rejection email sent." if sent else "Rejection email failed to deliver."
+            application.email_delivery_status = "SENT" if msg_id else "FAILED"
+            application.email_logs = f"Rejection email sent. ID: {msg_id}" if msg_id else "Rejection email failed to deliver."
         except Exception as e:
             logger.error(f"[REJECT] Failed to send rejection email for application {application_id}: {e}")
             application.email_delivery_status = "FAILED"
@@ -309,9 +309,13 @@ class ApplicationService:
         if result["success"] and result.get("email_sent"):
             application.status = ApplicationStatus.INTERVIEW_INVITED
             application.email_delivery_status = "SENT"
-            application.email_logs = f"WhatsApp-invite email sent. Score: {application.match_score}"
+            application.interview_invitation_status = "SENT"
+            # The result from SchedulingService should ideally return the msg_id
+            application.last_interview_invite_id = result.get("message_id")
+            application.email_logs = f"WhatsApp-invite email sent. Score: {application.match_score} | ID: {application.last_interview_invite_id}"
         else:
             application.email_delivery_status = "FAILED"
+            application.interview_invitation_status = "FAILED" # Useful to see failure here
             application.email_logs = result.get("message", "Email failed or score below threshold.")
             
         self.db.add(application)

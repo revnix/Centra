@@ -212,8 +212,6 @@ export default function IntegrationsPage() {
                 xfbml            : true,
                 version          : 'v25.0'
             });
-
-            setIsFacebookSdkReady(true);
         };
 
         // Load the SDK asynchronously
@@ -221,11 +219,6 @@ export default function IntegrationsPage() {
             let js, fjs = d.getElementsByTagName(s)[0] as any;
             if (d.getElementById(id)) return;
             js = d.createElement(s) as any; js.id = id;
-            js.onload = () => setIsFacebookSdkReady(true);
-            js.onerror = () => {
-                console.error('Failed to load Facebook SDK');
-                setIsFacebookSdkReady(false);
-            };
             js.src = "https://connect.facebook.net/en_US/sdk.js";
             fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'facebook-jssdk'));
@@ -293,7 +286,7 @@ export default function IntegrationsPage() {
     };
 
     const connectWithFacebook = () => {
-        if (!isFacebookSdkReady || !window.FB) {
+        if (!window.FB) {
             alert("Facebook SDK is not loaded yet.");
             return;
         }
@@ -856,10 +849,10 @@ export default function IntegrationsPage() {
                             variant="outline"
                             className="w-full h-11 border-blue-600 text-blue-600 hover:bg-blue-50"
                             onClick={connectWithFacebook}
-                            disabled={isConnecting || !isFacebookSdkReady}
+                            disabled={isConnecting}
                         >
                             <Facebook className="mr-2 h-5 w-5" />
-                            {isFacebookSdkReady ? 'Continue with Facebook' : 'Loading Facebook SDK...'}
+                            Continue with Facebook
                         </Button>
                     </div>
                     <DialogFooter className="gap-2 sm:gap-0">
