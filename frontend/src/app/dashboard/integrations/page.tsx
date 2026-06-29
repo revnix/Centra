@@ -196,6 +196,7 @@ export default function IntegrationsPage() {
     });
     const [whatsappTestMessage, setWhatsappTestMessage] = useState({ to: '', message: '' });
     const [isConnecting, setIsConnecting] = useState(false);
+    const [isFacebookSdkReady, setIsFacebookSdkReady] = useState(false);
     const [isSendingTestMessage, setIsSendingTestMessage] = useState(false);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
     const [successPlatformName, setSuccessPlatformName] = useState('');
