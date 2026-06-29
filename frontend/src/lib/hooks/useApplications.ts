@@ -20,6 +20,7 @@ export function useApplications() { // ✨ NEW - OPTIMIZATION
         queryKey: applicationKeys.lists(),
         queryFn: () => applicationsApi.list(),
         staleTime: 5 * 60_000, // 5 min — invalidated explicitly on mutations
+        refetchInterval: 10_000, // ✨ Poll every 10 seconds to auto-update candidate statuses
     });
 }
 
