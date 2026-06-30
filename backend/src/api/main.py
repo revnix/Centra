@@ -81,6 +81,24 @@ async def lifespan(app: FastAPI):
 
     asyncio.ensure_future(_warmup_db())
 
+    async def _periodic_neon_ping():
+        """Ping Neon every 30 s so compute never auto-suspends (5-min idle threshold)."""
+        from src.api.db.session import _is_neon, engine as _engine, _update_last_ping
+        if not _is_neon:
+            return
+        while True:
+            await asyncio.sleep(30)
+            try:
+                async with _engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+                _update_last_ping()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass  # best-effort; get_async_db() retry logic is the fallback
+
+    asyncio.ensure_future(_periodic_neon_ping())
+
     # Start check_email_replies.py as a managed subprocess
     proc = None
     try:
