@@ -40,6 +40,8 @@ export interface SendEmailPayload {
     subject: string;
     body: string;
     thread_id?: string;
+    cc?: string;
+    bcc?: string;
 }
 
 export const gmailApi = {
@@ -57,6 +59,18 @@ export const gmailApi = {
     getThread: (threadId: string) =>
         apiClient.get<EmailThread>(`/gmail/thread/${threadId}`),
 
-    sendEmail: (payload: SendEmailPayload) =>
-        apiClient.post<{ message_id: string; thread_id: string }>('/gmail/send', payload),
+    sendEmail: (payload: SendEmailPayload & { attachments?: File[] }) => {
+        const form = new FormData();
+        form.append('to', payload.to);
+        form.append('subject', payload.subject);
+        form.append('body', payload.body);
+        if (payload.thread_id) form.append('thread_id', payload.thread_id);
+        if (payload.cc) form.append('cc', payload.cc);
+        if (payload.bcc) form.append('bcc', payload.bcc);
+        (payload.attachments ?? []).forEach(f => form.append('files', f));
+        return apiClient.post<{ message_id: string; thread_id: string }>('/gmail/send', form);
+    },
+
+    syncReplies: () =>
+        apiClient.post<{ updated: number; message: string }>('/gmail/sync-replies', {}),
 };

@@ -139,7 +139,7 @@ class EmailService:
         Informs candidate they are shortlisted and provides next steps.
         """
         subject = f"Good News! You've been shortlisted for {job_title}"
-        
+
         html = f"""
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; color: #2d3748; line-height: 1.6;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -148,7 +148,7 @@ class EmailService:
             <p>Dear <strong>{candidate_name}</strong>,</p>
             <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Evalyn AI.</p>
             <p>Our recruitment team was impressed with your application and we'd like to move forward to the next stage of our hiring process.</p>
-            
+
             <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #2b6cb0;">
                 <h3 style="margin-top: 0; color: #2d3748; font-size: 18px;">What's Next?</h3>
                 <p style="margin-bottom: 0;">One of our HR representatives will be in touch with you shortly via phone or email to schedule a technical interview and discuss the role in more detail.</p>
@@ -161,13 +161,13 @@ class EmailService:
             </div>
 
             <p>We look forward to speaking with you soon!</p>
-            
+
             <p style="margin-top: 30px;">Best regards,<br/>
             <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
             Evalyn AI</p>
-            
+
             <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
-            <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
+            <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please reply to this email if you are interested.</p>
         </div>
         """
         return await send_email(candidate_email, subject, html)

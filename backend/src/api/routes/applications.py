@@ -383,7 +383,7 @@ async def update_application_status(
         raise HTTPException(status_code=404, detail="Application not found")
 
     application.status = new_status
-    
+
     # Sync with interview tracking status
     if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:
         if application.interview_invitation_status not in ["ACCEPTED", "DECLINED"]:
@@ -394,3 +394,42 @@ async def update_application_status(
     await db.commit()
     await db.refresh(application)
     return application
+
+
+@router.post("/{application_id}/reset-email-status", response_model=ApplicationResponse)
+async def reset_email_status(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset email tracking so HR can resend any email for this application."""
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            noload(Application.interview_session),
+        )
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.email_delivery_status = "PENDING"
+    application.interview_invitation_status = "NOT_SENT"
+    application.last_interview_invite_id = None
+    application.interview_invite_sent_at = None
+    application.email_logs = None
+
+    # Reset status so email buttons become active again
+    if application.status == ApplicationStatus.HIRED:
+        application.status = ApplicationStatus.RESPONDED  # type: ignore[assignment]
+    elif application.status == ApplicationStatus.REJECTED:
+        application.status = ApplicationStatus.SHORTLISTED  # type: ignore[assignment]
+
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+    return application
+

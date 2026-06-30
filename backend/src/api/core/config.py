@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"   
     UPLOAD_DIR: str = "uploads"
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    PUBLIC_URL: str = os.getenv("PUBLIC_URL", os.getenv("FRONTEND_URL", "http://localhost:3000"))
 
     # Database
     DATABASE_URL: str = ""

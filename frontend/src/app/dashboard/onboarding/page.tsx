@@ -565,8 +565,9 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                     </AnimatePresence>
                 </div>
             )}
-            {/* Welcome Email with Attachment Dialog */}
-            <Dialog open={showWelcomeDialog} onOpenChange={(open) => { if (!open) { setShowWelcomeDialog(false); setWelcomeFiles([]); } }}>
+        </div>
+        {/* Welcome Email with Attachment Dialog */}
+        <Dialog open={showWelcomeDialog} onOpenChange={(open) => { if (!open) { setShowWelcomeDialog(false); setWelcomeFiles([]); } }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">

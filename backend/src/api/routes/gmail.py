@@ -15,7 +15,9 @@ from typing import Any, Optional
 # Safe for local dev where the redirect is http://127.0.0.1.
 os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import List
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -135,8 +137,11 @@ def _clean_text(text: str) -> str:
 def _html_to_text(raw_html: str) -> str:
     """Convert HTML email body to readable plain text."""
     text = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", "", raw_html, flags=re.DOTALL | re.IGNORECASE)
+    # Convert anchor links to just their visible text (removes URLs)
+    text = re.sub(r'<a[^>]*>(.*?)</a>', r'\1', text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"<p[^>]*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<li[^>]*>", "\n• ", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     text = html_lib.unescape(text)
     text = re.sub(r"[ \t]+", " ", text)
@@ -185,6 +190,8 @@ class SendEmailRequest(BaseModel):
     subject: str
     body: str
     thread_id: Optional[str] = None
+    cc: Optional[str] = None
+    bcc: Optional[str] = None
 
 
 # ---- Routes ----
@@ -392,30 +399,147 @@ async def gmail_thread(
     return await run_in_threadpool(lambda: _fetch_thread(creds, thread_id))
 
 
+@router.post("/sync-replies")
+async def sync_email_replies(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Search HR Gmail inbox for replies from candidates who were sent invites.
+    Automatically updates application status to RESPONDED if a reply is found.
+    """
+    import re as _re
+    from sqlalchemy.orm import joinedload as _jl
+    from src.api.models.application import Application, ApplicationStatus
+
+    creds, integration = await _get_credentials(current_user.id, db)
+    await _maybe_refresh(creds, integration, db)
+
+    # Fetch all applications waiting for a response
+    result = await db.execute(
+        select(Application)
+        .options(_jl(Application.candidate))
+        .where(Application.interview_invitation_status == "SENT")
+    )
+    pending = result.scalars().all()
+
+    if not pending:
+        return {"updated": 0, "message": "No pending invitations"}
+
+    # Build {lowercase_email: application} map
+    email_map: dict = {}
+    for app in pending:
+        if app.candidate and app.candidate.email:
+            email_map[app.candidate.email.lower()] = app
+
+    if not email_map:
+        return {"updated": 0, "message": "No candidate emails to check"}
+
+    # Search Gmail inbox for messages from any of these candidates (in chunks of 15)
+    candidate_emails = list(email_map.keys())
+    found_emails: set = set()
+
+    def _search_chunk(c, emails_chunk):
+        from googleapiclient.discovery import build as _build
+        svc = _build("gmail", "v1", credentials=c)
+        query = "in:inbox (" + " OR ".join(f"from:{e}" for e in emails_chunk) + ")"
+        res = svc.users().messages().list(userId="me", q=query, maxResults=50).execute()  # type: ignore[attr-defined]
+        messages = res.get("messages", [])
+        if not messages:
+            return set()
+
+        senders: set = set()
+
+        def _on_msg(_request_id, response, exception):
+            if exception or not response:
+                return
+            headers = {h["name"]: h["value"] for h in response.get("payload", {}).get("headers", [])}
+            from_header = headers.get("From", "")
+            m = _re.search(r"<([^>]+)>", from_header)
+            email = m.group(1).lower() if m else from_header.lower().strip()
+            senders.add(email)
+
+        batch = svc.new_batch_http_request(callback=_on_msg)  # type: ignore[attr-defined]
+        for j, msg in enumerate(messages):
+            batch.add(
+                svc.users().messages().get(  # type: ignore[attr-defined]
+                    userId="me", id=msg["id"], format="metadata", metadataHeaders=["From"]
+                ),
+                request_id=str(j),
+            )
+        batch.execute()
+        return senders
+
+    chunk_size = 15
+    for i in range(0, len(candidate_emails), chunk_size):
+        chunk = candidate_emails[i : i + chunk_size]
+        found_emails |= await run_in_threadpool(_search_chunk, creds, chunk)
+
+    # Update matched applications
+    updated = 0
+    for email in found_emails:
+        if email in email_map:
+            app = email_map[email]
+            app.interview_invitation_status = "RESPONDED"  # type: ignore[assignment]
+            app.status = ApplicationStatus.RESPONDED  # type: ignore[assignment]
+            db.add(app)
+            updated += 1
+
+    if updated:
+        await db.commit()
+
+    return {"updated": updated, "message": f"{updated} candidate(s) marked as RESPONDED"}
+
+
 @router.post("/send")
 async def gmail_send(
-    payload: SendEmailRequest,
+    to: str = Form(...),
+    subject: str = Form(...),
+    body: str = Form(...),
+    thread_id: Optional[str] = Form(default=None),
+    cc: Optional[str] = Form(default=None),
+    bcc: Optional[str] = Form(default=None),
+    files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     creds, integration = await _get_credentials(current_user.id, db)
     await _maybe_refresh(creds, integration, db)
 
-    msg = MIMEMultipart("alternative")
-    msg["To"] = payload.to
-    msg["Subject"] = payload.subject
-    msg.attach(MIMEText(payload.body, "plain"))
+    from email.mime.base import MIMEBase
+    from email import encoders as _encoders
+
+    # Use "mixed" to support attachments; body goes in a nested "alternative" part
+    msg = MIMEMultipart("mixed")
+    msg["To"] = to
+    msg["Subject"] = subject
+    if cc:
+        msg["Cc"] = cc
+    if bcc:
+        msg["Bcc"] = bcc
+
+    msg.attach(MIMEText(body, "plain"))
+
+    # Attach uploaded files
+    for f in files:
+        if f.filename:
+            content = await f.read()
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(content)
+            _encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{f.filename}"')
+            msg.attach(part)
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     send_body: dict = {"raw": raw}
-    if payload.thread_id:
-        send_body["threadId"] = payload.thread_id
+    if thread_id:
+        send_body["threadId"] = thread_id
 
-    def _send(c, body):
+    def _send(c, sb):
         from googleapiclient.discovery import build as _build
         svc = _build("gmail", "v1", credentials=c)
         return svc.users().messages().send(  # type: ignore[attr-defined]
-            userId="me", body=body
+            userId="me", body=sb
         ).execute()
 
     result = await run_in_threadpool(lambda: _send(creds, send_body))
