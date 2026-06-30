@@ -107,17 +107,20 @@ async def guest_apply(
             profile.experience_years = experience_years
         db.add(profile)
 
-    application = await app_service.create_application(
-        user.id,
-        job_id,
-        phone_number=phone_number,
-        cover_letter=cover_letter,
-        source="guest_web",
-        background_tasks=background_tasks,
-        expected_salary=expected_salary,
-        city=city,
-        qualification=qualification,
-    )
+    try:
+        application = await app_service.create_application(
+            user.id,
+            job_id,
+            phone_number=phone_number,
+            cover_letter=cover_letter,
+            source="guest_web",
+            background_tasks=background_tasks,
+            expected_salary=expected_salary,
+            city=city,
+            qualification=qualification,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     background_tasks.add_task(run_screening, application.id)
 
