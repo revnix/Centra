@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import { useApplications, applicationKeys } from "@/lib/hooks/useApplications";
 import { useQueryClient } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -93,6 +94,13 @@ export default function ApplicationsPage() {
             setSelectedIds(new Set((applications as any[]).map((app) => app.id)));
         }
     }, [applications]);
+
+    // Sync Gmail replies on page mount — marks candidates as RESPONDED if they replied to invite email.
+    useEffect(() => {
+        gmailApi.syncReplies()
+            .then(res => { if (res.updated > 0) queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); })
+            .catch(() => {}); // silently ignore if Gmail not connected
+    }, [queryClient]);
 
     // ── Open invite modal
     const openInviteModal = (app: Application) => {

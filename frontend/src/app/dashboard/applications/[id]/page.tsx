@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
+import { onboardingApi } from "@/lib/api/onboarding";
 import { resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -35,10 +36,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [app, setApp] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [showResendDialog, setShowResendDialog] = useState(false);
-    const [resendSubject, setResendSubject] = useState("");
-    const [resendMessage, setResendMessage] = useState("");
-    const [isResending, setIsResending] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
 
     // Editable email dialog for Onboarding & Reject
     const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | null>(null);
@@ -47,10 +45,6 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [isEmailSending, setIsEmailSending] = useState(false);
     const [emailFiles, setEmailFiles] = useState<File[]>([]);
     const emailFileRef = useRef<HTMLInputElement>(null);
-
-    // Resend dialog attachments
-    const [resendFiles, setResendFiles] = useState<File[]>([]);
-    const resendFileRef = useRef<HTMLInputElement>(null);
 
     const addFiles = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, incoming: FileList | null) => {
         if (!incoming) return;
@@ -85,7 +79,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         const jobTitle = app?.job?.title || "the position";
         if (mode === 'onboarding') {
             setEmailSubject(`Congratulations! You've Been Selected – ${jobTitle}`);
-            setEmailMessage(`Dear ${candidateName},\n\nWe are thrilled to inform you that after reviewing your application and interview performance, we have decided to extend an offer for the ${jobTitle} position.\n\nPlease reply to this email to confirm your acceptance. Our HR team will reach out with the full offer details and onboarding instructions.\n\nWelcome to the team!\n\nBest regards,\nHR Team`);
+            setEmailMessage(`Dear ${candidateName},\n\nWe are thrilled to inform you that after carefully reviewing your application and interview performance, we have decided to extend an offer for the ${jobTitle} position.\n\nPlease click the button below to complete your onboarding and upload the required documents.\n\nWelcome to the team!\n\nBest regards,\nHR Team`);
         } else {
             setEmailSubject(`Update on Your Application – ${jobTitle}`);
             setEmailMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position and participating in our selection process.\n\nAfter careful consideration, we regret to inform you that we will not be moving forward with your application at this time.\n\nWe appreciate your interest and wish you the very best in your future endeavors.\n\nBest regards,\nHR Team`);
@@ -98,10 +92,21 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         if (!emailDialogMode) return;
         setIsEmailSending(true);
         try {
-            await api.applications.invite(id, emailSubject.trim(), emailMessage.trim(), emailFiles);
-            const newStatus = emailDialogMode === 'onboarding' ? 'HIRED' : 'REJECTED';
-            await api.applications.updateStatus(id, newStatus);
-            toast.success(emailDialogMode === 'onboarding' ? "Onboarding email sent!" : "Rejection email sent!");
+            if (emailDialogMode === 'onboarding') {
+                // Send onboarding welcome email with HR's custom text + portal link appended automatically
+                await onboardingApi.sendWelcomeEmail(
+                    Number(id),
+                    emailFiles.length > 0 ? emailFiles : undefined,
+                    emailSubject.trim(),
+                    emailMessage.trim(),
+                );
+                await api.applications.updateStatus(id, 'HIRED');
+                toast.success("Onboarding email sent! Candidate can now complete their onboarding.");
+            } else {
+                await api.applications.invite(id, emailSubject.trim(), emailMessage.trim(), emailFiles);
+                await api.applications.updateStatus(id, 'REJECTED');
+                toast.success("Rejection email sent!");
+            }
             setEmailDialogMode(null);
             setEmailFiles([]);
             const updated = await api.applications.get(id);
@@ -113,38 +118,17 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         }
     };
 
-    const openResendDialog = () => {
-        const candidateName = app?.candidate?.full_name || "Candidate";
-        const jobTitle = app?.job?.title || "the position";
-        const status = app?.status;
-
-        if (status === "REJECTED") {
-            setResendSubject(`Application Status Update – ${jobTitle}`);
-            setResendMessage(`Dear ${candidateName},\n\nThank you for applying for the ${jobTitle} position. After careful consideration, we regret to inform you that we will not be moving forward with your application at this time.\n\nWe appreciate your interest and wish you the best in your job search.\n\nBest regards,\nHR Team`);
-        } else if (status === "HIRED") {
-            setResendSubject(`Congratulations! Job Offer – ${jobTitle}`);
-            setResendMessage(`Dear ${candidateName},\n\nCongratulations! We are pleased to offer you the ${jobTitle} position. Please reply to confirm your acceptance.\n\nBest regards,\nHR Team`);
-        } else {
-            setResendSubject(`Interview Invitation – ${jobTitle}`);
-            setResendMessage(`Dear ${candidateName},\n\nWe are pleased to inform you that after reviewing your application for the ${jobTitle} position, we would like to invite you for an interview.\n\nPlease reply to this email or contact us to schedule a convenient time.\n\nWe look forward to speaking with you.\n\nBest regards,\nHR Team`);
-        }
-        setShowResendDialog(true);
-    };
-
-    const handleResendEmail = async () => {
-        setIsResending(true);
+    const handleReset = async () => {
+        if (!confirm("Reset email status? This will allow sending emails again for this application.")) return;
+        setIsResetting(true);
         try {
-            await api.applications.invite(id, resendSubject.trim(), resendMessage.trim(), resendFiles);
-            toast.success("Email resent successfully!");
-            setShowResendDialog(false);
-            setResendFiles([]);
-            setResendMessage("");
-            const updated = await api.applications.get(id);
+            const updated = await api.applications.resetEmailStatus(id);
             setApp(updated);
+            toast.success("Email status reset. You can now send emails again.");
         } catch (error: any) {
-            toast.error(`Failed to resend email: ${error.message || "Please try again"}`);
+            toast.error(`Reset failed: ${error.message || "Please try again"}`);
         } finally {
-            setIsResending(false);
+            setIsResetting(false);
         }
     };
 
@@ -217,13 +201,12 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                     <Button
                         variant="outline"
-                        className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                        onClick={openResendDialog}
-                        disabled={isActionLoading}
+                        className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+                        onClick={handleReset}
+                        disabled={isResetting || isActionLoading}
                     >
                         <RotateCcw className="w-4 h-4" />
-                        <Mail className="w-4 h-4" />
-                        Resend Email
+                        {isResetting ? "Resetting..." : "Reset"}
                     </Button>
 
                     <Button
@@ -379,82 +362,81 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
             <Dialog open={!!emailDialogMode} onOpenChange={(open) => { if (!open) setEmailDialogMode(null); }}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>{emailDialogMode === 'onboarding' ? 'Onboarding Email' : 'Rejection Email'}</DialogTitle>
+                        <DialogTitle>{emailDialogMode === 'onboarding' ? 'Send Onboarding Welcome Email' : 'Rejection Email'}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Subject</label>
-                            <input type="text" className="w-full p-2 border rounded-md" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Message</label>
-                            <textarea className="w-full p-2 border rounded-md min-h-[200px]" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Attachments</label>
-                            <div className="border-2 border-dashed p-4 rounded-md text-center cursor-pointer hover:bg-slate-50" onClick={() => emailFileRef.current?.click()}>
-                                <Paperclip className="h-4 w-4 mx-auto mb-2" />
-                                <span className="text-sm text-slate-500">Attach Files</span>
-                                <input ref={emailFileRef} type="file" multiple className="hidden" onChange={e => addFiles(setEmailFiles, e.target.files)} />
-                            </div>
-                            {emailFiles.length > 0 && (
-                                <ul className="text-xs space-y-1">
-                                    {emailFiles.map((f, i) => (
-                                        <li key={i} className="flex justify-between items-center bg-slate-100 p-2 rounded">
-                                            <span>{f.name}</span>
-                                            <button onClick={() => removeFile(setEmailFiles, i)}><XIcon className="h-3 w-3" /></button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
+                        {emailDialogMode === 'onboarding' ? (
+                            <>
+                                <p className="text-sm text-slate-500 bg-blue-50 border border-blue-100 rounded-md p-2">
+                                    The <strong>onboarding portal link</strong> will be automatically added at the bottom of your message.
+                                </p>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Subject</label>
+                                    <input type="text" className="w-full p-2 border rounded-md" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Message</label>
+                                    <textarea className="w-full p-2 border rounded-md min-h-[180px]" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Attachments <span className="text-slate-400 font-normal">(optional — e.g. offer letter)</span></label>
+                                    <div className="border-2 border-dashed p-4 rounded-md text-center cursor-pointer hover:bg-slate-50" onClick={() => emailFileRef.current?.click()}>
+                                        <Paperclip className="h-4 w-4 mx-auto mb-2" />
+                                        <span className="text-sm text-slate-500">Attach Files</span>
+                                        <input ref={emailFileRef} type="file" multiple className="hidden" onChange={e => addFiles(setEmailFiles, e.target.files)} />
+                                    </div>
+                                    {emailFiles.length > 0 && (
+                                        <ul className="text-xs space-y-1">
+                                            {emailFiles.map((f, i) => (
+                                                <li key={i} className="flex justify-between items-center bg-slate-100 p-2 rounded">
+                                                    <span>{f.name}</span>
+                                                    <button onClick={() => removeFile(setEmailFiles, i)}><XIcon className="h-3 w-3" /></button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Subject</label>
+                                    <input type="text" className="w-full p-2 border rounded-md" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Message</label>
+                                    <textarea className="w-full p-2 border rounded-md min-h-[200px]" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Attachments</label>
+                                    <div className="border-2 border-dashed p-4 rounded-md text-center cursor-pointer hover:bg-slate-50" onClick={() => emailFileRef.current?.click()}>
+                                        <Paperclip className="h-4 w-4 mx-auto mb-2" />
+                                        <span className="text-sm text-slate-500">Attach Files</span>
+                                        <input ref={emailFileRef} type="file" multiple className="hidden" onChange={e => addFiles(setEmailFiles, e.target.files)} />
+                                    </div>
+                                    {emailFiles.length > 0 && (
+                                        <ul className="text-xs space-y-1">
+                                            {emailFiles.map((f, i) => (
+                                                <li key={i} className="flex justify-between items-center bg-slate-100 p-2 rounded">
+                                                    <span>{f.name}</span>
+                                                    <button onClick={() => removeFile(setEmailFiles, i)}><XIcon className="h-3 w-3" /></button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setEmailDialogMode(null)}>Cancel</Button>
-                        <Button onClick={handleSendEmailAction} disabled={isEmailSending}>{isEmailSending ? "Sending..." : "Send Email"}</Button>
+                        <Button onClick={handleSendEmailAction} disabled={isEmailSending}>
+                            {isEmailSending ? "Sending..." : emailDialogMode === 'onboarding' ? "Send Onboarding Email" : "Send Email"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>Resend Email</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Subject</label>
-                            <input type="text" className="w-full p-2 border rounded-md" value={resendSubject} onChange={e => setResendSubject(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Message</label>
-                            <textarea className="w-full p-2 border rounded-md min-h-[200px]" value={resendMessage} onChange={e => setResendMessage(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Attachments</label>
-                            <div className="border-2 border-dashed p-4 rounded-md text-center cursor-pointer hover:bg-slate-50" onClick={() => resendFileRef.current?.click()}>
-                                <Paperclip className="h-4 w-4 mx-auto mb-2" />
-                                <span className="text-sm text-slate-500">Attach Files</span>
-                                <input ref={resendFileRef} type="file" multiple className="hidden" onChange={e => addFiles(setResendFiles, e.target.files)} />
-                            </div>
-                            {resendFiles.length > 0 && (
-                                <ul className="text-xs space-y-1">
-                                    {resendFiles.map((f, i) => (
-                                        <li key={i} className="flex justify-between items-center bg-slate-100 p-2 rounded">
-                                            <span>{f.name}</span>
-                                            <button onClick={() => removeFile(setResendFiles, i)}><XIcon className="h-3 w-3" /></button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowResendDialog(false)}>Cancel</Button>
-                        <Button onClick={handleResendEmail} disabled={isResending}>{isResending ? "Sending..." : "Send Email"}</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

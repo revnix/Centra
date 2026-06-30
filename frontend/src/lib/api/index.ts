@@ -44,5 +44,6 @@ export const api = {
         analyze: (id: string) => applicationsApi.analyze(id),
         invite: (id: string, data: string | FormData, message?: string, files?: File[]) => applicationsApi.invite(id, data, message, files),
         updateStatus: (id: string, status: string) => applicationsApi.updateStatus(id, status),
+        resetEmailStatus: (id: string) => applicationsApi.resetEmailStatus(id),
     },
 };
