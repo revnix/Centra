@@ -351,7 +351,13 @@ class EmailService:
         Internal notification to HR for new application.
         """
         subject = f"New Application: {candidate_name} for {job_title}"
-        resume_html = f"<a href='{settings.FRONTEND_URL}{resume_link}'>View Resume</a>" if resume_link else "No resume attached"
+        if resume_link:
+            if resume_link.startswith("http"):
+                resume_html = f"<a href='{resume_link}'>View Resume</a>"
+            else:
+                resume_html = f"<a href='{settings.FRONTEND_URL}{resume_link}'>View Resume</a>"
+        else:
+            resume_html = "No resume attached"
         
         html = f"""
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee;">

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 from typing import Optional
 from datetime import datetime
 from src.api.models.onboarding import OnboardingStatus, ShiftTiming
@@ -14,6 +14,31 @@ class CandidateOnboardingUpdate(BaseModel):
     emergency_contact: Optional[str] = None
     bank_name: Optional[str] = None
     bank_iban: Optional[str] = None
+
+    @field_validator('cnic_number')
+    @classmethod
+    def validate_cnic(cls, v):
+        if v is None or v == '':
+            return v
+        # Check if it has exactly 2 hyphens
+        if v.count('-') != 2:
+            raise ValueError('CNIC must have exactly 2 hyphens (format: XXXXX-XXXXXXX-X)')
+        # Check max length (13 characters including hyphens)
+        if len(v) > 13:
+            raise ValueError('CNIC must not exceed 13 characters')
+        return v
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone_number(cls, v):
+        if v is None or v == '':
+            return v
+        # Remove non-digit characters
+        digits_only = ''.join(c for c in v if c.isdigit())
+        # Check max 11 digits
+        if len(digits_only) > 11:
+            raise ValueError('Phone number must not exceed 11 digits')
+        return v
 
 class HRJoiningDetailsUpdate(BaseModel):
     reporting_time: Optional[str] = None

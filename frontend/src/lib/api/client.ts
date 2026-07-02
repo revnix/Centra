@@ -16,12 +16,7 @@ const API_URL = (!_envUrl || _envUrl.includes('localhost') || _envUrl.includes('
  * The backend base URL (FastAPI) — used to resolve relative /uploads/... URLs.
  * NEXT_PUBLIC_API_BASE_URL already includes /api/v1, so strip that suffix.
  */
-export const BACKEND_BASE_URL = (() => {
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-        return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/api\/v[0-9]+$/, '');
-    }
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run';
-})();
+export const BACKEND_BASE_URL = '';
 
 /**
  * Resolves a relative URL (like /uploads/...) to a full backend URL.

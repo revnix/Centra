@@ -328,6 +328,14 @@ class OnboardingService:
 
         from src.api.services.file_service import FileService
         
+        # Fetch candidate name for file naming
+        candidate_name = None
+        if onboarding.user_id:
+            user_result = await self.db.execute(select(User).where(User.id == onboarding.user_id))
+            candidate = user_result.scalars().first()
+            if candidate and candidate.full_name:
+                candidate_name = candidate.full_name
+        
         # Mapping of upload arguments to document types and model fields
         uploads = [
             (cnic, "cnic", "doc_id_card_url"),
@@ -344,14 +352,16 @@ class OnboardingService:
         for file_obj, doc_type, field_name in uploads:
             if file_obj:
                 try:
-                    url = await FileService.save_onboarding_document(file_obj, application_id, doc_type)
+                    url = await FileService.save_onboarding_document(file_obj, application_id, doc_type, candidate_name)
                     setattr(onboarding, field_name, url)
                     
                     # Save metadata to onboarding_documents table
                     file_ext = file_obj.filename.split('.')[-1].lower() if file_obj.filename else "file"
+                    # Extract the renamed filename from the URL for display
+                    renamed_filename = url.split('/')[-1] if url else file_obj.filename
                     doc_meta = OnboardingDocument(
                         application_id=application_id,
-                        file_name=file_obj.filename,
+                        file_name=renamed_filename,
                         file_url=url,
                         file_type=file_ext
                     )
