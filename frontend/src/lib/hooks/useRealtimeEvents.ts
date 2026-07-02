@@ -6,7 +6,7 @@ import { interviewKeys } from './useInterviews';
 import { codingKeys } from './useCoding';
 import { jobKeys } from './useJobs';
 
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1';
+const API_URL = '/api/v1';
 const SSE_ENDPOINT = `${API_URL}/events/stream`;
 
 /**

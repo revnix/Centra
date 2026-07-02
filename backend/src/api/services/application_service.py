@@ -40,6 +40,14 @@ class ApplicationService:
         if job.effective_status != JobStatus.PUBLISHED:
             raise ValueError("Applications for this position are closed.")
 
+        # Convert expected_salary to float if provided
+        salary_value = None
+        if expected_salary is not None:
+            try:
+                salary_value = float(expected_salary)
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert expected_salary '{expected_salary}' to float, storing as None")
+        
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
@@ -47,7 +55,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=str(expected_salary) if expected_salary is not None else None,
+            expected_salary=salary_value,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )
