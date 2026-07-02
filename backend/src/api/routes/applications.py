@@ -62,15 +62,21 @@ async def guest_apply(
 
     resume_url = None
     if resume_file:
-        from src.api.utils.cloudinary_upload import upload_file
-        content = await resume_file.read()
-        safe_email = email.replace('@', '_at_').replace('+', '_')
-        resume_url = await upload_file(
-            content,
-            resume_file.filename,
-            folder=f"evalyn/resumes/{safe_email}",
-        )
-
+        try:
+            from src.api.utils.cloudinary_upload import upload_file
+            content = await resume_file.read()
+            safe_email = email.replace('@', '_at_').replace('+', '_')
+            resume_url = await upload_file(
+                content,
+                resume_file.filename,
+                folder=f"evalyn/resumes/{safe_email}"
+            )
+        except Exception as e:
+            import logging
+            logging.warning(f"Failed to upload resume to Cloudinary: {e}. Proceeding without resume URL.")
+            resume_url = None
+    
+    # Parse skills from JSON string
     try:
         skills_list = json.loads(skills)
     except (json.JSONDecodeError, ValueError):
