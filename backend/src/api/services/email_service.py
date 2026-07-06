@@ -259,6 +259,43 @@ class EmailService:
         return await send_email(email, subject, html)
 
     @staticmethod
+    async def send_screening_test_email(
+        candidate_email: str,
+        candidate_name: str,
+        job_title: str,
+        test_url: str,
+        expires_hours: int = 72,
+    ) -> str | None:
+        """Send candidate an MCQ screening test link with expiry notice."""
+        subject = f"Screening Test Invitation – {job_title}"
+        html = f"""
+        <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:auto;padding:30px;border:1px solid #e2e8f0;border-radius:12px;color:#2d3748;line-height:1.6;">
+            <div style="text-align:center;margin-bottom:24px;">
+                <h1 style="color:#4f46e5;font-size:24px;margin:0;">Screening Test Invitation</h1>
+            </div>
+            <p>Dear <strong>{candidate_name}</strong>,</p>
+            <p>Congratulations on making it to the next stage of our hiring process for the <strong>{job_title}</strong> position!</p>
+            <p>We'd like you to complete a short online screening test to better understand your skills. The test consists of <strong>30 multiple-choice questions</strong> and has a time limit.</p>
+            <div style="background:#f0f4ff;border-left:4px solid #4f46e5;padding:16px;border-radius:8px;margin:24px 0;">
+                <p style="margin:0;font-weight:600;color:#4f46e5;">&#9432;&nbsp; Important</p>
+                <ul style="margin:8px 0 0 0;padding-left:20px;color:#4a5568;">
+                    <li>This link expires in <strong>{expires_hours} hours</strong></li>
+                    <li>No login or sign-up required</li>
+                    <li>Screen recording will be requested for integrity</li>
+                    <li>Complete in one sitting — the timer starts when you open the test</li>
+                </ul>
+            </div>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="{test_url}" style="background:#4f46e5;color:#fff;padding:14px 32px;text-decoration:none;border-radius:8px;font-weight:700;font-size:16px;display:inline-block;">Start Screening Test &rarr;</a>
+            </div>
+            <p style="color:#718096;font-size:13px;">If the button doesn't work, copy and paste this link into your browser:<br/><a href="{test_url}" style="color:#4f46e5;">{test_url}</a></p>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
+            <p style="color:#a0aec0;font-size:12px;text-align:center;">This email was sent by Evalyn HR System. Please do not reply to this email.</p>
+        </div>
+        """
+        return await send_email(candidate_email, subject, html)
+
+    @staticmethod
     async def send_job_to_manager(job_title: str, job_details: str, review_url: str | None = None) -> str | None:
         """
         Internal notification to manager for job review.

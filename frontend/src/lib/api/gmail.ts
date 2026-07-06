@@ -10,6 +10,7 @@ export interface EmailSummary {
     thread_id: string;
     subject: string;
     from_: string;
+    to_?: string;
     snippet: string;
     date: string;
     unread: boolean;
@@ -22,6 +23,7 @@ export interface EmailMessage {
     from_: string;
     to: string;
     body: string;
+    body_html?: string;
     date: string;
 }
 
@@ -56,6 +58,11 @@ export const gmailApi = {
             pageToken ? `/gmail/inbox?page_token=${encodeURIComponent(pageToken)}` : '/gmail/inbox'
         ),
 
+    getSent: (pageToken?: string) =>
+        apiClient.get<InboxPage>(
+            pageToken ? `/gmail/sent?page_token=${encodeURIComponent(pageToken)}` : '/gmail/sent'
+        ),
+
     getThread: (threadId: string) =>
         apiClient.get<EmailThread>(`/gmail/thread/${threadId}`),
 
@@ -71,6 +78,31 @@ export const gmailApi = {
         return apiClient.post<{ message_id: string; thread_id: string }>('/gmail/send', form);
     },
 
+    markRead: (messageIds: string[]) =>
+        apiClient.post<{ marked: number }>('/gmail/mark-read', { message_ids: messageIds }),
+
+    markAllRead: () =>
+        apiClient.post<{ marked: number }>('/gmail/mark-all-read', {}),
+
+    trashMessages: (messageIds: string[]) =>
+        apiClient.post<{ trashed: number }>('/gmail/trash', { message_ids: messageIds }),
+
     syncReplies: () =>
         apiClient.post<{ updated: number; message: string }>('/gmail/sync-replies', {}),
+
+    syncApplications: (days = 30) =>
+        apiClient.post<{
+            created: number;
+            skipped: number;
+            total_emails: number;
+            message: string;
+            details: Array<{
+                email: string;
+                name?: string;
+                status: 'created' | 'skipped';
+                job?: string;
+                application_id?: number;
+                reason?: string;
+            }>;
+        }>(`/gmail/sync-applications?days=${days}`, {}),
 };

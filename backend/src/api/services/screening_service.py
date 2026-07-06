@@ -1,17 +1,21 @@
+import secrets
+from datetime import datetime, timezone, timedelta
+from typing import Any
+import json
+import logging
+
+from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
+
 from src.api.models.application import Application, ApplicationStatus
 from src.api.models.interview import InterviewStatus
+from src.api.models.screening import ScreeningTest
 from src.api.services.interview_service import InterviewService
 from src.api.services.email_service import EmailService
 from src.flow.model.llm_manager import get_llm
 from src.flow.interview.prompts import SCREENING_PROMPT
-from langchain_core.messages import HumanMessage
-from datetime import datetime, timezone, timedelta
-import json
-import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -118,3 +122,87 @@ class ScreeningService:
         except Exception as e:
             logger.error(f"Error during screening for application {application_id}: {str(e)}")
             await self.db.rollback()
+
+    # ── MCQ Screening Test ──────────────────────────────────────────────────────
+
+    async def generate_questions(self, skills: list, experience_level: str) -> list:
+        """Call Groq to produce 30 MCQ questions and return as a list of dicts."""
+        skill_str = ", ".join(skills) if skills else "general programming and software development"
+        prompt = (
+            f"Generate exactly 30 multiple choice questions for a {experience_level} level "
+            f"candidate with skills: {skill_str}.\n\n"
+            "Mix: 10 basic, 12 intermediate, 8 advanced questions.\n"
+            "Return ONLY a valid JSON array — no markdown, no extra text.\n"
+            'Each element: {"id": <int>, "question": "<str>", '
+            '"options": ["A. <str>", "B. <str>", "C. <str>", "D. <str>"], '
+            '"correct_index": <int 0-3>, "difficulty": "basic"|"intermediate"|"advanced"}'
+        )
+        llm = get_llm()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw: str = str(response.content).strip()
+
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+
+        questions: list = json.loads(raw)
+        return questions[:30]
+
+    def calculate_score(self, questions: list, answers: list) -> float:
+        """Return percentage of correct answers (0–100)."""
+        if not questions:
+            return 0.0
+        correct = sum(
+            1 for i, q in enumerate(questions)
+            if i < len(answers) and answers[i] is not None and answers[i] == q.get("correct_index")
+        )
+        return round((correct / len(questions)) * 100, 1)
+
+    async def create_screening_test(self, application_id: int) -> ScreeningTest:
+        """Generate questions via Groq and persist a new ScreeningTest row."""
+        # Return existing test if already created
+        existing = await self.db.execute(
+            select(ScreeningTest).where(ScreeningTest.application_id == application_id)
+        )
+        if (test := existing.scalars().first()):
+            return test
+
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                joinedload(Application.candidate).joinedload(
+                    __import__("src.api.models.user", fromlist=["User"]).User.candidate_profile
+                ),
+                joinedload(Application.job),
+            )
+            .where(Application.id == application_id)
+        )
+        application = result.scalars().first()
+        if not application:
+            raise ValueError(f"Application {application_id} not found")
+
+        from src.api.models.user import User as _User
+        profile = getattr(application.candidate, "candidate_profile", None)
+        skills: list = (profile.skills if profile and profile.skills else []) or (
+            application.job.required_skills if application.job else []
+        ) or []
+        experience_level = str(getattr(application.job, "experience_level", "mid") or "mid")
+
+        questions = await self.generate_questions(skills, experience_level)
+
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
+        test = ScreeningTest(
+            application_id=application_id,
+            token=token,
+            questions=questions,
+            total_questions=len(questions),
+            time_limit_minutes=2,
+            status="PENDING",
+            expires_at=expires_at,
+        )
+        self.db.add(test)
+        await self.db.commit()
+        await self.db.refresh(test)
+        return test

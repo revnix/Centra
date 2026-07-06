@@ -112,6 +112,7 @@ async def guest_apply(
         if experience_years > 0:
             profile.experience_years = experience_years
         db.add(profile)
+        await db.commit()
 
     try:
         application = await app_service.create_application(
@@ -127,6 +128,10 @@ async def guest_apply(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("guest_apply: unexpected error after saving application: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     background_tasks.add_task(run_screening, application.id)
 

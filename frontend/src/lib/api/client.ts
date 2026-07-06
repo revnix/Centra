@@ -125,8 +125,13 @@ class ApiClient {
             const data = error.response.data as any;
             const status = error.response.status;
 
-            // Log the raw error safely for developer visibility
-            console.error(`[API Error] ${method} ${url} (${status}):`, data);
+            // 503 = DB cold-start / expected transient; other 5xx = real crash → error overlay
+            // 4xx = expected client condition → warn only
+            if (status >= 500 && status !== 503) {
+                console.error(`[API Error] ${method} ${url} (${status}):`, data);
+            } else {
+                console.warn(`[API Warn] ${method} ${url} (${status}):`, data);
+            }
 
             // Handle FastAPI 'detail' field
             let message = 'An error occurred';

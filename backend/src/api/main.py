@@ -26,6 +26,7 @@ from src.api.routes import (
     jobs,
     langgraph,
     onboarding,
+    screening,
     uploads,
 )
 from src.api.routes.admin import (
@@ -72,9 +73,11 @@ async def lifespan(app: FastAPI):
     await _migrate_enum_values()
 
     async def _warmup_db():
+        from src.api.db.session import _update_last_ping
         try:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
+            _update_last_ping()  # mark Neon warm so the first real request skips per-request warmup
             logger.info("DB warmup successful")
         except Exception as e:
             logger.warning("DB warmup failed (will retry on first request): %s", e)
@@ -82,12 +85,12 @@ async def lifespan(app: FastAPI):
     asyncio.ensure_future(_warmup_db())
 
     async def _periodic_neon_ping():
-        """Ping Neon every 30 s so compute never auto-suspends (5-min idle threshold)."""
+        """Ping Neon every 25 s so compute never auto-suspends (5-min idle threshold)."""
         from src.api.db.session import _is_neon, engine as _engine, _update_last_ping
         if not _is_neon:
             return
         while True:
-            await asyncio.sleep(30)
+            await asyncio.sleep(25)
             try:
                 async with _engine.connect() as conn:
                     await conn.execute(text("SELECT 1"))
@@ -199,6 +202,7 @@ app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applic
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboarding", tags=["onboarding"])
 app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
+app.include_router(screening.router, prefix=f"{settings.API_V1_PREFIX}/screening", tags=["screening"])
 app.include_router(langgraph.router, tags=["langgraph"])
 
 
