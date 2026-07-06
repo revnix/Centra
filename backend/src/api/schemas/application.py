@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from typing import Optional, Any, List, Union
 from datetime import datetime
 from src.api.models.application import ApplicationStatus
@@ -58,6 +58,14 @@ from src.api.schemas.user import UserResponse
 from src.api.schemas.job import JobResponse
 from src.api.schemas.interview import InterviewSessionResponse
 
+class ScreeningTestSummaryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    status: str
+    score: Optional[float] = None
+    completed_at: Optional[datetime] = None
+
 class ApplicationResponse(ApplicationBase):
     id: int
     candidate_id: int
@@ -78,6 +86,7 @@ class ApplicationResponse(ApplicationBase):
     candidate: Optional[UserResponse] = None
     job: Optional[JobResponse] = None
     interview_session: Optional[InterviewSessionResponse] = None
+    screening_test: Optional[ScreeningTestSummaryResponse] = None
 
     @field_validator('email_logs', mode='before')
     @classmethod
@@ -86,6 +95,4 @@ class ApplicationResponse(ApplicationBase):
             return [v]
         return v
 
-    class Config:
-        from_attributes = True
-        use_enum_values = True
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)

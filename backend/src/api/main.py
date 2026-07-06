@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 async def _migrate_enum_values():
     """Add new ApplicationStatus values to the PostgreSQL enum type if they don't exist."""
     new_values = [
+        "SCREENING_TEST",
         "INTERVIEW_SCHEDULED",
         "REFERENCE_CHECK",
         "OFFER_EXTENDED",

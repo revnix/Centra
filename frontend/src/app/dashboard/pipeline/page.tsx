@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useApplications, useUpdateApplicationStatus } from "@/lib/hooks/useApplications";
+import { useQueryClient } from "@tanstack/react-query";
+import { useApplications, useUpdateApplicationStatus, applicationKeys } from "@/lib/hooks/useApplications";
+import { screeningApi } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +22,7 @@ interface Application {
     email_delivery_status?: string;
     candidate?: { full_name?: string; email?: string };
     job?: { title?: string };
+    screening_test?: { status: string; score: number | null };
 }
 
 // ─── Column config ────────────────────────────────────────────────────────────
@@ -71,6 +74,17 @@ const COLUMNS: ColumnDef[] = [
         avatarBg: "bg-violet-100",
         avatarText: "text-violet-700",
         cardsBg: "bg-violet-50/30",
+    },
+    {
+        label: "Screening Test",
+        status: "SCREENING_TEST",
+        topStrip: "bg-sky-500",
+        headerText: "text-sky-700",
+        countBg: "bg-sky-100",
+        countText: "text-sky-700",
+        avatarBg: "bg-sky-100",
+        avatarText: "text-sky-700",
+        cardsBg: "bg-sky-50/30",
     },
     {
         label: "Interview Scheduled",
@@ -161,6 +175,8 @@ COLUMNS.forEach((col, i) => {
     }
 });
 NEXT_STATUS["INTERVIEW_INVITED"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
+NEXT_STATUS["SENT"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
+NEXT_STATUS["RESPONDED"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
 
 // Build a reverse map: status → previous status
 const PREV_STATUS: Record<string, string> = {};
@@ -170,6 +186,8 @@ COLUMNS.forEach((col, i) => {
     }
 });
 PREV_STATUS["INTERVIEW_INVITED"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
+PREV_STATUS["SENT"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
+PREV_STATUS["RESPONDED"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
 
 // ─── Summary bar config ───────────────────────────────────────────────────────
 
@@ -179,7 +197,7 @@ const SUMMARY: { label: string; statuses: string[] | null; color: string }[] = [
     { label: "Shortlisted", statuses: ["SHORTLISTED"], color: "text-violet-600" },
     {
         label: "Interviewing",
-        statuses: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "INTERVIEW_COMPLETED"],
+        statuses: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "INTERVIEW_COMPLETED", "SENT", "RESPONDED"],
         color: "text-amber-600",
     },
     {
@@ -230,6 +248,28 @@ export default function PipelinePage() {
 
     const { data: applications = [], isLoading } = useApplications();
     const updateStatus = useUpdateApplicationStatus();
+    const queryClient = useQueryClient();
+
+    // Special handler for Shortlisted → Screening Test:
+    // calls POST /screening/create which creates the test, sends the email,
+    // and updates the application status all in one request.
+    const handleSendScreeningTest = async (e: React.MouseEvent, app: Application) => {
+        e.stopPropagation();
+        setMovingIds((prev) => new Set(prev).add(app.id));
+        try {
+            await screeningApi.create(app.id);
+            await queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
+            toast.success("Screening test sent! Candidate moved to Screening Test.");
+        } catch {
+            toast.error("Failed to send screening test");
+        } finally {
+            setMovingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(app.id);
+                return next;
+            });
+        }
+    };
 
     const handleRefCheck = async (
         e: React.MouseEvent,
@@ -336,7 +376,7 @@ export default function PipelinePage() {
         cards: applications.filter((app) => {
             const s = (app.status || "").toUpperCase();
             if (col.status === "INTERVIEW_SCHEDULED") {
-                return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED";
+                return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED" || s === "SENT" || s === "RESPONDED";
             }
             return s === col.status;
         }),
@@ -346,8 +386,8 @@ export default function PipelinePage() {
         statuses === null
             ? applications.length
             : applications.filter((a) =>
-                  statuses.includes((a.status || "").toUpperCase())
-              ).length;
+                statuses.includes((a.status || "").toUpperCase())
+            ).length;
 
     return (
         <div className="space-y-6">
@@ -367,9 +407,8 @@ export default function PipelinePage() {
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className={`rounded-xl border px-4 py-3 flex flex-col gap-0.5 bg-white border-slate-200 shadow-sm ${
-                            statuses === null ? "ring-1 ring-indigo-200 border-indigo-200 bg-indigo-50/50" : ""
-                        }`}
+                        className={`rounded-xl border px-4 py-3 flex flex-col gap-0.5 bg-white border-slate-200 shadow-sm ${statuses === null ? "ring-1 ring-indigo-200 border-indigo-200 bg-indigo-50/50" : ""
+                            }`}
                     >
                         <span className={`text-2xl font-bold ${color}`}>
                             {statCount(statuses)}
@@ -388,9 +427,8 @@ export default function PipelinePage() {
                             initial={{ opacity: 0, y: 16 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: colIndex * 0.04 }}
-                            className={`w-[260px] flex flex-col rounded-2xl border border-slate-200 overflow-hidden shadow-sm ${
-                                col.muted ? "opacity-75" : ""
-                            }`}
+                            className={`w-[260px] flex flex-col rounded-2xl border border-slate-200 overflow-hidden shadow-sm ${col.muted ? "opacity-75" : ""
+                                }`}
                             style={{ minHeight: 500 }}
                         >
                             {/* Colored top strip */}
@@ -471,13 +509,13 @@ export default function PipelinePage() {
 
                                                         <div className="border-t border-slate-100" />
 
-                                                        {/* AI Score badge */}
+                                                        {/* AI Score badge — hidden on Screening Test column (replaced by test block) */}
                                                         {col.status === "HIRED" ? (
                                                             <span className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 w-full">
                                                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                                                 Hired
                                                             </span>
-                                                        ) : score > 0 ? (
+                                                        ) : col.status === "SCREENING_TEST" ? null : score > 0 ? (
                                                             <Badge
                                                                 variant="outline"
                                                                 className={`w-full justify-center text-xs font-semibold h-6 ${scoreStyle(score)}`}
@@ -502,6 +540,32 @@ export default function PipelinePage() {
                                                             />
                                                             {ep.label}
                                                         </div>
+
+                                                        {/* Screening Test Info — only shown in the Screening Test column */}
+                                                        {col.status === "SCREENING_TEST" && (
+                                                            <div className="flex flex-col gap-1 text-[11px] p-2 bg-sky-50 border border-sky-100 rounded-lg">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-slate-500">Test:</span>
+                                                                    <span className={`font-semibold ${app.screening_test?.status === "COMPLETED"
+                                                                        ? "text-emerald-600"
+                                                                        : "text-amber-600"
+                                                                        }`}>
+                                                                        {app.screening_test?.status === "COMPLETED" ? "Completed" : "Pending"}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-slate-500">Score:</span>
+                                                                    <span className={`font-bold ${app.screening_test?.status === "COMPLETED"
+                                                                        ? "text-indigo-600"
+                                                                        : "text-slate-400"
+                                                                        }`}>
+                                                                        {app.screening_test?.score != null
+                                                                            ? `${app.screening_test.score}%`
+                                                                            : "0%"}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
 
                                                         {/* Reference Check notes */}
                                                         {col.showNotes && (
@@ -584,7 +648,11 @@ export default function PipelinePage() {
                                                                 )}
                                                                 {nextLabel && (
                                                                     <button
-                                                                        onClick={(e) => handleMoveToNext(e, app)}
+                                                                        onClick={(e) =>
+                                                                            col.status === "SHORTLISTED"
+                                                                                ? handleSendScreeningTest(e, app)
+                                                                                : handleMoveToNext(e, app)
+                                                                        }
                                                                         disabled={isMoving}
                                                                         className="flex-1 flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     >
