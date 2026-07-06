@@ -118,31 +118,48 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
         setSelectedCandidateId(id); // ✅ UNCHANGED behaviour
     };
 
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredOnboardings = onboardings.filter((o) => {
+        const q = searchQuery.toLowerCase();
+        return (
+            (o.candidate_name || "").toLowerCase().includes(q) ||
+            (o.email || "").toLowerCase().includes(q) ||
+            (o.job_title || "").toLowerCase().includes(q)
+        );
+    });
+
     return (
         <>
         <div className="p-6 space-y-6 max-w-7xl mx-auto">
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-900 p-8 rounded-2xl text-white shadow-2xl relative overflow-hidden"
+                className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
             >
-                <div className="relative z-10">
+                <div>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-indigo-200">
-                            Onboarding Command Center
+                        <h1 className="text-3xl font-bold tracking-tight">
+                            Onboarding
                         </h1>
                         <div className="flex h-2 w-2 relative">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </div>
                     </div>
-                    <p className="text-indigo-200/80 mt-2 font-medium tracking-wide">
-                        Enterprise Grade Candidate Provisioning & Induction
+                    <p className="text-muted-foreground mt-1 text-sm">
+                        Candidate provisioning & induction management
                     </p>
                 </div>
-                {/* Decorative background elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-                <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-50/10 rounded-full -ml-10 -mb-10 blur-2xl"></div>
+                <div className="relative w-full md:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by name, email or job..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                    />
+                </div>
             </motion.div>
 
             {error && <div className="text-red-500 p-4 bg-red-50 rounded-lg">{error}</div>}
@@ -151,21 +168,21 @@ export default function AdminOnboardingDashboard() { // ✅ UNCHANGED
                 <div className="text-center p-12">Loading...</div>
             ) : (
                 <div className="space-y-6">
-                    {onboardings.length === 0 && (
+                    {filteredOnboardings.length === 0 && (
                         <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                            No active onboardings found.
+                            {searchQuery ? `No results for "${searchQuery}"` : "No active onboardings found."}
                         </div>
                     )}
 
                     <AnimatePresence>
-                        {onboardings.map((o, idx) => (
+                        {filteredOnboardings.map((o, idx) => (
                             <motion.div
                                 key={o.id}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: idx * 0.1 }}
                             >
-                                <Card className={`overflow-hidden shadow-lg border-0 bg-white/80 backdrop-blur-sm transition-all hover:shadow-xl ${o.status === 'COMPLETED' ? 'opacity-70 ring-1 ring-emerald-500/30' : 'ring-1 ring-slate-200'}`}>
+                                <Card className={`overflow-hidden shadow-sm transition-all hover:shadow-md border ${o.status === 'COMPLETED' ? 'opacity-70 border-emerald-200' : 'border-border'}`}>
                                     <div className={`h-1.5 w-full ${o.status === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`} />
                                     <CardHeader className="bg-slate-50/50 pb-4 border-b">
                                         <div className="flex justify-between items-start">

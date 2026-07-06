@@ -21,7 +21,7 @@ if (os.getenv("CLOUDINARY_CLOUD_NAME") and
 else:
     logger.warning("Cloudinary not configured (missing CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET). File uploads will be skipped.")
 
-async def upload_file(file_bytes: bytes, filename: str, folder: str) -> str | None:
+async def upload_file(file_bytes: bytes, filename: str, folder: str, resource_type: str = "auto") -> str | None:
     """
     Upload a file to Cloudinary and return the secure URL.
     This runs the synchronous cloudinary.uploader.upload in a thread pool.
@@ -30,21 +30,22 @@ async def upload_file(file_bytes: bytes, filename: str, folder: str) -> str | No
     if not cloudinary_configured:
         logger.warning("Cloudinary not configured. Skipping file upload.")
         return None
-        
+
     def sync_upload():
         response = cloudinary.uploader.upload(
             file_bytes,
             folder=folder,
             public_id=filename,
-            resource_type="auto"
+            resource_type=resource_type,
+            overwrite=True,
         )
         return response.get("secure_url")
 
     try:
-        # Run in thread pool to avoid blocking the event loop
         loop = asyncio.get_event_loop()
         secure_url = await loop.run_in_executor(None, sync_upload)
+        logger.info(f"Cloudinary upload OK: {secure_url}")
         return secure_url
     except Exception as e:
-        logger.error(f"Cloudinary upload failed: {e}")
+        logger.error(f"Cloudinary upload failed (resource_type={resource_type}, file={filename}): {e}")
         return None

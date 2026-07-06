@@ -63,7 +63,6 @@ class ApplicationService:
         await self.db.commit()
         await self.db.refresh(application)
         
-        from src.api.services.email_service import logger
         logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
         
         # Centralized Notification Trigger
@@ -73,8 +72,11 @@ class ApplicationService:
 
     async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
         """Delegates notification to the centralized handler."""
-        from src.api.utils.application_handler import handle_new_application
-        await handle_new_application(self.db, application.id, background_tasks)
+        try:
+            from src.api.utils.application_handler import handle_new_application
+            await handle_new_application(self.db, application.id, background_tasks)
+        except Exception as exc:
+            logger.exception("Notification failed for application %s (non-fatal): %s", application.id, exc)
 
 
 

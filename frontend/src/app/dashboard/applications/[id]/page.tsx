@@ -3,7 +3,8 @@
 import { useState, useEffect, use, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { onboardingApi } from "@/lib/api/onboarding";
-import { resolveUrl } from "@/lib/api/client";
+import { screeningApi } from "@/lib/api/screening";
+import { apiClient, resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon } from "lucide-react";
@@ -37,6 +38,8 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [isLoading, setIsLoading] = useState(true);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
+    const [isSendingScreening, setIsSendingScreening] = useState(false);
+    const [screening, setScreening] = useState<any>(null);
 
     // Editable email dialog for Onboarding & Reject
     const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | null>(null);
@@ -67,7 +70,16 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                 setIsLoading(false);
             }
         };
+        const fetchScreening = async () => {
+            try {
+                const data = await screeningApi.getResult(id);
+                setScreening(data);
+            } catch {
+                // no screening test yet — ignore 404
+            }
+        };
         fetchApplication();
+        fetchScreening();
 
         // Auto-refresh the application status every 10 seconds in the background
         const interval = setInterval(fetchApplication, 10_000);
@@ -201,6 +213,26 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                     <Button
                         variant="outline"
+                        className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                        disabled={isSendingScreening || isActionLoading}
+                        onClick={async () => {
+                            setIsSendingScreening(true);
+                            try {
+                                await apiClient.post(`/screening/create/${id}`);
+                                toast.success("Screening test email sent! Candidate has 72 hours to complete it.");
+                            } catch (err: any) {
+                                toast.error(err?.message || "Failed to send screening test");
+                            } finally {
+                                setIsSendingScreening(false);
+                            }
+                        }}
+                    >
+                        {isSendingScreening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                        {isSendingScreening ? "Sending…" : "Send Screening Test"}
+                    </Button>
+
+                    <Button
+                        variant="outline"
                         className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
                         onClick={handleReset}
                         disabled={isResetting || isActionLoading}
@@ -274,6 +306,29 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                         </CardContent>
                     </Card>
 
+                    {/* Screening Screen Recording */}
+                    {screening?.status === 'COMPLETED' && (
+                        <Card className="border-border shadow-sm overflow-hidden">
+                            <CardHeader className="bg-violet-50/50 dark:bg-violet-950/20 border-b">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Monitor className="w-5 h-5 text-violet-500" />
+                                    Screening Test – Screen Recording
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className={screening.recording_url ? "p-0" : "p-6"}>
+                                {screening.recording_url ? (
+                                    <div className="aspect-video bg-black">
+                                        <video src={screening.recording_url} controls className="w-full h-full" />
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground italic">
+                                        Recording was not captured for this session. The candidate may have denied screen share permission or the upload failed.
+                                    </p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Transcript & Recording */}
                     {app.interview_session?.recording_path && (
                         <Card className="border-border shadow-sm overflow-hidden">
@@ -323,6 +378,35 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                 <div className="text-2xl font-bold">{app.match_score ? `${app.match_score}/100` : "N/A"}</div>
                                 <div className="text-sm text-muted-foreground">Match Score</div>
                             </div>
+
+                            {screening?.status === 'COMPLETED' && screening.score != null && (
+                                <>
+                                    <Separator />
+                                    <div>
+                                        <div className="flex justify-center mb-2">
+                                            <ScoreRing score={Math.round(screening.score)} size="lg" />
+                                        </div>
+                                        <div className="text-2xl font-bold">{Math.round(screening.score)}/100</div>
+                                        <div className="text-sm text-muted-foreground">Screening Score</div>
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                            {screening.total_questions} questions
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {screening && screening.status !== 'COMPLETED' && (
+                                <>
+                                    <Separator />
+                                    <div>
+                                        <div className="text-sm font-medium capitalize text-amber-600">
+                                            Screening: {screening.status?.toLowerCase() ?? 'pending'}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-0.5">Test not completed yet</div>
+                                    </div>
+                                </>
+                            )}
+
                             <Separator />
                             <div className="text-left space-y-3 pt-2">
                                 <div className="flex items-center gap-3 text-sm">
