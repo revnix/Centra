@@ -18,8 +18,9 @@ from src.api.schemas.user import UserCreate
 from src.api.services.application_service import ApplicationService
 from src.api.services.auth_service import AuthService
 from src.api.services.candidate_service import CandidateService
-from src.api.services.email_service import send_email
+from src.api.services.email_service import send_email, EmailService
 from src.api.services.screening_service import ScreeningService
+from src.api.core.config import settings
 
 router = APIRouter()
 
@@ -185,6 +186,7 @@ async def list_applications_by_job(
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
+            joinedload(Application.screening_test),
             noload(Application.interview_session),  # avoids MissingGreenlet on serialization
         )
         .order_by(Application.match_score.desc().nullslast())
@@ -339,7 +341,7 @@ async def send_interview_invite(
 
     if sent:
         application.email_delivery_status = "SENT"
-        application.status = ApplicationStatus.SENT
+        application.status = ApplicationStatus.INTERVIEW_INVITED
         application.interview_invitation_status = "SENT"
         application.last_interview_invite_id = sent
         application.interview_invite_sent_at = func.now()
@@ -388,6 +390,7 @@ async def update_application_status(
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
+            joinedload(Application.screening_test),
             joinedload(Application.interview_session)
         )
         .where(Application.id == application_id)
@@ -403,6 +406,31 @@ async def update_application_status(
         if application.interview_invitation_status not in ["ACCEPTED", "DECLINED"]:
             application.interview_invitation_status = "ACCEPTED"
             application.email_logs = "Application status moved to INTERVIEW_SCHEDULED."
+
+    elif new_status == ApplicationStatus.SCREENING_TEST:
+        try:
+            screening_service = ScreeningService(db)
+            test = await screening_service.create_screening_test(application.id)
+            test_url = f"{settings.FRONTEND_URL}/screening/{test.token}"
+
+            candidate_name = application.candidate.full_name or "Candidate"
+            job_title = application.job.title if application.job else "the position"
+
+            await EmailService.send_screening_test_email(
+                candidate_email=application.candidate.email,
+                candidate_name=candidate_name,
+                job_title=job_title,
+                test_url=test_url,
+                expires_hours=72,
+            )
+            application.email_delivery_status = "SENT"
+            application.email_logs = f"Screening test email sent. URL: {test_url}"
+        except Exception as exc:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.exception("Failed to create/send screening test email for application %s", application.id)
+            application.email_delivery_status = "FAILED"
+            application.email_logs = f"Failed to send screening test: {str(exc)}"
 
     db.add(application)
     await db.commit()

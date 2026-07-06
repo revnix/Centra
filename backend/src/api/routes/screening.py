@@ -42,13 +42,15 @@ async def create_screening(
 
     test_url = f"{settings.FRONTEND_URL}/screening/{test.token}"
 
-    # Fetch candidate info for email
+    # Fetch candidate info for email and update application status
     app_result = await db.execute(
         select(Application)
         .options(joinedload(Application.candidate), joinedload(Application.job))
         .where(Application.id == application_id)
     )
     application = app_result.scalars().first()
+
+    email_sent = False
     if application and application.candidate and application.candidate.email:
         candidate_name = application.candidate.full_name or "Candidate"
         job_title = application.job.title if application.job else "the position"
@@ -60,10 +62,20 @@ async def create_screening(
                 test_url=test_url,
                 expires_hours=72,
             )
+            email_sent = True
         except Exception:
             pass  # email failure should not block the response
 
-    return {"token": test.token, "test_url": test_url, "id": test.id, "email_sent": True}
+    # ✅ Move the candidate into the Screening Test pipeline stage
+    if application:
+        from src.api.models.application import ApplicationStatus
+        application.status = ApplicationStatus.SCREENING_TEST
+        application.email_delivery_status = "SENT" if email_sent else "FAILED"
+        application.email_logs = f"Screening test email sent. URL: {test_url}" if email_sent else "Email send failed."
+        db.add(application)
+        await db.commit()
+
+    return {"token": test.token, "test_url": test_url, "id": test.id, "email_sent": email_sent}
 
 
 @router.get("/result/{application_id}")

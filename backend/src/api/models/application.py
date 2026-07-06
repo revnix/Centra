@@ -8,6 +8,7 @@ class ApplicationStatus(str, enum.Enum):
     APPLIED = "APPLIED"
     SCREENING = "SCREENING"
     SHORTLISTED = "SHORTLISTED"
+    SCREENING_TEST = "SCREENING_TEST"
     SENT = "SENT"
     RESPONDED = "RESPONDED"  # Legacy status present in existing production rows
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
@@ -75,3 +76,4 @@ class Application(Base):
     job = relationship("Posts", backref="applications")
     candidate = relationship("User", backref="applications")
     interview_session = relationship("InterviewSession", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    screening_test = relationship("ScreeningTest", back_populates="application", uselist=False, cascade="all, delete-orphan")
