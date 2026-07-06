@@ -22,4 +22,4 @@ class ScreeningTest(Base):
     recording_url = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    application = relationship("Application", backref=sa_backref("screening_test", uselist=False))
+    application = relationship("Application", back_populates="screening_test")
