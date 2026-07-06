@@ -97,7 +97,8 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                joinedload(Application.interview_session),
+                joinedload(Application.screening_test)
             )
             .where(Application.id == application_id)
         )
@@ -110,6 +111,7 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
+                joinedload(Application.screening_test),
                 # ✨ OPTIMIZATION: noload prevents a lazy async load of interview_session during
                 # Pydantic serialization. Without this, removing the joinedload causes a
                 # MissingGreenlet crash because the Optional field is still in ApplicationResponse.
