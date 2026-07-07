@@ -35,11 +35,11 @@ if "neon.tech" in settings.DATABASE_URL:
     _ssl_ctx = ssl_module.create_default_context()
     connect_args["ssl"] = _ssl_ctx
     # Allow more time for Neon cold starts and PgBouncer queuing
-    connect_args["command_timeout"] = 30
+    connect_args["command_timeout"] = 60
     # CRITICAL: Disable prepared statement cache for PgBouncer compatibility
     connect_args["statement_cache_size"] = 0
-    # 2 attempts × 10s + 3s delay = 23s max — fast enough to not freeze the UI
-    connect_args["timeout"] = 10
+    # Neon free-tier cold starts can take up to 30s — give enough headroom
+    connect_args["timeout"] = 30
 
 print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
@@ -122,25 +122,30 @@ async def get_async_db():
                 # Double-check: another coroutine may have already warmed up while we waited.
                 if _time.monotonic() - _last_neon_ping > 25:
                     last_exc: Exception | None = None
-                    for attempt, delay in enumerate([0, 3], start=1):
+                    # 3 attempts: immediate, 5s, 10s — covers Neon free-tier cold starts up to ~45s
+                    for attempt, delay in enumerate([0, 5, 10], start=1):
                         if delay:
-                            _db_logger.warning("Neon cold-start retry (attempt %d): %s", attempt, last_exc)
+                            _db_logger.warning("Neon cold-start retry (attempt %d/%d): %s", attempt, 3, last_exc)
                             await asyncio.sleep(delay)
                         try:
                             async with engine.connect() as conn:
                                 await conn.execute(text("SELECT 1"))
                             _update_last_ping()
+                            last_exc = None
                             break
+                        except (TimeoutError, asyncio.TimeoutError) as exc:
+                            # Neon cold-start timeout — retry
+                            last_exc = exc
                         except asyncio.CancelledError:
-                            raise  # never swallow task cancellation
+                            raise  # never swallow genuine task cancellation
                         except Exception as exc:
                             last_exc = exc
-                            if attempt >= 2:
-                                _db_logger.error("DB unreachable after %d attempts: %s", attempt, exc)
-                                raise _HTTPException(
-                                    status_code=503,
-                                    detail="Database is starting up. Please retry in a moment.",
-                                )
+                    if last_exc is not None:
+                        _db_logger.error("DB unreachable after 3 attempts: %s", last_exc)
+                        raise _HTTPException(
+                            status_code=503,
+                            detail="Database is starting up. Please retry in a moment.",
+                        )
 
     async with AsyncSessionLocal() as session:
         yield session

@@ -116,9 +116,10 @@ async def lifespan(app: FastAPI):
         if os.path.exists(script_path):
             logger.info("Starting background reply polling service subprocess: %s", script_path)
             proc = subprocess.Popen(
-                [sys.executable, script_path],
+                [sys.executable, "-B", script_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             )
         else:
             logger.error("Could not find check_email_replies.py script at: %s", script_path)

@@ -73,33 +73,58 @@ export default function ScreeningTestPage() {
             if (timerRef.current) clearInterval(timerRef.current);
             setPageState("submitting");
 
-            // Stop recording
+            // Stop recording — use addEventListener so the original onstop (blob creation) still fires
             let recordingUrl: string | undefined;
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
                 await new Promise<void>((resolve) => {
-                    mediaRecorderRef.current!.onstop = () => resolve();
+                    mediaRecorderRef.current!.addEventListener("stop", () => resolve(), { once: true });
                     mediaRecorderRef.current!.stop();
                 });
+                // Give the onstop handler a tick to finish creating the blob
+                await new Promise<void>((resolve) => setTimeout(resolve, 100));
             }
             if (recordingBlobRef.current && recordingBlobRef.current.size > 0) {
+                const blobType = recordingBlobRef.current.type || "video/webm";
+                const ext = blobType.includes("mp4") ? ".mp4" : ".webm";
+                console.log(`Recording blob ready: ${(recordingBlobRef.current.size / 1024 / 1024).toFixed(1)} MB, type: ${blobType}`);
                 try {
-                    const blobType = recordingBlobRef.current.type || "video/webm";
-                    const ext = blobType.includes("mp4") ? ".mp4" : ".webm";
+                    // Step 1: get a short-lived Cloudinary signed-upload credential from backend.
+                    // This is a tiny JSON request — backend restarts don't affect the large upload.
+                    const backendBase = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
+                    const sigRes = await fetch(`${backendBase}/api/v1/uploads/cloudinary-signature`);
+                    if (!sigRes.ok) throw new Error("Failed to get upload signature");
+                    const sig = await sigRes.json();
+
+                    // Step 2: upload directly from browser to Cloudinary — zero backend involvement,
+                    // so backend restarts / ECONNRESET cannot affect the file transfer.
                     const fd = new FormData();
                     fd.append("file", recordingBlobRef.current, `screening${ext}`);
-                    const res = await fetch("/api/v1/files/upload-recording", { method: "POST", body: fd });
-                    if (res.ok) {
-                        const data = await res.json();
-                        recordingUrl = data.url;
+                    fd.append("api_key", sig.api_key);
+                    fd.append("timestamp", String(sig.timestamp));
+                    fd.append("signature", sig.signature);
+                    fd.append("folder", sig.folder);
+
+                    const cloudRes = await fetch(
+                        `https://api.cloudinary.com/v1_1/${sig.cloud_name}/video/upload`,
+                        { method: "POST", body: fd }
+                    );
+                    if (cloudRes.ok) {
+                        const cloudData = await cloudRes.json();
+                        recordingUrl = cloudData.secure_url;
+                        console.log("Recording uploaded to Cloudinary:", recordingUrl);
                     } else {
-                        const err = await res.json().catch(() => ({}));
-                        console.error("Recording upload failed:", res.status, err);
+                        const errBody = await cloudRes.json().catch(() => ({}));
+                        console.error("Cloudinary upload failed:", cloudRes.status, errBody);
                     }
                 } catch (err) {
                     console.error("Recording upload error:", err);
                 }
             } else {
-                console.warn("Recording blob is empty or missing — skipping upload");
+                console.warn("Recording blob is empty or missing — skipping upload", {
+                    blob: recordingBlobRef.current,
+                    size: recordingBlobRef.current?.size,
+                    chunks: chunksRef.current.length,
+                });
             }
 
             // Submit answers
