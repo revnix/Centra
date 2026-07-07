@@ -491,6 +491,7 @@ async def reset_email_status(
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
+            joinedload(Application.screening_test),
             noload(Application.interview_session),
         )
         .where(Application.id == application_id)

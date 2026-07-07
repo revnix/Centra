@@ -8,7 +8,7 @@ from src.api.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"}
+ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".jfif", ".png", ".webp", ".heic", ".doc", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 class FileService:
