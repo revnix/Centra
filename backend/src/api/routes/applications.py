@@ -517,3 +517,133 @@ async def reset_email_status(
     await db.refresh(application)
     return application
 
+
+@router.post("/{application_id}/send-documents")
+async def send_onboarding_documents(
+    application_id: int,
+    subject: str = Form(default="Welcome to the Team – Onboarding Resources & Documents"),
+    message: Optional[str] = Form(default=None),
+    attachments: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send the onboarding documents / resource links email to the candidate.
+    The HR can provide a custom subject and intro message; the document links are appended automatically.
+    """
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate), joinedload(Application.job))
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    candidate = application.candidate
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Helper to convert basic markdown (lists, bold, links) style to HTML email format
+    def markdown_to_html(text: str) -> str:
+        import re
+        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        # Convert bold markers **text** -> <strong>text</strong>
+        escaped = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', escaped)
+
+        # Convert markdown links [text](url) -> formatted anchor tag
+        escaped = re.sub(
+            r'\[([^\]]+)\]\((https?://[^\s<>"]+)\)',
+            r'<a href="\2" style="color: #1155cc; text-decoration: underline;">\1</a>',
+            escaped
+        )
+
+        # Convert remaining raw URLs (not inside an href tag) to linked text
+        escaped = re.sub(
+            r'(?<!href=")(?<!href=\')(https?://[^\s<>"\']+)(?![^<]*>)',
+            r'<a href="\1" style="color: #1155cc; text-decoration: underline;">\1</a>',
+            escaped
+        )
+
+        # Convert list structure and regular paragraphs line by line
+        lines = escaped.split("\n")
+        html_lines = []
+        current_list_level = 0
+
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                while current_list_level > 0:
+                    html_lines.append("</ul>")
+                    current_list_level -= 1
+                html_lines.append("<br/>")
+                continue
+
+            # Check for list bullets (either "*" or "-")
+            list_match = re.match(r'^(\s*)([\*\-])\s+(.*)$', line)
+            if list_match:
+                indent = len(list_match.group(1))
+                content = list_match.group(3)
+                target_level = 1 if indent == 0 else 2
+
+                while current_list_level < target_level:
+                    html_lines.append("<ul style='margin-top: 4px; margin-bottom: 4px; padding-left: 20px;'>")
+                    current_list_level += 1
+                while current_list_level > target_level:
+                    html_lines.append("</ul>")
+                    current_list_level -= 1
+
+                html_lines.append(f"<li style='margin-bottom: 4px;'>{content}</li>")
+            else:
+                while current_list_level > 0:
+                    html_lines.append("</ul>")
+                    current_list_level -= 1
+                html_lines.append(line_stripped + "<br/>")
+
+        while current_list_level > 0:
+            html_lines.append("</ul>")
+            current_list_level -= 1
+
+        return "\n".join(html_lines)
+
+    html_body = ""
+    if message and message.strip():
+        msg_str = message.strip()
+        # If the email content already looks like formatted HTML, bypass markdown parsed conversion
+        if "</a>" in msg_str or "<ul" in msg_str or "<li" in msg_str or "<br" in msg_str or "href=" in msg_str:
+            formatted_message = msg_str
+        else:
+            formatted_message = markdown_to_html(msg_str)
+        html_body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; color: #222; line-height: 1.7; font-size: 14px;">
+            {formatted_message}
+        </div>
+        """
+    else:
+        html_body = """
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; color: #222; line-height: 1.7; font-size: 14px;">
+            <p>Welcome to the team! Onboarding documents will be shared with you.</p>
+        </div>
+        """
+
+    # Build attachments list
+    email_attachments = []
+    for f in (attachments or []):
+        if f.filename:
+            content = await f.read()
+            email_attachments.append({"filename": f.filename, "content": list(content)})
+
+    sent = await send_email(
+        candidate.email,
+        subject,
+        html_body,
+        attachments=email_attachments if email_attachments else None,
+    )
+
+    if not sent:
+        raise HTTPException(status_code=500, detail="Failed to send documents email. Please try again.")
+
+    return {"success": True, "message": f"Documents email sent to {candidate.email}"}
