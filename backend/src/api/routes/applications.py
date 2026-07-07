@@ -61,15 +61,38 @@ async def guest_apply(
     cand_service = CandidateService(db)
 
     resume_url = None
+    resume_file_id = None
+    resume_storage_provider = None
+
     if resume_file:
-        from src.api.utils.cloudinary_upload import upload_file
         content = await resume_file.read()
-        safe_email = email.replace('@', '_at_').replace('+', '_')
-        resume_url = await upload_file(
-            content,
-            resume_file.filename,
-            folder=f"evalyn/resumes/{safe_email}",
-        )
+
+        # ── Validation ───────────────────────────────────────────────────────
+        from pathlib import Path
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+
+        ALLOWED_RESUME_EXTS = {".pdf", ".doc", ".docx"}
+        MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
+
+        ext = Path(resume_file.filename or "").suffix.lower()
+        if ext not in ALLOWED_RESUME_EXTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '{ext}' is not allowed. Supported formats: {', '.join(sorted(ALLOWED_RESUME_EXTS))}",
+            )
+        if len(content) > MAX_RESUME_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File is too large ({len(content) // (1024 * 1024)} MB). Maximum allowed size is 10 MB.",
+            )
+
+        # ── Always upload to Cloudinary at candidate submission ───────────────
+        from src.api.utils.cloudinary_upload import upload_file
+        safe_email = email.replace("@", "_at_").replace("+", "_")
+        resume_url = await upload_file(content, resume_file.filename or "resume", folder=f"evalyn/resumes/{safe_email}")
+        resume_storage_provider = "cloudinary"
+
 
     try:
         skills_list = json.loads(skills)
@@ -95,10 +118,20 @@ async def guest_apply(
             skills=skills_list,
             experience_years=experience_years,
         )
-        await cand_service.create_profile(user.id, profile_in)
+        created_profile = await cand_service.create_profile(user.id, profile_in)
+        # Persist new storage metadata columns
+        if resume_file_id:
+            created_profile.resume_file_id = resume_file_id
+        if resume_storage_provider:
+            created_profile.resume_storage_provider = resume_storage_provider
+        db.add(created_profile)
     else:
         if resume_url:
             profile.resume_url = resume_url
+        if resume_file_id:
+            profile.resume_file_id = resume_file_id
+        if resume_storage_provider:
+            profile.resume_storage_provider = resume_storage_provider
         if linkedin_url:
             profile.linkedin_url = linkedin_url
         if skills_list:
@@ -325,7 +358,7 @@ async def send_interview_invite(
 
     if sent:
         application.email_delivery_status = "SENT"
-        application.status = ApplicationStatus.SENT
+        application.status = ApplicationStatus.INTERVIEW_INVITED
         application.interview_invitation_status = "SENT"
         application.last_interview_invite_id = sent
         application.interview_invite_sent_at = func.now()
@@ -338,6 +371,15 @@ async def send_interview_invite(
 
     db.add(application)
     await db.commit()
+
+    if sent:
+        # Promote resume to Google Drive now that candidate has been invited
+        try:
+            app_service = ApplicationService(db)
+            await app_service.ensure_resume_promoted_to_drive(application.candidate_id)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Resume promotion failed for candidate {application.candidate_id}: {e}")
 
     if not sent:
         raise HTTPException(status_code=500, detail="Email delivery failed. Please try again.")
@@ -382,7 +424,12 @@ async def update_application_status(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
+    app_service = ApplicationService(db)
     application.status = new_status
+    
+    # Promote resume to Google Drive if the new status is SHORTLISTED
+    if new_status == ApplicationStatus.SHORTLISTED:
+        await app_service.ensure_resume_promoted_to_drive(int(application.candidate_id))
     
     # Sync with interview tracking status
     if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:
