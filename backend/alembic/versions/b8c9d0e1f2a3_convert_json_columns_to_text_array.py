@@ -8,6 +8,8 @@ Create Date: 2026-06-23 00:00:00.000000
 from typing import Sequence, Union
 
 from alembic import op
+import sqlalchemy as sa
+
 
 
 # revision identifiers, used by Alembic.
@@ -18,35 +20,42 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Convert required_skills from JSON to text[]
+    # 1. Convert required_skills from JSON to text[]
+    op.alter_column('posts', 'required_skills', new_column_name='required_skills_old')
+    op.add_column('posts', sa.Column('required_skills', sa.ARRAY(sa.String()), nullable=True))
     op.execute("""
-        ALTER TABLE posts
-        ALTER COLUMN required_skills TYPE text[]
-        USING CASE
-            WHEN required_skills IS NULL THEN NULL::text[]
-            ELSE ARRAY(SELECT jsonb_array_elements_text(required_skills::jsonb))
-        END
+        UPDATE posts
+        SET required_skills = ARRAY(
+            SELECT jsonb_array_elements_text(required_skills_old::jsonb)
+        )
+        WHERE required_skills_old IS NOT NULL AND required_skills_old::text <> ''
     """)
+    op.drop_column('posts', 'required_skills_old')
 
-    # Convert preferred_skills from JSON to text[]
+    # 2. Convert preferred_skills from JSON to text[]
+    op.alter_column('posts', 'preferred_skills', new_column_name='preferred_skills_old')
+    op.add_column('posts', sa.Column('preferred_skills', sa.ARRAY(sa.String()), nullable=True))
     op.execute("""
-        ALTER TABLE posts
-        ALTER COLUMN preferred_skills TYPE text[]
-        USING CASE
-            WHEN preferred_skills IS NULL THEN NULL::text[]
-            ELSE ARRAY(SELECT jsonb_array_elements_text(preferred_skills::jsonb))
-        END
+        UPDATE posts
+        SET preferred_skills = ARRAY(
+            SELECT jsonb_array_elements_text(preferred_skills_old::jsonb)
+        )
+        WHERE preferred_skills_old IS NOT NULL AND preferred_skills_old::text <> ''
     """)
+    op.drop_column('posts', 'preferred_skills_old')
 
-    # Convert benefits from JSON to text[]
+    # 3. Convert benefits from JSON to text[]
+    op.alter_column('posts', 'benefits', new_column_name='benefits_old')
+    op.add_column('posts', sa.Column('benefits', sa.ARRAY(sa.String()), nullable=True))
     op.execute("""
-        ALTER TABLE posts
-        ALTER COLUMN benefits TYPE text[]
-        USING CASE
-            WHEN benefits IS NULL THEN NULL::text[]
-            ELSE ARRAY(SELECT jsonb_array_elements_text(benefits::jsonb))
-        END
+        UPDATE posts
+        SET benefits = ARRAY(
+            SELECT jsonb_array_elements_text(benefits_old::jsonb)
+        )
+        WHERE benefits_old IS NOT NULL AND benefits_old::text <> ''
     """)
+    op.drop_column('posts', 'benefits_old')
+
 
     # Convert requirements from TEXT to text[] only if still TEXT type
     op.execute("""

@@ -55,16 +55,16 @@ def upgrade() -> None:
                postgresql_using='to_json(email_logs)',
                existing_comment='Failure reasons or SMTP logs',
                existing_nullable=True)
-    op.drop_index(op.f('ix_applications_created_at'), table_name='applications')
+    op.execute('DROP INDEX IF EXISTS ix_applications_created_at')
     op.create_index(op.f('ix_applications_created_at'), 'applications', ['created_at'], unique=False)
-    op.drop_index(op.f('ix_applications_job_id_created_at'), table_name='applications')
+    op.execute('DROP INDEX IF EXISTS ix_applications_job_id_created_at')
     op.create_index('ix_applications_job_id_created_at', 'applications', ['job_id', 'created_at'], unique=False)
-    op.create_index(op.f('ix_applications_interview_invitation_status'), 'applications', ['interview_invitation_status'], unique=False)
-    op.create_index(op.f('ix_applications_last_interview_invite_id'), 'applications', ['last_interview_invite_id'], unique=False)
-    op.create_index(op.f('ix_applications_source'), 'applications', ['source'], unique=False)
-    op.drop_constraint(op.f('onboardings_onboarding_token_key'), 'onboardings', type_='unique')
-    op.drop_index(op.f('ix_onboardings_onboarding_token'), table_name='onboardings')
-    op.create_index(op.f('ix_onboardings_onboarding_token'), 'onboardings', ['onboarding_token'], unique=True)
+    op.execute('CREATE INDEX IF NOT EXISTS ix_applications_interview_invitation_status ON applications(interview_invitation_status)')
+    op.execute('CREATE INDEX IF NOT EXISTS ix_applications_last_interview_invite_id ON applications(last_interview_invite_id)')
+    op.execute('CREATE INDEX IF NOT EXISTS ix_applications_source ON applications(source)')
+    op.execute('ALTER TABLE onboardings DROP CONSTRAINT IF EXISTS onboardings_onboarding_token_key')
+    op.execute('DROP INDEX IF EXISTS ix_onboardings_onboarding_token')
+    op.execute('CREATE UNIQUE INDEX IF NOT EXISTS ix_onboardings_onboarding_token ON onboardings(onboarding_token)')
     op.alter_column('posts', 'required_skills',
                existing_type=postgresql.ARRAY(sa.TEXT()),
                type_=postgresql.ARRAY(sa.String()),
@@ -112,11 +112,11 @@ def upgrade() -> None:
                existing_type=sa.VARCHAR(length=255),
                comment='Email of team member who submitted the edit',
                existing_nullable=True)
-    op.drop_index(op.f('ix_posts_created_at'), table_name='posts')
-    op.create_index('ix_posts_created_at', 'posts', ['created_at'], unique=False)
-    op.drop_index(op.f('ix_posts_status_created_at'), table_name='posts')
-    op.create_index('ix_posts_status_created_at', 'posts', ['status', 'created_at'], unique=False)
-    op.create_index(op.f('ix_posts_expires_at'), 'posts', ['expires_at'], unique=False)
+    op.execute('DROP INDEX IF EXISTS ix_posts_created_at')
+    op.execute('CREATE INDEX IF NOT EXISTS ix_posts_created_at ON posts(created_at)')
+    op.execute('DROP INDEX IF EXISTS ix_posts_status_created_at')
+    op.execute('CREATE INDEX IF NOT EXISTS ix_posts_status_created_at ON posts(status, created_at)')
+    op.execute('CREATE INDEX IF NOT EXISTS ix_posts_expires_at ON posts(expires_at)')
     # ### end Alembic commands ###
 
 
