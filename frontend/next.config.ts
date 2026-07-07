@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   },
   reactCompiler: false,
   experimental: {
+    // Allow large file uploads (screen recordings can be 50-200MB)
+    serverBodySizeLimit: "250mb",
     // Tree-shake large icon/component libraries — only the icons actually used
     // are bundled. Without this, lucide-react pulls in 500+ icons on every page.
     optimizePackageImports: [
@@ -28,6 +30,9 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "172.20.96.1:3000",
     "172.20.96.1",
+    "lvh.me",
+    "lvh.me:3000",
+    "http://lvh.me:3000",
     "revolute-jerica-uncombatant.ngrok-free.dev",
     "https://revolute-jerica-uncombatant.ngrok-free.dev",
     "issuing-coerce-consensus.ngrok-free.dev",

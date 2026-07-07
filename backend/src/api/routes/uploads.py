@@ -1,3 +1,6 @@
+import hashlib
+import os
+import time
 import uuid
 from pathlib import Path
 
@@ -7,6 +10,33 @@ from src.api.core.dependencies import get_current_user
 from src.api.models.user import User
 
 router = APIRouter()
+
+
+@router.get("/cloudinary-signature")
+async def get_cloudinary_signature():
+    """
+    Generate a short-lived Cloudinary signed-upload credential for browser-side uploads.
+    No auth required — the signature is scoped to a single folder and expires in 1 hour.
+    """
+    api_secret = os.getenv("CLOUDINARY_API_SECRET", "")
+    api_key = os.getenv("CLOUDINARY_API_KEY", "")
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    if not (api_secret and api_key and cloud_name):
+        raise HTTPException(status_code=503, detail="Cloudinary not configured on server")
+
+    folder = "evalyn/screening-recordings"
+    ts = int(time.time())
+    # Params must be sorted alphabetically
+    params_str = f"folder={folder}&timestamp={ts}"
+    signature = hashlib.sha1(f"{params_str}{api_secret}".encode()).hexdigest()
+
+    return {
+        "cloud_name": cloud_name,
+        "api_key": api_key,
+        "timestamp": ts,
+        "folder": folder,
+        "signature": signature,
+    }
 
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB

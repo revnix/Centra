@@ -35,8 +35,11 @@ uploads/
 *.txt
 !requirements.txt
 
-# Logs
+# Logs — watchfiles respects .gitignore so *.log entries stop the restart loop
 logs/
+*.log
+langgraph_stdout.log
+langgraph_stderr.log
 
 # IDE
 .vscode/
