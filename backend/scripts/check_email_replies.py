@@ -106,8 +106,8 @@ def check_for_replies():
                                 application = result_fb.scalars().first()
                         
                         if application:
-                            print(f"[{datetime.now()}] SUCCESS: Found application {application.id}. Updating to RESPONDED.")
-                            application.status = ApplicationStatus.RESPONDED
+                            print(f"[{datetime.now()}] SUCCESS: Found reply from {from_email}. Updating application {application.id} to RESPONDED.")
+                            application.status = ApplicationStatus.INTERVIEW_INVITED
                             application.interview_invitation_status = "RESPONDED"
                             
                             new_log = f"Auto-detected reply via IMAP at {datetime.now()}. Subject: {msg.subject}"

@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import cast, String
 from src.api.models.job import Posts
 from src.api.schemas.job import JobCreate, JobUpdate
 
@@ -12,15 +11,15 @@ class JobService:
     async def get_jobs(self, skip: int = 0, limit: int = 100, status: str = None):
         from sqlalchemy import func
         query = select(Posts)
-
+        
         if status:
             query = query.where(Posts.status == status)
-
+            
         query = query.order_by(Posts.created_at.desc()).offset(skip).limit(limit)
-
+        
         result = await self.db.execute(query)
         return result.scalars().all()
-
+    
     async def get_my_jobs(self, user_id: int, skip: int = 0, limit: int = 100, status: str = None):
         from sqlalchemy import func
         from src.api.models.application import Application
@@ -65,7 +64,8 @@ class JobService:
         import json
         payload = job_in.model_dump()
         print(f"DEBUG: [JobService.create_job] Payload received: {json.dumps(payload, default=str)}")
-
+        
+        # Map application_deadline to expires_at automatically
         if payload.get("application_deadline") and not payload.get("expires_at"):
             payload["expires_at"] = payload["application_deadline"]
 
@@ -73,7 +73,7 @@ class JobService:
         self.db.add(db_job)
         await self.db.commit()
         await self.db.refresh(db_job)
-
+        
         print(f"DEBUG: [JobService.create_job] Job created with ID: {db_job.id}")
         return db_job
 
@@ -85,7 +85,7 @@ class JobService:
 
         update_data = job_in.model_dump(exclude_unset=True)
         print(f"DEBUG: [JobService.update_job] Update data: {json.dumps(update_data, default=str)}")
-
+        
         for key, value in update_data.items():
             setattr(db_job, key, value)
 
@@ -106,6 +106,7 @@ class JobService:
         if not db_job:
             return None
 
+        # Build current content so the AI makes targeted edits, not a full rewrite
         def _fmt(items):
             return "\n".join(f"- {i}" for i in (items or [])) or "Not specified"
 
@@ -123,9 +124,11 @@ class JobService:
             feedback=feedback
         )
 
+        # LLM CALL
         llm = get_llm().with_structured_output(JobPost)
         response = await run_in_threadpool(llm.invoke, messages)
 
+        # Convert to dict
         post_data = response.model_dump() if hasattr(response, 'model_dump') else response
 
         new_requirements = post_data.get("requirements", db_job.requirements or [])
@@ -135,6 +138,7 @@ class JobService:
         new_benefits = post_data.get("benefits", db_job.benefits or [])
         new_summary = post_data.get("summary", "")
 
+        # Rebuild the full structured description to keep display format consistent
         def _list(items):
             return "\n".join(f"• {i}" for i in (items or []))
 
@@ -148,6 +152,7 @@ class JobService:
         if new_preferred:
             full_description += f"\n\n🔹 PREFERRED QUALIFICATIONS\n{_list(new_preferred)}"
 
+        # Update the job record
         db_job.title = post_data.get("job_title", db_job.title)
         db_job.description = full_description
         db_job.required_skills = new_skills
@@ -184,6 +189,14 @@ class JobService:
         generator = JDGeneratorService()
         return await generator.generate_job_description(job_data, prompt=prompt)
 
+    async def delete_job(self, job_id: int):
+        db_job = await self.get_job(job_id)
+        if db_job:
+            await self.db.delete(db_job)
+            await self.db.commit()
+            return True
+        return False
+
     async def get_total_jobs_count(self):
         from sqlalchemy import func
         result = await self.db.execute(select(func.count()).select_from(Posts))
@@ -195,26 +208,29 @@ class JobService:
         from src.api.models.job import JobStatus
         from src.api.models.application import Application
         from src.api.models.user import User
-
+        
+        # Total jobs for this user
         total_query = select(func.count()).select_from(Posts).where(Posts.created_by == user_id)
         total_result = await self.db.execute(total_query)
         total_jobs = total_result.scalar()
-
+        
+        # Pending actions: DRAFT or CHANGES_REQUESTED
         pending_query = select(func.count()).select_from(Posts).where(
             Posts.created_by == user_id,
             Posts.status.in_([JobStatus.DRAFT, JobStatus.CHANGES_REQUESTED])
         )
         pending_result = await self.db.execute(pending_query)
         pending_actions = pending_result.scalar()
-
-        recent_query = select(Application, cast(Posts.title, String), cast(User.full_name, String)).join(
+        
+        # Fetch 5 most recent activities (latest applications by updated_at)
+        recent_query = select(Application, Posts.title, User.full_name).join(
             Posts, Application.job_id == Posts.id
         ).join(
             User, Application.candidate_id == User.id
         ).where(
             Posts.created_by == user_id
         ).order_by(desc(Application.updated_at)).limit(5)
-
+        
         recent_result = await self.db.execute(recent_query)
         recent_activity = []
         for app, job_title, candidate_name in recent_result.all():
@@ -227,7 +243,7 @@ class JobService:
                 label = "Candidate hired"
             elif app.status.value == "REJECTED":
                 label = "Candidate rejected"
-
+                
             recent_activity.append({
                 "label": label,
                 "sub": f"{candidate_name} for {job_title}",
@@ -235,7 +251,7 @@ class JobService:
                 "badge": app.status.value.capitalize(),
                 "status": app.status.value
             })
-
+        
         return {
             "total_jobs": total_jobs,
             "pending_actions": pending_actions,
@@ -257,6 +273,7 @@ class JobService:
         await self.db.commit()
         await self.db.refresh(db_job)
 
+        # Trigger Indeed Upload
         indeed_service = IndeedService(self.db)
         try:
             await indeed_service.post_job_to_indeed(
@@ -267,70 +284,72 @@ class JobService:
                 company=db_job.company_name or ""
             )
         except Exception:
-            pass
-
+            pass  # Indeed upload failure should not block job publish
+        
         return db_job
-
     async def review_job(self, job_id: int, status: str, feedback: str = None):
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-
+            
         db_job.status = status
         db_job.manager_feedback = feedback
-
+        
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
 
     async def submit_edit(self, job_id: int, title: str, description: str, editor_email: str = None):
+        """Store proposed edits from a team member and set status to EDIT_SUBMITTED."""
         from src.api.models.job import JobStatus
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-
+        
         db_job.edited_title = title
         db_job.edited_description = description
         db_job.edited_by_email = editor_email
         db_job.status = JobStatus.EDIT_SUBMITTED
-
+        
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
 
     async def accept_edit(self, job_id: int):
+        """Accept proposed edits: copy edited fields to actual fields, clear edit data, set APPROVED."""
         from src.api.models.job import JobStatus
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-
+        
         if db_job.edited_title:
             db_job.title = db_job.edited_title
         if db_job.edited_description:
             db_job.description = db_job.edited_description
-
+        
         db_job.edited_title = None
         db_job.edited_description = None
         db_job.edited_by_email = None
         db_job.status = JobStatus.APPROVED
         db_job.manager_feedback = None
-
+        
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
 
     async def decline_edit(self, job_id: int, feedback: str = None):
+        """Decline proposed edits: clear edit data, store feedback, set CHANGES_REQUESTED."""
         from src.api.models.job import JobStatus
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-
+        
         db_job.edited_title = None
         db_job.edited_description = None
         db_job.edited_by_email = None
         db_job.status = JobStatus.EDIT_DECLINED
         db_job.manager_feedback = feedback
-
+        
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
@@ -339,9 +358,14 @@ class JobService:
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-
+        
         db_job.expires_at = new_deadline
         db_job.application_deadline = new_deadline
+        
+        # If the job was automatically CLOSED due to expiration, 
+        # the effective_status property handles it, but if it was manually CLOSED,
+        # we might want to let HR reopen it manually or we just leave it CLOSED.
+        # But wait, we just update the dates. `effective_status` will compute it properly.
 
         await self.db.commit()
         await self.db.refresh(db_job)
@@ -352,9 +376,9 @@ class JobService:
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
-
+            
         db_job.status = JobStatus.CLOSED
-
+        
         await self.db.commit()
         await self.db.refresh(db_job)
         return db_job
@@ -367,10 +391,15 @@ class JobService:
         if not db_job:
             return False
 
+        # ── Step 1: delete all child applications first ──────────────────────
+        # SQLAlchemy's backref does NOT cascade delete, so it tries to SET
+        # job_id = NULL which violates the NOT NULL constraint. We must
+        # explicitly wipe related rows before removing the parent.
         await self.db.execute(
             sql_delete(Application).where(Application.job_id == job_id)
         )
 
+        # ── Step 2: now it's safe to delete the job itself ───────────────────
         await self.db.delete(db_job)
         await self.db.commit()
         return True
