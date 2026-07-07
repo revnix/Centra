@@ -3,6 +3,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
+
 import uvicorn
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
 
 from src.api.core.config import settings
 from src.api.db.session import engine, get_db
@@ -39,8 +41,8 @@ from src.api.routes.admin.integrations import (
     whatsapp as whatsapp_integration,
 )
 
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 async def _migrate_enum_values():
     """Add new ApplicationStatus values to the PostgreSQL enum type if they don't exist."""
@@ -63,13 +65,13 @@ async def _migrate_enum_values():
         # Non-fatal: SQLite doesn't have named enum types; skip silently
         logger.debug("Enum migration skipped (%s: %s)", type(e).__name__, e)
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await run_in_threadpool(os.makedirs, settings.UPLOAD_DIR, exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "resumes"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "onboarding"), exist_ok=True)
     await run_in_threadpool(os.makedirs, os.path.join(settings.UPLOAD_DIR, "recordings"), exist_ok=True)
+
 
     await _migrate_enum_values()
 
@@ -83,25 +85,28 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning("DB warmup failed (will retry on first request): %s", e)
 
+
     asyncio.ensure_future(_warmup_db())
 
+
     async def _periodic_neon_ping():
-        """Ping Neon every 25 s so compute never auto-suspends (5-min idle threshold)."""
-        from src.api.db.session import _is_neon, engine as _engine, _update_last_ping
+        """Ping Neon every 30 s so compute never auto-suspends (5-min idle threshold)."""
+        from src.api.db.session import _is_neon, engine as _engine
         if not _is_neon:
             return
         while True:
-            await asyncio.sleep(25)
+            await asyncio.sleep(30)
             try:
                 async with _engine.connect() as conn:
                     await conn.execute(text("SELECT 1"))
-                _update_last_ping()
             except asyncio.CancelledError:
                 break
             except Exception:
                 pass  # best-effort; get_async_db() retry logic is the fallback
 
+
     asyncio.ensure_future(_periodic_neon_ping())
+
 
     # Start check_email_replies.py as a managed subprocess
     proc = None
@@ -126,6 +131,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.exception("Failed to start check_email_replies.py process: %s", e)
 
+
     logger.info("Application startup complete. CORS origins: %s", settings.ALLOWED_ORIGINS)
     yield
 
@@ -145,11 +151,29 @@ async def lifespan(app: FastAPI):
 
 
 
+    # Clean up subprocess on application shutdown
+    if proc is not None:
+        logger.info("Stopping background reply polling service subprocess...")
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+            logger.info("Background reply polling service subprocess terminated successfully.")
+        except subprocess.TimeoutExpired:
+            logger.warning("Subprocess did not terminate; killing it...")
+            proc.kill()
+            proc.wait()
+        except Exception as e:
+            logger.error("Error while terminating background process: %s", e)
+
+
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan,
 )
+
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -158,6 +182,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         status_code=exc.status_code,
         content={"detail": exc.detail, "code": getattr(exc, "code", None)},
     )
+
 
 
 @app.exception_handler(Exception)
@@ -172,8 +197,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -185,11 +212,13 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+
 # Core routes
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(gmail.router, prefix=f"{settings.API_V1_PREFIX}/gmail", tags=["gmail"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_PREFIX}/jobs", tags=["jobs"])
 app.include_router(integrations.router, prefix=f"{settings.API_V1_PREFIX}/integrations", tags=["integrations"])
+
 
 # Admin routes
 app.include_router(admin_users.router, prefix=f"{settings.API_V1_PREFIX}/admin/users", tags=["admin-users"])
@@ -197,6 +226,7 @@ app.include_router(admin_jobs.router, prefix=f"{settings.API_V1_PREFIX}/admin/jo
 app.include_router(linkedin_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/linkedin", tags=["admin-integrations-linkedin"])
 app.include_router(indeed_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/indeed", tags=["admin-integrations-indeed"])
 app.include_router(whatsapp_integration.router, prefix=f"{settings.API_V1_PREFIX}/admin/integrations/whatsapp", tags=["admin-integrations-whatsapp"])
+
 
 # Hiring workflow routes
 app.include_router(candidates.router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["candidates"])
@@ -208,6 +238,7 @@ app.include_router(screening.router, prefix=f"{settings.API_V1_PREFIX}/screening
 app.include_router(langgraph.router, tags=["langgraph"])
 
 
+
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
     try:
@@ -217,9 +248,11 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         return {"status": "unhealthy", "database_error": str(e)}
 
 
+
 @app.get("/")
 def root():
     return {"message": "Welcome to Evalyn API"}
+
 
 
 if __name__ == "__main__":

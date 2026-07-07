@@ -8,12 +8,9 @@ class ApplicationStatus(str, enum.Enum):
     APPLIED = "APPLIED"
     SCREENING = "SCREENING"
     SHORTLISTED = "SHORTLISTED"
-    SCREENING_TEST = "SCREENING_TEST"
-    SENT = "SENT"
-    RESPONDED = "RESPONDED"  # Legacy status present in existing production rows
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
-    INTERVIEW_INVITED = "INTERVIEW_INVITED"
-    INTERVIEW_PENDING = "INTERVIEW_PENDING" # Keeping for backward compatibility
+    INTERVIEW_INVITED = "INTERVIEW_INVITED"  # Used when interview invite is sent / candidate has replied
+    INTERVIEW_PENDING = "INTERVIEW_PENDING"  # Kept for backward compatibility
     INTERVIEW_IN_PROGRESS = "INTERVIEW_IN_PROGRESS"
     INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
     REJECTED = "REJECTED"
