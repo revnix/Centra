@@ -109,6 +109,12 @@ class ScreeningService:
             self.db.add(application)
             await self.db.commit()
             await self.db.refresh(application)
+
+            if is_qualified:
+                from src.api.services.application_service import ApplicationService
+                app_service = ApplicationService(self.db)
+                await app_service.ensure_resume_promoted_to_drive(int(candidate.id))
+
             logger.info(
                 f"[SCREENING] ✅ App {application_id} scored: {score}/100 | "
                 f"Qualified: {is_qualified} | Salary: {salary_status} | "

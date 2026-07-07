@@ -277,6 +277,9 @@ class ApplicationService:
         self.db.add(application)
         await self.db.commit()
 
+        # Promote resume to Google Drive if applicable
+        await self.ensure_resume_promoted_to_drive(application.candidate_id)
+
         # 2. Check if we should skip email based on city (Safety net)
         if not application.city or application.city.lower() != "haripur":
             logger.info(f"[SHORTLIST] Email skipped for application {application_id} - not Haripur.")
@@ -342,7 +345,6 @@ class ApplicationService:
         # Trigger Email
         from src.api.services.email_service import EmailService
         from src.api.services.onboarding_service import OnboardingService
-        from starlette.concurrency import run_in_threadpool
         from src.api.core.config import settings
         
         # Initiate onboarding to generate token
@@ -393,3 +395,97 @@ class ApplicationService:
         await self.db.delete(application)
         await self.db.commit()
         return True
+
+    async def ensure_resume_promoted_to_drive(self, user_id: int):
+        """
+        Promotes the candidate's resume from Cloudinary to Google Drive.
+        Called when a candidate is shortlisted.
+
+        The Google Drive client library is synchronous, so the blocking
+        upload call is offloaded to a thread-pool via asyncio.to_thread()
+        to avoid stalling the event loop.
+        """
+        import asyncio
+        from src.api.models.user import User
+        from src.api.models.candidate import CandidateProfile
+
+        # Load user and profile
+        result = await self.db.execute(
+            select(User)
+            .options(joinedload(User.candidate_profile))
+            .where(User.id == user_id)
+        )
+        user = result.scalars().first()
+        if not user or not user.candidate_profile:
+            logger.warning(f"[DRIVE] User or candidate profile not found for user ID: {user_id} — skipping Drive promotion.")
+            return
+
+        profile = user.candidate_profile
+
+        # Bug 3 fix: log explicitly when resume_url is absent so the skip is traceable.
+        if not profile.resume_url:
+            logger.warning(
+                f"[DRIVE] Candidate {user.email} has no resume_url — "
+                "cannot promote to Drive. Ask candidate to upload a resume first."
+            )
+            return
+
+        if profile.resume_storage_provider == "google_drive":
+            logger.info(f"[DRIVE] Resume for {user.email} is already on Google Drive — skipping.")
+            return
+
+        from src.api.core.config import settings as _settings
+        _drive_available = bool(_settings.GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO and _settings.GOOGLE_DRIVE_FOLDER_ID)
+        if not _drive_available:
+            logger.warning("[DRIVE] Google Drive not configured — skipping resume promotion.")
+            return
+
+        try:
+            import httpx
+            from urllib.parse import urlparse
+            from pathlib import Path
+
+            logger.info(f"[DRIVE] Downloading resume from storage: {profile.resume_url}")
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                response = await client.get(profile.resume_url)
+
+            # Bug 4 fix: raise explicitly on non-200 so the except block captures it.
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to download resume (HTTP {response.status_code}) from {profile.resume_url}"
+                )
+
+            content = response.content
+            parsed_url = urlparse(profile.resume_url)
+            original_filename = Path(parsed_url.path).name or "resume.pdf"
+
+            from src.api.services.google_drive_service import GoogleDriveService
+            _drive = GoogleDriveService()
+
+            # Bug 1 fix: GoogleDriveService.upload_file is synchronous (uses the Google API
+            # client library which is blocking). Run it in a thread-pool so it doesn't stall
+            # the asyncio event loop and silently time-out / be abandoned.
+            _meta = await asyncio.to_thread(
+                _drive.upload_file,
+                content,
+                original_filename,
+                user.email,          # candidate_identifier
+            )
+
+            profile.resume_url = _meta.web_view_link
+            profile.resume_file_id = _meta.file_id
+            profile.resume_storage_provider = "google_drive"
+
+            self.db.add(profile)
+            await self.db.commit()
+            logger.info(
+                f"[DRIVE] Resume promoted to Google Drive for {user.email}: "
+                f"file_id={_meta.file_id}, link={_meta.web_view_link}"
+            )
+
+        except Exception as e:
+            # Bug 2 fix: log with exc_info so the full traceback appears in prod logs.
+            logger.error(
+                f"[DRIVE] Error promoting resume to Google Drive for user {user_id}: {e}",
+                exc_info=True,
+            )

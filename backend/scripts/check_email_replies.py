@@ -77,7 +77,7 @@ def check_for_replies():
                         
                         if application:
                             print(f"[{datetime.now()}] SUCCESS: Found reply from {from_email}. Updating application {application.id} to RESPONDED.")
-                            application.status = ApplicationStatus.RESPONDED
+                            application.status = ApplicationStatus.INTERVIEW_INVITED
                             application.interview_invitation_status = "RESPONDED"
                             
                             # Append to logs
