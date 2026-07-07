@@ -176,9 +176,31 @@ class ApiClient {
     }
 
     // Generic request methods
+    // GET is idempotent, so transient network failures (ECONNRESET from a dead
+    // keep-alive proxy socket, brief backend restart) are retried before surfacing.
     async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.get<T>(url, config);
-        return response.data;
+        const maxAttempts = 3;
+        let lastError: any;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const response = await this.client.get<T>(url, config);
+                return response.data;
+            } catch (err: any) {
+                lastError = err;
+                // A failed proxy hop (dead socket) surfaces as a bare 500/502/504,
+                // and GET is safe to retry even on a genuine backend 500.
+                const retriable =
+                    err?.code === 'NETWORK_ERROR' ||
+                    err?.code === 'TIMEOUT' ||
+                    err?.code === 'HTTP_500' ||
+                    err?.code === 'HTTP_502' ||
+                    err?.code === 'HTTP_504';
+                if (!retriable || attempt === maxAttempts) throw err;
+                await new Promise((r) => setTimeout(r, 500 * attempt));
+                console.warn(`[API Retry] GET ${url} (attempt ${attempt + 1}/${maxAttempts})`);
+            }
+        }
+        throw lastError;
     }
 
     async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
