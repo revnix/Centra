@@ -64,11 +64,13 @@ class ApplicationService:
         await self.db.refresh(application)
         
         logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
-        
+
         # Centralized Notification Trigger
         await self._trigger_new_app_notification(application, background_tasks)
-        
-        return application
+
+        # Re-fetch with all relationships eagerly loaded so response serialization
+        # never triggers a lazy load (MissingGreenlet in async context)
+        return await self.get_application_by_id(application.id) or application  # type: ignore[arg-type]
 
     async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
         """Delegates notification to the centralized handler."""
@@ -129,8 +131,10 @@ class ApplicationService:
         result = await self.db.execute(
             select(Application)
             .options(
+                joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                joinedload(Application.interview_session),
+                joinedload(Application.screening_test),
             )
             .where(Application.candidate_id == user_id)
             .order_by(Application.created_at.desc())

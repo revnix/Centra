@@ -38,7 +38,7 @@ async def get_cloudinary_signature():
         "signature": signature,
     }
 
-ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"}
+ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".jfif", ".png", ".webp", ".heic", ".doc", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 @router.post("/onboarding-document")
