@@ -104,4 +104,11 @@ export const applicationsApi = {
     updateStatus: async (id: string, status: string): Promise<any> => {
         return apiClient.patch<any>(`/applications/${id}/status`, { status });
     },
+
+    /**
+     * Reset email tracking so HR can resend any email for this application.
+     */
+    resetEmailStatus: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/reset-email-status`, {});
+    },
 };

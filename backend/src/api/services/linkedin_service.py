@@ -130,9 +130,12 @@ class LinkedInService:
 
         author = f"urn:li:person:{integration.platform_user_id}"
 
+        # Convert localhost / 127.0.0.1 to lvh.me so LinkedIn makes it clickable and matches valid public TLDs
+        text = text.replace("localhost", "lvh.me").replace("127.0.0.1", "lvh.me")
+
         # LinkedIn shareCommentary.text has a hard 3000-character limit.
         # Truncate gracefully so the API doesn't reject with 422.
-        MAX_LEN = 2900  # leave room for the apply link appended below
+        MAX_LEN = 2900
         if len(text) > MAX_LEN:
             text = text[:MAX_LEN].rsplit(" ", 1)[0] + "..."
 
@@ -149,24 +152,22 @@ class LinkedInService:
             if not article_url.startswith('http'):
                 article_url = f"https://{article_url}"
 
-            if "localhost" in article_url or "127.0.0.1" in article_url:
-                # LinkedIn rejects localhost URLs in media blocks with 422 error
-                # Fallback: append to text
-                share_content["shareCommentary"]["text"] = f"{text}\n\nApply here: {article_url}"
-            else:
-                share_content["shareMediaCategory"] = "ARTICLE"
-                share_content["media"] = [
-                    {
-                        "status": "READY",
-                        "description": {
-                            "text": "Submit your application for this position."
-                        },
-                        "originalUrl": article_url,
-                        "title": {
-                            "text": "View Job Details & Apply"
-                        }
+            # Convert localhost / 127.0.0.1 to lvh.me so LinkedIn accepts the domain in the media card
+            article_url = article_url.replace("localhost", "lvh.me").replace("127.0.0.1", "lvh.me")
+
+            share_content["shareMediaCategory"] = "ARTICLE"
+            share_content["media"] = [
+                {
+                    "status": "READY",
+                    "description": {
+                        "text": "Submit your application for this position."
+                    },
+                    "originalUrl": article_url,
+                    "title": {
+                        "text": "View Job Details & Apply"
                     }
-                ]
+                }
+            ]
         
         payload = {
             "author": author,

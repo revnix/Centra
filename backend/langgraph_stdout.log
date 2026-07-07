@@ -1,0 +1,102 @@
+2026-07-06T06:32:09.865692Z [info     ] Server started in 1.43s        [browser_opener] api_variant=local_dev langgraph_api_version=0.10.0 message='Server started in 1.43s' thread_name='Thread-2 (_open_browser)'
+2026-07-06T06:32:09.916489Z [info     ] 🎨 Opening Studio in your browser... [browser_opener] api_variant=local_dev langgraph_api_version=0.10.0 message='🎨 Opening Studio in your browser...' thread_name='Thread-2 (_open_browser)'
+2026-07-06T06:32:09.963498Z [info     ] URL: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024 [browser_opener] api_variant=local_dev langgraph_api_version=0.10.0 message='URL: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024' thread_name='Thread-2 (_open_browser)'
+2026-07-06T06:32:10.389785Z [info     ] Starting dev persistence flush loop [langgraph_runtime_inmem._persistence] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:10.436833Z [info     ] Using langgraph_runtime_inmem  [langgraph_runtime] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:10.609963Z [info     ] Using auth of type=noop        [langgraph_api.auth.middleware] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+DEBUG: Initializing engine with URL: ep-late-rain-anoqhonl-pooler.c-6.us-east-1.aws.neon.tech/neondb
+2026-07-06T06:32:14.238639Z [warning  ] Import for custom app ./src/api/main.py:app exceeded the expected startup time. Slow initialization (often due to work executed at import time) can delay readiness, slow scale-out velocity, and may cause deployments to be marked unhealthy.
+    To get detailed profiling of slow operations, set FF_PROFILE_IMPORTS=true [langgraph_api.timing.timer] api_variant=local_dev app=./src/api/main.py:app elapsed_seconds=3.619432699983008 langgraph_api_version=0.10.0 name=load_custom_app thread_name=MainThread
+2026-07-06T06:32:17.750397Z [info     ] Starting dev persistence flush loop [langgraph_runtime_inmem._persistence] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:17.843291Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:17.856356Z [info     ] Using langgraph_runtime_inmem  [langgraph_runtime] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:17.984763Z [info     ] Using auth of type=noop        [langgraph_api.auth.middleware] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:18.268210Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+DEBUG: Initializing engine with URL: ep-late-rain-anoqhonl-pooler.c-6.us-east-1.aws.neon.tech/neondb
+2026-07-06T06:32:18.638837Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:19.060654Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:19.470777Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:19.891963Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:20.313725Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:20.381080Z [info     ] Loaded custom app from ./src/api/main.py:app [langgraph_api.timing.timer] api_variant=local_dev app=./src/api/main.py:app elapsed_seconds=2.3876486000372097 langgraph_api_version=0.10.0 name=load_custom_app thread_name=MainThread
+2026-07-06T06:32:20.684586Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:20.948442Z [info     ] Starting In-Memory runtime with langgraph-api=0.10.0 and in-memory runtime=0.30.0 [langgraph_runtime_inmem.lifespan] api_variant=local_dev langgraph_api_version=0.10.0 langgraph_runtime_inmem_version=0.30.0 thread_name=asyncio_0 version=0.10.0
+2026-07-06T06:32:21.046993Z [info     ] 5 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:21.408608Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:21.452724Z [info     ] No license key or control plane API key set, skipping metadata loop [langgraph_api.metadata] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:21.464285Z [info     ] Importing graph profiling      [langgraph_api.timing.timer] api_variant=local_dev elapsed_seconds=0.011826600064523518 graph_id=workflow langgraph_api_version=0.10.0 module=None name=_graph_from_spec path=./src/flow/main.py thread_name=asyncio_0
+2026-07-06T06:32:21.553755Z [info     ] Starting cron scheduler        [langgraph_api.cron_scheduler] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:21.553970Z [info     ] Starting queue with shared loop [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=asyncio_0
+2026-07-06T06:32:21.566980Z [info     ] Starting 1 background workers  [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=asyncio_0
+2026-07-06T06:32:21.572779Z [info     ] Worker stats                   [langgraph_runtime_inmem.queue] active=0 api_variant=local_dev available=1 langgraph_api_version=0.10.0 max=1 thread_name=asyncio_1
+2026-07-06T06:32:21.782244Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:22.090118Z [info     ] Queue stats                    [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 n_pending=0 n_running=0 pending_runs_wait_time_max_secs=None pending_runs_wait_time_med_secs=None pending_unblocked_runs_wait_time_max_secs=None thread_name=asyncio_0
+2026-07-06T06:32:22.159022Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:22.620952Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:22.990749Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:23.413531Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:23.841985Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:24.254377Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:24.625420Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:25.048770Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:25.470827Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:25.842010Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:26.253317Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:26.622247Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:26.984353Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:27.358533Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:27.733975Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:28.105495Z [info     ] 5 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:28.495117Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:28.868559Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:29.245617Z [info     ] 1 change detected              [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:29.618756Z [info     ] 2 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:29.626790Z [warning  ] WatchFiles detected changes in 'scripts\temp_get_users.py'. Reloading... [uvicorn.error] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+ 2026-07-06T06:32:30.031543Z [info     ] ApplicationStatus enum migration complete [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.037208Z [info     ] Starting background reply polling service subprocess: C:\Users\Computer arena\Evalyn-HR--Agent\backend\scripts\check_email_replies.py [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.050971Z [info     ] Application startup complete. CORS origins: ['*', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8000', 'http://localhost:8123', 'http://localhost:2024', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:8000', 'http://127.0.0.1:8123', 'http://127.0.0.1:2024', 'http://172.22.112.1:3000', 'http://172.22.112.1:8123', 'https://evalyn-omega.vercel.app', 'https://*.vercel.app'] [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.073053Z [info     ] Entered lifespan context       [langgraph_api.timing.timer] api_variant=local_dev elapsed_seconds=8.575965299969539 langgraph_api_version=0.10.0 name=user_router.lifespan thread_name=MainThread
+2026-07-06T06:32:30.087076Z [info     ] Application started up in 13.131s [langgraph_api.timing.timer] api_variant=local_dev elapsed=13.131141100078821 langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.329648Z [info     ] Stopping background reply polling service subprocess... [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.341678Z [info     ] Background reply polling service subprocess terminated successfully. [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.347070Z [info     ] Shutting down background workers [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.360021Z [info     ] Shutting down remote graphs    [langgraph_api.graph] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.380480Z [info     ] Stopping dev persistence flush loop [langgraph_runtime_inmem._persistence] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:30.428302Z [info     ] dev persistence flush loop exiting [langgraph_runtime_inmem._persistence] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=Thread-1
+2026-07-06T06:32:32.597343Z [info     ] 24 changes detected            [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:34.959639Z [info     ] Starting dev persistence flush loop [langgraph_runtime_inmem._persistence] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:35.015395Z [info     ] Using langgraph_runtime_inmem  [langgraph_runtime] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:35.146155Z [info     ] Using auth of type=noop        [langgraph_api.auth.middleware] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+DEBUG: Initializing engine with URL: ep-late-rain-anoqhonl-pooler.c-6.us-east-1.aws.neon.tech/neondb
+2026-07-06T06:32:37.869415Z [info     ] Loaded custom app from ./src/api/main.py:app [langgraph_api.timing.timer] api_variant=local_dev app=./src/api/main.py:app elapsed_seconds=2.715962899965234 langgraph_api_version=0.10.0 name=load_custom_app thread_name=MainThread
+2026-07-06T06:32:38.485200Z [info     ] Starting In-Memory runtime with langgraph-api=0.10.0 and in-memory runtime=0.30.0 [langgraph_runtime_inmem.lifespan] api_variant=local_dev langgraph_api_version=0.10.0 langgraph_runtime_inmem_version=0.30.0 thread_name=asyncio_0 version=0.10.0
+2026-07-06T06:32:38.923091Z [info     ] No license key or control plane API key set, skipping metadata loop [langgraph_api.metadata] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:38.934482Z [info     ] Importing graph profiling      [langgraph_api.timing.timer] api_variant=local_dev elapsed_seconds=0.011050599976442754 graph_id=workflow langgraph_api_version=0.10.0 module=None name=_graph_from_spec path=./src/flow/main.py thread_name=asyncio_0
+2026-07-06T06:32:39.033351Z [info     ] Starting cron scheduler        [langgraph_api.cron_scheduler] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:39.033717Z [info     ] Starting queue with shared loop [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=asyncio_0
+2026-07-06T06:32:39.049013Z [info     ] Starting 1 background workers  [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=asyncio_0
+2026-07-06T06:32:39.056434Z [info     ] Worker stats                   [langgraph_runtime_inmem.queue] active=0 api_variant=local_dev available=1 langgraph_api_version=0.10.0 max=1 thread_name=asyncio_1
+2026-07-06T06:32:39.582209Z [info     ] Queue stats                    [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 n_pending=0 n_running=0 pending_runs_wait_time_max_secs=None pending_runs_wait_time_med_secs=None pending_unblocked_runs_wait_time_max_secs=None thread_name=asyncio_0
+2026-07-06T06:32:41.033623Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:45.069075Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:46.351516Z [info     ] ApplicationStatus enum migration complete [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:46.356967Z [info     ] Starting background reply polling service subprocess: C:\Users\Computer arena\Evalyn-HR--Agent\backend\scripts\check_email_replies.py [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:46.370484Z [info     ] Application startup complete. CORS origins: ['*', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8000', 'http://localhost:8123', 'http://localhost:2024', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:8000', 'http://127.0.0.1:8123', 'http://127.0.0.1:2024', 'http://172.22.112.1:3000', 'http://172.22.112.1:8123', 'https://evalyn-omega.vercel.app', 'https://*.vercel.app'] [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:46.375064Z [info     ] Entered lifespan context       [langgraph_api.timing.timer] api_variant=local_dev elapsed_seconds=7.410717600025237 langgraph_api_version=0.10.0 name=user_router.lifespan thread_name=MainThread
+2026-07-06T06:32:46.382441Z [info     ] Application started up in 11.989s [langgraph_api.timing.timer] api_variant=local_dev elapsed=11.989362600026652 langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:49.342682Z [info     ] DB warmup successful           [user_router_module] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:51.043589Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:32:55.082629Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:01.034408Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:05.082200Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:11.044702Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:13.680225Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:15.105851Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:21.082612Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:23.699991Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:25.102308Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:31.096280Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:33.733317Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:35.173140Z [info     ] 4 changes detected             [watchfiles.main] api_variant=local_dev langgraph_api_version=0.10.0 thread_name=MainThread
+2026-07-06T06:33:39.265791Z [info     ] Worker stats                   [langgraph_runtime_inmem.queue] active=0 api_variant=local_dev available=1 langgraph_api_version=0.10.0 max=1 thread_name=asyncio_0
+2026-07-06T06:33:39.794360Z [info     ] Queue stats                    [langgraph_runtime_inmem.queue] api_variant=local_dev langgraph_api_version=0.10.0 n_pending=0 n_running=0 pending_runs_wait_time_max_secs=None pending_runs_wait_time_med_secs=None pending_unblocked_runs_wait_time_max_secs=None thread_name=asyncio_1

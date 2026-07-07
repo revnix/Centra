@@ -53,15 +53,13 @@ async def oauth_connect_whatsapp(
     """Connect WhatsApp using Facebook OAuth Code."""
     try:
         whatsapp_service = WhatsAppService(db)
-        integration = await whatsapp_service.connect_via_oauth(
+        await whatsapp_service.connect_via_oauth(
             user_id=current_user.id,
-            code=request_data.code
+            access_token=request_data.code
         )
         return {
             "message": "WhatsApp connected successfully via Facebook",
             "connected": True,
-            "phone_number_id": integration.extra_data.get("phone_number_id"),
-            "waba_id": integration.extra_data.get("waba_id")
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

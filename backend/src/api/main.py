@@ -28,6 +28,7 @@ from src.api.routes import (
     jobs,
     langgraph,
     onboarding,
+    screening,
     uploads,
 )
 from src.api.routes.admin import (
@@ -46,6 +47,7 @@ logger = logging.getLogger(__name__)
 async def _migrate_enum_values():
     """Add new ApplicationStatus values to the PostgreSQL enum type if they don't exist."""
     new_values = [
+        "SCREENING_TEST",
         "INTERVIEW_SCHEDULED",
         "REFERENCE_CHECK",
         "OFFER_EXTENDED",
@@ -74,9 +76,11 @@ async def lifespan(app: FastAPI):
     await _migrate_enum_values()
 
     async def _warmup_db():
+        from src.api.db.session import _update_last_ping
         try:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
+            _update_last_ping()  # mark Neon warm so the first real request skips per-request warmup
             logger.info("DB warmup successful")
         except Exception as e:
             logger.warning("DB warmup failed (will retry on first request): %s", e)
@@ -129,6 +133,21 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application startup complete. CORS origins: %s", settings.ALLOWED_ORIGINS)
     yield
+
+    # Clean up subprocess on application shutdown
+    if proc is not None:
+        logger.info("Stopping background reply polling service subprocess...")
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+            logger.info("Background reply polling service subprocess terminated successfully.")
+        except subprocess.TimeoutExpired:
+            logger.warning("Subprocess did not terminate; killing it...")
+            proc.kill()
+            proc.wait()
+        except Exception as e:
+            logger.error("Error while terminating background process: %s", e)
+
 
 
     # Clean up subprocess on application shutdown
@@ -214,6 +233,7 @@ app.include_router(applications.router, prefix=f"{settings.API_V1_PREFIX}/applic
 app.include_router(interviews.router, prefix=f"{settings.API_V1_PREFIX}/interviews", tags=["interviews"])
 app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboarding", tags=["onboarding"])
 app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
+app.include_router(screening.router, prefix=f"{settings.API_V1_PREFIX}/screening", tags=["screening"])
 app.include_router(langgraph.router, tags=["langgraph"])
 
 

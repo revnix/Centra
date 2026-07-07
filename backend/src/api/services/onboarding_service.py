@@ -328,6 +328,14 @@ class OnboardingService:
 
         from src.api.services.file_service import FileService
         
+        # Fetch candidate name for file naming
+        candidate_name = None
+        if onboarding.user_id:
+            user_result = await self.db.execute(select(User).where(User.id == onboarding.user_id))
+            candidate = user_result.scalars().first()
+            if candidate and candidate.full_name:
+                candidate_name = candidate.full_name
+        
         # Mapping of upload arguments to document types and model fields
         uploads = [
             (cnic, "cnic", "doc_id_card_url"),
@@ -344,14 +352,16 @@ class OnboardingService:
         for file_obj, doc_type, field_name in uploads:
             if file_obj:
                 try:
-                    url = await FileService.save_onboarding_document(file_obj, application_id, doc_type)
+                    url = await FileService.save_onboarding_document(file_obj, application_id, doc_type, candidate_name)
                     setattr(onboarding, field_name, url)
                     
                     # Save metadata to onboarding_documents table
                     file_ext = file_obj.filename.split('.')[-1].lower() if file_obj.filename else "file"
+                    # Extract the renamed filename from the URL for display
+                    renamed_filename = url.split('/')[-1] if url else file_obj.filename
                     doc_meta = OnboardingDocument(
                         application_id=application_id,
-                        file_name=file_obj.filename,
+                        file_name=renamed_filename,
                         file_url=url,
                         file_type=file_ext
                     )
@@ -471,9 +481,16 @@ class OnboardingService:
         await self.db.refresh(onboarding)
         return onboarding
 
-    async def send_welcome_email(self, application_id: int, attachments: list | None = None) -> bool:
+    async def send_welcome_email(
+        self,
+        application_id: int,
+        attachments: list | None = None,
+        custom_subject: str | None = None,
+        custom_message: str | None = None,
+    ) -> bool:
         """
         Sends an onboarding welcome email to the candidate.
+        Supports optional custom subject/message; always appends the portal link.
         """
         # Fetch onboarding with user (candidate) details
         result = await self.db.execute(
@@ -482,26 +499,46 @@ class OnboardingService:
             .options(selectinload(Onboarding.user))
         )
         onboarding = result.scalars().first()
-        
+
         if not onboarding:
             raise HTTPException(status_code=404, detail="Onboarding record not found")
-            
+
         candidate = onboarding.user
         if not candidate or not candidate.email:
             raise HTTPException(status_code=400, detail="Candidate email not found")
-            
+
         # Generate onboarding link with token
         token_param = f"?token={onboarding.onboarding_token}" if onboarding.onboarding_token else ""
         onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application_id}{token_param}"
-        
-        # Send email
+
+        if custom_subject and custom_message:
+            # HR-customized email: include their message + onboarding portal button at the bottom
+            html = f"""
+            <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:auto;padding:30px;border:1px solid #e2e8f0;border-radius:12px;color:#2d3748;line-height:1.7;">
+                <div style="white-space:pre-wrap;margin-bottom:24px;">{custom_message}</div>
+                <div style="text-align:center;margin:30px 0;">
+                    <a href="{onboarding_link}" style="background-color:#3182ce;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Complete Your Onboarding</a>
+                </div>
+                <p style="font-size:12px;color:#a0aec0;text-align:center;margin-top:24px;">This link is unique to you. Please do not share it.</p>
+            </div>
+            """
+            from src.api.services.email_service import send_email
+            msg_id = await send_email(
+                to_email=candidate.email,
+                subject=custom_subject,
+                html_content=html,
+                attachments=attachments,
+            )
+            return bool(msg_id)
+
+        # Default template
         success = await EmailService.send_onboarding_welcome(
             candidate_email=candidate.email,
             candidate_name=candidate.full_name or candidate.email,
             onboarding_link=onboarding_link,
             attachments=attachments,
         )
-        
+
         return success
 
     async def mark_completed(self, application_id: int, current_user: User | None, token: str | None = None) -> Onboarding:

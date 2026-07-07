@@ -10,6 +10,7 @@ export interface EmailSummary {
     thread_id: string;
     subject: string;
     from_: string;
+    to_?: string;
     snippet: string;
     date: string;
     unread: boolean;
@@ -22,6 +23,7 @@ export interface EmailMessage {
     from_: string;
     to: string;
     body: string;
+    body_html?: string;
     date: string;
 }
 
@@ -40,6 +42,8 @@ export interface SendEmailPayload {
     subject: string;
     body: string;
     thread_id?: string;
+    cc?: string;
+    bcc?: string;
 }
 
 export const gmailApi = {
@@ -54,9 +58,51 @@ export const gmailApi = {
             pageToken ? `/gmail/inbox?page_token=${encodeURIComponent(pageToken)}` : '/gmail/inbox'
         ),
 
+    getSent: (pageToken?: string) =>
+        apiClient.get<InboxPage>(
+            pageToken ? `/gmail/sent?page_token=${encodeURIComponent(pageToken)}` : '/gmail/sent'
+        ),
+
     getThread: (threadId: string) =>
         apiClient.get<EmailThread>(`/gmail/thread/${threadId}`),
 
-    sendEmail: (payload: SendEmailPayload) =>
-        apiClient.post<{ message_id: string; thread_id: string }>('/gmail/send', payload),
+    sendEmail: (payload: SendEmailPayload & { attachments?: File[] }) => {
+        const form = new FormData();
+        form.append('to', payload.to);
+        form.append('subject', payload.subject);
+        form.append('body', payload.body);
+        if (payload.thread_id) form.append('thread_id', payload.thread_id);
+        if (payload.cc) form.append('cc', payload.cc);
+        if (payload.bcc) form.append('bcc', payload.bcc);
+        (payload.attachments ?? []).forEach(f => form.append('files', f));
+        return apiClient.post<{ message_id: string; thread_id: string }>('/gmail/send', form);
+    },
+
+    markRead: (messageIds: string[]) =>
+        apiClient.post<{ marked: number }>('/gmail/mark-read', { message_ids: messageIds }),
+
+    markAllRead: () =>
+        apiClient.post<{ marked: number }>('/gmail/mark-all-read', {}),
+
+    trashMessages: (messageIds: string[]) =>
+        apiClient.post<{ trashed: number }>('/gmail/trash', { message_ids: messageIds }),
+
+    syncReplies: () =>
+        apiClient.post<{ updated: number; message: string }>('/gmail/sync-replies', {}),
+
+    syncApplications: (days = 30) =>
+        apiClient.post<{
+            created: number;
+            skipped: number;
+            total_emails: number;
+            message: string;
+            details: Array<{
+                email: string;
+                name?: string;
+                status: 'created' | 'skipped';
+                job?: string;
+                application_id?: number;
+                reason?: string;
+            }>;
+        }>(`/gmail/sync-applications?days=${days}`, {}),
 };

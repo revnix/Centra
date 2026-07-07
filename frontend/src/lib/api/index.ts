@@ -18,6 +18,7 @@ export { apiClient } from './client';
 export { candidatesApi } from './candidates';
 export { codingApi } from './coding';
 export { integrationsApi } from './integrations';
+export { screeningApi } from './screening';
 
 // Compatibility export for legacy code
 export const api = {
@@ -44,5 +45,6 @@ export const api = {
         analyze: (id: string) => applicationsApi.analyze(id),
         invite: (id: string, data: string | FormData, message?: string, files?: File[]) => applicationsApi.invite(id, data, message, files),
         updateStatus: (id: string, status: string) => applicationsApi.updateStatus(id, status),
+        resetEmailStatus: (id: string) => applicationsApi.resetEmailStatus(id),
     },
 };

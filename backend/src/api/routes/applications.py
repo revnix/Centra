@@ -18,8 +18,9 @@ from src.api.schemas.user import UserCreate
 from src.api.services.application_service import ApplicationService
 from src.api.services.auth_service import AuthService
 from src.api.services.candidate_service import CandidateService
-from src.api.services.email_service import send_email
+from src.api.services.email_service import send_email, EmailService
 from src.api.services.screening_service import ScreeningService
+from src.api.core.config import settings
 
 router = APIRouter()
 
@@ -139,18 +140,26 @@ async def guest_apply(
         if experience_years > 0:
             profile.experience_years = experience_years
         db.add(profile)
+        await db.commit()
 
-    application = await app_service.create_application(
-        user.id,
-        job_id,
-        phone_number=phone_number,
-        cover_letter=cover_letter,
-        source="guest_web",
-        background_tasks=background_tasks,
-        expected_salary=expected_salary,
-        city=city,
-        qualification=qualification,
-    )
+    try:
+        application = await app_service.create_application(
+            user.id,
+            job_id,
+            phone_number=phone_number,
+            cover_letter=cover_letter,
+            source="guest_web",
+            background_tasks=background_tasks,
+            expected_salary=expected_salary,
+            city=city,
+            qualification=qualification,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("guest_apply: unexpected error after saving application: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     background_tasks.add_task(run_screening, application.id)
 
@@ -204,6 +213,7 @@ async def list_applications_by_job(
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
+            joinedload(Application.screening_test),
             noload(Application.interview_session),  # avoids MissingGreenlet on serialization
         )
         .order_by(Application.match_score.desc().nullslast())
@@ -416,6 +426,7 @@ async def update_application_status(
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
+            joinedload(Application.screening_test),
             joinedload(Application.interview_session)
         )
         .where(Application.id == application_id)
@@ -437,7 +448,71 @@ async def update_application_status(
             application.interview_invitation_status = "ACCEPTED"
             application.email_logs = "Application status moved to INTERVIEW_SCHEDULED."
 
+    elif new_status == ApplicationStatus.SCREENING_TEST:
+        try:
+            screening_service = ScreeningService(db)
+            test = await screening_service.create_screening_test(application.id)
+            test_url = f"{settings.FRONTEND_URL}/screening/{test.token}"
+
+            candidate_name = application.candidate.full_name or "Candidate"
+            job_title = application.job.title if application.job else "the position"
+
+            await EmailService.send_screening_test_email(
+                candidate_email=application.candidate.email,
+                candidate_name=candidate_name,
+                job_title=job_title,
+                test_url=test_url,
+                expires_hours=72,
+            )
+            application.email_delivery_status = "SENT"
+            application.email_logs = f"Screening test email sent. URL: {test_url}"
+        except Exception as exc:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.exception("Failed to create/send screening test email for application %s", application.id)
+            application.email_delivery_status = "FAILED"
+            application.email_logs = f"Failed to send screening test: {str(exc)}"
+
     db.add(application)
     await db.commit()
     await db.refresh(application)
     return application
+
+
+@router.post("/{application_id}/reset-email-status", response_model=ApplicationResponse)
+async def reset_email_status(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset email tracking so HR can resend any email for this application."""
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            noload(Application.interview_session),
+        )
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.email_delivery_status = "PENDING"
+    application.interview_invitation_status = "NOT_SENT"
+    application.last_interview_invite_id = None
+    application.interview_invite_sent_at = None
+    application.email_logs = None
+
+    # Reset status so email buttons become active again
+    if application.status == ApplicationStatus.HIRED:
+        application.status = ApplicationStatus.RESPONDED  # type: ignore[assignment]
+    elif application.status == ApplicationStatus.REJECTED:
+        application.status = ApplicationStatus.SHORTLISTED  # type: ignore[assignment]
+
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+    return application
+

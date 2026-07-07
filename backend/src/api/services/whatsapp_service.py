@@ -180,5 +180,51 @@ class WhatsAppService:
 
         raise Exception("Invalid verification token")
 
+    async def connect_via_oauth(self, user_id: Any, access_token: str) -> UserIntegration:
+        """Connect WhatsApp using a Facebook user access token (from FB.login response_type='token')."""
+        graph_url = "https://graph.facebook.com/v25.0"
+
+        waba_id = None
+        phone_number_id = None
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                biz_resp = await client.get(
+                    f"{graph_url}/me/businesses",
+                    params={
+                        "fields": "id,whatsapp_business_accounts{id,phone_numbers{id}}",
+                        "access_token": access_token,
+                    },
+                )
+                for biz in biz_resp.json().get("data", []):
+                    for wa_acct in biz.get("whatsapp_business_accounts", {}).get("data", []):
+                        waba_id = wa_acct["id"]
+                        phones = wa_acct.get("phone_numbers", {}).get("data", [])
+                        if phones:
+                            phone_number_id = phones[0]["id"]
+                        if waba_id and phone_number_id:
+                            break
+                    if waba_id and phone_number_id:
+                        break
+            except Exception:
+                pass
+
+        # Fall back to env credentials if discovery failed
+        if not waba_id:
+            waba_id = settings.WA_WABA_ID
+        if not phone_number_id:
+            phone_number_id = settings.WA_PHONE_NUMBER_ID
+
+        if not waba_id or not phone_number_id:
+            raise ValueError("Could not determine WhatsApp Business Account or Phone Number ID")
+
+        return await self.connect(
+            user_id=user_id,
+            phone_number_id=phone_number_id,
+            waba_id=waba_id,
+            access_token=access_token,
+            verify_token=settings.WA_VERIFY_TOKEN or "evalyn_webhook_secret_123",
+        )
+
     async def handle_webhook_event(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "received", "data": event_data}

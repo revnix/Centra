@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, File, Form, UploadFile
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.db.session import get_db
@@ -236,20 +236,34 @@ async def complete_onboarding(
 async def send_welcome_email(
     application_id: int,
     files: List[UploadFile] = File(default=[]),
+    custom_subject: str = Form(default=""),
+    custom_message: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_or_reviewer),
 ):
     """
     Send welcome email to candidate with onboarding link and optional file attachments.
+    Auto-creates the onboarding record if it doesn't exist yet.
     """
+    service = OnboardingService(db)
+
+    # Auto-create onboarding record if missing
+    onboarding = await service.get_by_application(application_id)
+    if not onboarding:
+        onboarding = await service.initiate_onboarding(application_id)
+
     attachments = []
     for f in files:
         if f.filename:
             content = await f.read()
             attachments.append({"filename": f.filename, "content": list(content)})
 
-    service = OnboardingService(db)
-    success = await service.send_welcome_email(application_id, attachments=attachments or None)
+    success = await service.send_welcome_email(
+        application_id,
+        attachments=attachments or None,
+        custom_subject=custom_subject or None,
+        custom_message=custom_message or None,
+    )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send email")
     return {"message": "Onboarding email sent successfully"}

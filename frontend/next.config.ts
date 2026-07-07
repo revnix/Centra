@@ -29,7 +29,9 @@ const nextConfig: NextConfig = {
     "172.20.96.1:3000",
     "172.20.96.1",
     "revolute-jerica-uncombatant.ngrok-free.dev",
-    "https://revolute-jerica-uncombatant.ngrok-free.dev"
+    "https://revolute-jerica-uncombatant.ngrok-free.dev",
+    "issuing-coerce-consensus.ngrok-free.dev",
+    "https://issuing-coerce-consensus.ngrok-free.dev"
   ],
   async redirects() {
     return [
