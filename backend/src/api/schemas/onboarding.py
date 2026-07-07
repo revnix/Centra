@@ -20,25 +20,24 @@ class CandidateOnboardingUpdate(BaseModel):
     def validate_cnic(cls, v):
         if v is None or v == '':
             return v
-        # Check if it has exactly 2 hyphens
-        if v.count('-') != 2:
-            raise ValueError('CNIC must have exactly 2 hyphens (format: XXXXX-XXXXXXX-X)')
-        # Check max length (13 characters including hyphens)
-        if len(v) > 13:
-            raise ValueError('CNIC must not exceed 13 characters')
-        return v
+        # Accept with or without hyphens; normalize to XXXXX-XXXXXXX-X
+        digits = ''.join(c for c in v if c.isdigit())
+        if len(digits) != 13:
+            raise ValueError('CNIC must be exactly 13 digits (format: XXXXX-XXXXXXX-X)')
+        return f"{digits[:5]}-{digits[5:12]}-{digits[12]}"
 
-    @field_validator('phone_number')
+    @field_validator('phone_number', 'emergency_contact')
     @classmethod
     def validate_phone_number(cls, v):
         if v is None or v == '':
             return v
-        # Remove non-digit characters
-        digits_only = ''.join(c for c in v if c.isdigit())
-        # Check max 11 digits
-        if len(digits_only) > 11:
-            raise ValueError('Phone number must not exceed 11 digits')
-        return v
+        digits = ''.join(c for c in v if c.isdigit())
+        # Normalize +92 / 92 prefix to local 0 prefix
+        if digits.startswith('92') and len(digits) == 12:
+            digits = '0' + digits[2:]
+        if len(digits) != 11 or not digits.startswith('0'):
+            raise ValueError('Phone number must be 11 digits starting with 0 (format: 03XXXXXXXXX)')
+        return digits
 
 class HRJoiningDetailsUpdate(BaseModel):
     reporting_time: Optional[str] = None

@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   compress: true,
+  // Backend (uvicorn) closes idle keep-alive sockets after ~5s; reusing a dead
+  // pooled connection causes random ECONNRESET on proxied /api/v1 requests.
+  httpAgentOptions: {
+    keepAlive: false,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
