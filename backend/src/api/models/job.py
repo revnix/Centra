@@ -24,10 +24,10 @@ class JobStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PENDING = "PENDING"
     PUBLISHED = "PUBLISHED"
+    EDIT_SUBMITTED = "EDIT_SUBMITTED"  # Legacy moderation workflow value
+    EDIT_DECLINED = "EDIT_DECLINED"  # Legacy moderation workflow value
     APPROVED = "APPROVED"
     CHANGES_REQUESTED = "CHANGES_REQUESTED"
-    EDIT_SUBMITTED = "EDIT_SUBMITTED"
-    EDIT_DECLINED = "EDIT_DECLINED"
     CLOSED = "CLOSED"
     ARCHIVED = "ARCHIVED"
 

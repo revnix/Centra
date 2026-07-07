@@ -5,18 +5,18 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
  * Handles authentication, request/response interceptors, and error handling
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run/api/v1';
+const _envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+// Use relative /api/v1 when pointing at localhost so requests work via ngrok/any proxy.
+// Next.js rewrites handle the routing to the actual backend.
+const API_URL = (!_envUrl || _envUrl.includes('localhost') || _envUrl.includes('127.0.0.1'))
+    ? '/api/v1'
+    : _envUrl;
 
 /**
  * The backend base URL (FastAPI) — used to resolve relative /uploads/... URLs.
  * NEXT_PUBLIC_API_BASE_URL already includes /api/v1, so strip that suffix.
  */
-export const BACKEND_BASE_URL = (() => {
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-        return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/api\/v[0-9]+$/, '');
-    }
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'https://p01--evalyn-backend--9f7tw78rhdbh.code.run';
-})();
+export const BACKEND_BASE_URL = '';
 
 /**
  * Resolves a relative URL (like /uploads/...) to a full backend URL.
@@ -125,8 +125,13 @@ class ApiClient {
             const data = error.response.data as any;
             const status = error.response.status;
 
-            // Log the raw error safely for developer visibility
-            console.error(`[API Error] ${method} ${url} (${status}):`, data);
+            // 503 = DB cold-start / expected transient; other 5xx = real crash → error overlay
+            // 4xx = expected client condition → warn only
+            if (status >= 500 && status !== 503) {
+                console.error(`[API Error] ${method} ${url} (${status}):`, data);
+            } else {
+                console.warn(`[API Warn] ${method} ${url} (${status}):`, data);
+            }
 
             // Handle FastAPI 'detail' field
             let message = 'An error occurred';

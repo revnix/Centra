@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import { useApplications, applicationKeys } from "@/lib/hooks/useApplications";
 import { useQueryClient } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -85,7 +86,13 @@ export default function ApplicationsPage() {
     const [isSending, setIsSending] = useState(false);
 
     // React Query replaces manual useState/useEffect/fetchApplications pattern.
-    const { data: applications = [], isLoading } = useApplications();
+    const {
+        data: applications = [],
+        isLoading,
+        isError,
+        error,
+        refetch,
+    } = useApplications();
 
     // Auto-select all applications when data first arrives (for bulk resume download).
     useEffect(() => {
@@ -93,6 +100,13 @@ export default function ApplicationsPage() {
             setSelectedIds(new Set((applications as any[]).map((app) => app.id)));
         }
     }, [applications]);
+
+    // Sync Gmail replies on page mount — marks candidates as RESPONDED if they replied to invite email.
+    useEffect(() => {
+        gmailApi.syncReplies()
+            .then(res => { if (res.updated > 0) queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); })
+            .catch(() => {}); // silently ignore if Gmail not connected
+    }, [queryClient]);
 
     // ── Open invite modal
     const openInviteModal = (app: Application) => {
@@ -260,6 +274,33 @@ export default function ApplicationsPage() {
         return (
             <div className="flex min-h-[400px] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+        );
+    }
+
+    if (isError) {
+        const message = error instanceof Error ? error.message : "Failed to load applications.";
+
+        return (
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Applications</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Review candidates, AI-scored automatically. Send interview invites manually.
+                    </p>
+                </div>
+
+                <Card className="border-destructive/20 bg-destructive/5">
+                    <CardContent className="flex flex-col items-start gap-3 p-6">
+                        <div>
+                            <h2 className="text-lg font-semibold text-destructive">Could not load applications</h2>
+                            <p className="text-sm text-muted-foreground mt-1">{message}</p>
+                        </div>
+                        <Button onClick={() => refetch()} variant="outline">
+                            Retry
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }

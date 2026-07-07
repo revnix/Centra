@@ -656,9 +656,9 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                             const publishPromises = selectedAccounts.map(async (accId) => {
                                                 const account = connectedAccounts.find(a => a.id === accId);
                                                 if (account?.platform === 'linkedin') {
-                                                    const snippet = (job.short_description || job.description || '').substring(0, 500).trimEnd();
+                                                    const jobDescription = job.description || job.short_description || '';
                                                     const tag = `#${(job.title || '').replace(/\s+/g, '')}`;
-                                                    const linkedInText = `🚀 We're Hiring: ${job.title}!\n\n📍 ${job.location || 'Remote'} | 💼 ${job.job_type || 'Full-time'} | 🏢 ${job.department || 'Engineering'}\n\n${snippet}${snippet.length >= 500 ? '...' : ''}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
+                                                    const linkedInText = `🚀 We're Hiring: ${job.title}!\n\n📍 ${job.location || 'Remote'} | 💼 ${job.job_type || 'Full-time'} | 🏢 ${job.department || 'Engineering'}\n\n${jobDescription}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
                                                     return integrationsApi.linkedin.publish(linkedInText, jobUrl);
                                                 } else if (account?.platform === 'indeed') {
                                                     return integrationsApi.indeed.postJob({

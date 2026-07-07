@@ -1,6 +1,5 @@
 import logging
 from src.api.services.email_service import EmailService
-from starlette.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 

@@ -48,7 +48,7 @@ class Application(Base):
     qualification = Column(String(200), nullable=True, comment="Highest qualification")
     
     # Salary
-    expected_salary = Column(String(100), nullable=True, comment="Candidate's expected salary")
+    expected_salary = Column(Float, nullable=True, comment="Candidate's expected salary")
     salary_filter_status = Column(String(50), nullable=True, comment="within_budget | above_budget | not_checked")
 
     # Email Delivery Status
@@ -73,3 +73,4 @@ class Application(Base):
     job = relationship("Posts", backref="applications")
     candidate = relationship("User", backref="applications")
     interview_session = relationship("InterviewSession", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    screening_test = relationship("ScreeningTest", back_populates="application", uselist=False, cascade="all, delete-orphan")

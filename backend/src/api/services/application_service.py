@@ -40,6 +40,14 @@ class ApplicationService:
         if job.effective_status != JobStatus.PUBLISHED:
             raise ValueError("Applications for this position are closed.")
 
+        # Convert expected_salary to float if provided
+        salary_value = None
+        if expected_salary is not None:
+            try:
+                salary_value = float(expected_salary)
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert expected_salary '{expected_salary}' to float, storing as None")
+        
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
@@ -47,7 +55,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=str(expected_salary) if expected_salary is not None else None,
+            expected_salary=salary_value,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )
@@ -55,7 +63,6 @@ class ApplicationService:
         await self.db.commit()
         await self.db.refresh(application)
         
-        from src.api.services.email_service import logger
         logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
         
         # Centralized Notification Trigger
@@ -65,8 +72,11 @@ class ApplicationService:
 
     async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
         """Delegates notification to the centralized handler."""
-        from src.api.utils.application_handler import handle_new_application
-        await handle_new_application(self.db, application.id, background_tasks)
+        try:
+            from src.api.utils.application_handler import handle_new_application
+            await handle_new_application(self.db, application.id, background_tasks)
+        except Exception as exc:
+            logger.exception("Notification failed for application %s (non-fatal): %s", application.id, exc)
 
 
 
@@ -87,7 +97,8 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                joinedload(Application.interview_session),
+                joinedload(Application.screening_test)
             )
             .where(Application.id == application_id)
         )
@@ -100,6 +111,7 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
+                joinedload(Application.screening_test),
                 # ✨ OPTIMIZATION: noload prevents a lazy async load of interview_session during
                 # Pydantic serialization. Without this, removing the joinedload causes a
                 # MissingGreenlet crash because the Optional field is still in ApplicationResponse.
