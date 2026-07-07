@@ -48,10 +48,15 @@ async def _migrate_enum_values():
     """Add new ApplicationStatus values to the PostgreSQL enum type if they don't exist."""
     new_values = [
         "SCREENING_TEST",
+        "RESPONDED",
         "INTERVIEW_SCHEDULED",
+        "INTERVIEW_IN_PROGRESS",
+        "INTERVIEW_COMPLETED",
         "REFERENCE_CHECK",
         "OFFER_EXTENDED",
         "OFFER_ACCEPTED",
+        "OFFER",
+        "ONBOARDING",
     ]
     try:
         async with engine.connect() as conn:

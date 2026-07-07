@@ -1,16 +1,47 @@
-from sqlalchemy import Column, Integer, String, Float, Text, JSON, ForeignKey, DateTime, Enum as SqlEnum, Index
+from sqlalchemy import Column, Integer, String, Float, Text, JSON, ForeignKey, DateTime, Index
+from sqlalchemy import types as sa_types
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.api.db.base import Base
 import enum
 
+
+class _LenientEnum(sa_types.TypeDecorator):
+    """Enum column that returns the raw string instead of crashing on unknown DB values."""
+    impl = sa_types.String(50)
+    cache_ok = True
+
+    def __init__(self, enum_cls):
+        super().__init__()
+        self.enum_cls = enum_cls
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, self.enum_cls):
+            return value.value
+        # Strings must be valid enum values — reject anything else so bad
+        # data (e.g. email statuses like 'SENT') can never reach this column.
+        return self.enum_cls(str(value)).value
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        try:
+            return self.enum_cls(value)
+        except ValueError:
+            return value  # unknown/corrupted DB value — return raw string, don't crash
+
+
 class ApplicationStatus(str, enum.Enum):
     APPLIED = "APPLIED"
     SCREENING = "SCREENING"
+    SCREENING_TEST = "SCREENING_TEST"
     SHORTLISTED = "SHORTLISTED"
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
-    INTERVIEW_INVITED = "INTERVIEW_INVITED"  # Used when interview invite is sent / candidate has replied
-    INTERVIEW_PENDING = "INTERVIEW_PENDING"  # Kept for backward compatibility
+    INTERVIEW_INVITED = "INTERVIEW_INVITED"
+    RESPONDED = "RESPONDED"
+    INTERVIEW_PENDING = "INTERVIEW_PENDING"
     INTERVIEW_IN_PROGRESS = "INTERVIEW_IN_PROGRESS"
     INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
     RESPONDED = "RESPONDED"
@@ -37,7 +68,7 @@ class Application(Base):
     candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # ✨ OPTIMIZATION
     
     # Status & AI Scoring
-    status = Column(SqlEnum(ApplicationStatus), default=ApplicationStatus.APPLIED, nullable=False, index=True)
+    status = Column(_LenientEnum(ApplicationStatus), default=ApplicationStatus.APPLIED, nullable=False, index=True)
     match_score = Column(Float, nullable=True, comment="AI compatibility score (0-100)")
     ai_feedback = Column(Text, nullable=True, comment="AI summary of the application")
     
