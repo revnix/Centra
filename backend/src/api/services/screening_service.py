@@ -155,6 +155,53 @@ class ScreeningService:
         questions: list = json.loads(raw)
         return questions[:30]
 
+    async def generate_options_for_questions(self, raw_questions: list[str]) -> list[dict[str, Any]]:
+        """Use the LLM to turn HR-provided question text into scored MCQs."""
+        cleaned_questions = [question.strip() for question in raw_questions if question and question.strip()]
+        if not cleaned_questions:
+            raise ValueError("Add at least one screening question")
+
+        prompt = (
+            "Convert the following HR-provided screening questions into multiple choice questions.\n"
+            "Keep each question's original meaning. For each question, generate exactly 4 plausible options, "
+            "choose the single best correct answer, and set correct_index to the zero-based index of that answer.\n"
+            "Return ONLY a valid JSON array, no markdown and no extra text.\n"
+            'Each element must be: {"id": <int>, "question": "<original question>", '
+            '"options": ["A. <str>", "B. <str>", "C. <str>", "D. <str>"], '
+            '"correct_index": <int 0-3>, "difficulty": "basic"|"intermediate"|"advanced"}.\n\n'
+            f"Questions:\n{json.dumps(cleaned_questions, ensure_ascii=False)}"
+        )
+        llm = get_llm()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw: str = str(response.content).strip()
+
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+
+        generated: list = json.loads(raw)
+        questions: list[dict[str, Any]] = []
+        for index, item in enumerate(generated[: len(cleaned_questions)]):
+            options = [str(option).strip() for option in item.get("options", []) if str(option).strip()]
+            correct_index = int(item.get("correct_index", 0))
+            if len(options) != 4 or correct_index < 0 or correct_index > 3:
+                raise ValueError("LLM returned invalid options for one or more questions")
+            difficulty = str(item.get("difficulty", "basic")).lower()
+            questions.append(
+                {
+                    "id": index + 1,
+                    "question": str(item.get("question") or cleaned_questions[index]).strip(),
+                    "options": options,
+                    "correct_index": correct_index,
+                    "difficulty": difficulty if difficulty in {"basic", "intermediate", "advanced"} else "basic",
+                }
+            )
+
+        if len(questions) != len(cleaned_questions):
+            raise ValueError("LLM did not generate options for every question")
+        return questions
+
     def calculate_score(self, questions: list, answers: list) -> float:
         """Return percentage of correct answers (0–100)."""
         if not questions:
@@ -165,13 +212,34 @@ class ScreeningService:
         )
         return round((correct / len(questions)) * 100, 1)
 
-    async def create_screening_test(self, application_id: int) -> ScreeningTest:
-        """Generate questions via Groq and persist a new ScreeningTest row."""
+    async def create_screening_test(
+        self,
+        application_id: int,
+        questions: list[dict[str, Any]] | None = None,
+        raw_questions: list[str] | None = None,
+        time_limit_minutes: int = 10,
+    ) -> ScreeningTest:
+        """Create a ScreeningTest row with HR-provided questions or AI-generated fallback."""
         # Return existing test if already created
         existing = await self.db.execute(
             select(ScreeningTest).where(ScreeningTest.application_id == application_id)
         )
         if (test := existing.scalars().first()):
+            if questions is None and raw_questions and test.status != "COMPLETED":
+                questions = await self.generate_options_for_questions(raw_questions)
+            if questions and test.status != "COMPLETED":
+                test.questions = questions
+                test.total_questions = len(questions)
+                test.time_limit_minutes = time_limit_minutes
+                test.answers = None
+                test.score = None
+                test.status = "PENDING"
+                test.started_at = None
+                test.completed_at = None
+                test.expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
+                self.db.add(test)
+                await self.db.commit()
+                await self.db.refresh(test)
             return test
 
         result = await self.db.execute(
@@ -195,7 +263,11 @@ class ScreeningService:
         ) or []
         experience_level = str(getattr(application.job, "experience_level", "mid") or "mid")
 
-        questions = await self.generate_questions(skills, experience_level)
+        if questions is None:
+            if raw_questions:
+                questions = await self.generate_options_for_questions(raw_questions)
+            else:
+                questions = await self.generate_questions(skills, experience_level)
 
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=72)
@@ -204,7 +276,7 @@ class ScreeningService:
             token=token,
             questions=questions,
             total_questions=len(questions),
-            time_limit_minutes=2,
+            time_limit_minutes=time_limit_minutes,
             status="PENDING",
             expires_at=expires_at,
         )

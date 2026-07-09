@@ -265,6 +265,7 @@ class EmailService:
         job_title: str,
         test_url: str,
         expires_hours: int = 72,
+        total_questions: int = 10,
     ) -> str | None:
         """Send candidate an MCQ screening test link with expiry notice."""
         subject = f"Screening Test Invitation – {job_title}"
@@ -275,7 +276,7 @@ class EmailService:
             </div>
             <p>Dear <strong>{candidate_name}</strong>,</p>
             <p>Congratulations on making it to the next stage of our hiring process for the <strong>{job_title}</strong> position!</p>
-            <p>We'd like you to complete a short online screening test to better understand your skills. The test consists of <strong>30 multiple-choice questions</strong> and has a time limit.</p>
+            <p>We'd like you to complete a short online screening test to better understand your skills. The test consists of <strong>{total_questions} multiple-choice question{'s' if total_questions != 1 else ''}</strong> and has a time limit.</p>
             <div style="background:#f0f4ff;border-left:4px solid #4f46e5;padding:16px;border-radius:8px;margin:24px 0;">
                 <p style="margin:0;font-weight:600;color:#4f46e5;">&#9432;&nbsp; Important</p>
                 <ul style="margin:8px 0 0 0;padding-left:20px;color:#4a5568;">
