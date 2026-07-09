@@ -1,0 +1,595 @@
+﻿python : INFO  [alembic
+.runtime.migration] 
+Context impl 
+PostgresqlImpl.
+At line:1 char:1
++ python -c "import 
+logging; 
+logging.basicConfig(); 
+import alembic.conf ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (INFO  [alembi   
+ c....PostgresqlImp    
+l.:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+INFO  [alembic.runtime.
+migration] Will assume 
+transactional DDL.
+INFO  [alembic.runtime.
+migration] Running 
+upgrade 76a2ce00f510 
+-> 7ba5147cacd9, auto
+Traceback (most recent 
+call last):
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 550, in 
+_prepare_and_execute
+    self._rows = 
+deque(await prepared_st
+mt.fetch(*parameters))
+                       
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\asyncpg\pre
+pared_stmt.py", line 
+177, in fetch
+    data = await self._
+_bind_execute(args, 0, 
+timeout)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\asyncpg\pre
+pared_stmt.py", line 
+268, in __bind_execute
+    data, status, _ = 
+await 
+self.__do_execute(
+                      ^
+^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\asyncpg\pre
+pared_stmt.py", line 
+257, in __do_execute
+    return await 
+executor(protocol)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "asyncpg/protoco
+l/protocol.pyx", line 
+205, in bind_execute
+    return await waiter
+
+asyncpg.exceptions.Data
+typeMismatchError: 
+column 
+"expected_salary" 
+cannot be cast 
+automatically to type 
+double precision
+HINT:  You might need 
+to specify "USING expec
+ted_salary::double 
+precision".
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+util\_concurrency_py3k.
+py", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+util\_concurrency_py3k.
+py", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.dialects.pos
+tgresql.asyncpg.AsyncAd
+apt_asyncpg_dbapi.Progr
+ammingError: <class 'as
+yncpg.exceptions.Dataty
+peMismatchError'>: 
+column 
+"expected_salary" 
+cannot be cast 
+automatically to type 
+double precision
+HINT:  You might need 
+to specify "USING expec
+ted_salary::double 
+precision".
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "<string>", 
+line 1, in <module>
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\con
+fig.py", line 1047, in 
+main
+    CommandLine(prog=pr
+og).main(argv=argv)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\con
+fig.py", line 1037, in 
+main
+    self.run_cmd(cfg, 
+options)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\con
+fig.py", line 971, in 
+run_cmd
+    fn(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\com
+mand.py", line 483, in 
+upgrade
+    script.run_env()
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\scr
+ipt\base.py", line 
+545, in run_env
+    util.load_python_fi
+le(self.dir, "env.py")
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\uti
+l\pyfiles.py", line 
+116, in 
+load_python_file
+    module = load_modul
+e_py(module_id, path)
+             ^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\uti
+l\pyfiles.py", line 
+136, in load_module_py
+    spec.loader.exec_mo
+dule(module)  # type: 
+ignore
+    ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "<frozen importl
+ib._bootstrap_external>
+", line 940, in 
+exec_module
+  File "<frozen importl
+ib._bootstrap>", line 
+241, in _call_with_fram
+es_removed
+  File "C:\Users\mrabr\
+OneDrive\Desktop\Evalyn
+-HR--Agent\backend\alem
+bic\env.py", line 106, 
+in <module>
+    
+run_migrations_online()
+  File "C:\Users\mrabr\
+OneDrive\Desktop\Evalyn
+-HR--Agent\backend\alem
+bic\env.py", line 100, 
+in 
+run_migrations_online
+    asyncio.run(run_asy
+nc_migrations())
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\as
+yncio\runners.py", 
+line 190, in run
+    return 
+runner.run(main)
+           
+^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\as
+yncio\runners.py", 
+line 118, in run
+    return self._loop.r
+un_until_complete(task)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\as
+yncio\base_events.py", 
+line 650, in 
+run_until_complete
+    return 
+future.result()
+           
+^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+OneDrive\Desktop\Evalyn
+-HR--Agent\backend\alem
+bic\env.py", line 92, 
+in run_async_migrations
+    await connection.ru
+n_sync(do_run_migration
+s)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+ext\asyncio\engine.py",
+ line 888, in run_sync
+    return await 
+greenlet_spawn(
+           
+^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+util\_concurrency_py3k.
+py", line 203, in 
+greenlet_spawn
+    result = 
+context.switch(value)
+             
+^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+OneDrive\Desktop\Evalyn
+-HR--Agent\backend\alem
+bic\env.py", line 76, 
+in do_run_migrations
+    context.run_migrati
+ons()
+  File "<string>", 
+line 8, in 
+run_migrations
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\run
+time\environment.py", 
+line 969, in 
+run_migrations
+    self.get_context().
+run_migrations(**kw)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\run
+time\migration.py", 
+line 626, in 
+run_migrations
+    
+step.migration_fn(**kw)
+  File "C:\Users\mrabr\
+OneDrive\Desktop\Evalyn
+-HR--Agent\backend\alem
+bic\versions\7ba5147cac
+d9_auto.py", line 31, 
+in upgrade
+    op.alter_column('ap
+plications', 
+'expected_salary',
+  File "<string>", 
+line 8, in alter_column
+  File "<string>", 
+line 3, in alter_column
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\ope
+rations\ops.py", line 
+1973, in alter_column
+    return 
+operations.invoke(alt)
+           
+^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\ope
+rations\base.py", line 
+454, in invoke
+    return fn(self, 
+operation)
+           
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\ope
+rations\toimpl.py", 
+line 53, in 
+alter_column
+    operations.impl.alt
+er_column(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\ddl
+\postgresql.py", line 
+187, in alter_column
+    self._exec(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\alembic\ddl
+\impl.py", line 256, 
+in _exec
+    return conn.execute
+(construct, params)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+1419, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+sql\ddl.py", line 187, 
+in 
+_execute_on_connection
+    return connection._
+execute_ddl(
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+1530, in _execute_ddl
+    ret = 
+self._execute_context(
+          
+^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+1846, in 
+_execute_context
+    return self._exec_s
+ingle_context(
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+1986, in 
+_exec_single_context
+    self._handle_dbapi_
+exception(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+2363, in 
+_handle_dbapi_exception
+    raise sqlalchemy_ex
+ception.with_traceback(
+exc_info[2]) from e
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+engine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+util\_concurrency_py3k.
+py", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+util\_concurrency_py3k.
+py", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+  File "C:\Users\mrabr\
+AppData\Local\Programs\
+Python\Python311\Lib\si
+te-packages\sqlalchemy\
+dialects\postgresql\asy
+ncpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.exc.Programm
+ingError: (sqlalchemy.d
+ialects.postgresql.asyn
+cpg.ProgrammingError) 
+<class 'asyncpg.excepti
+ons.DatatypeMismatchErr
+or'>: column 
+"expected_salary" 
+cannot be cast 
+automatically to type 
+double precision
+HINT:  You might need 
+to specify "USING expec
+ted_salary::double 
+precision".
+[SQL: ALTER TABLE 
+applications ALTER 
+COLUMN expected_salary 
+TYPE FLOAT ]
+(Background on this 
+error at: https://sqlal
+che.me/e/20/f405)

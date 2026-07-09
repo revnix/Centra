@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload, noload  # ✨ noload added for P2 fix
@@ -294,7 +295,12 @@ class ApplicationService:
         await self.db.commit()
 
         # Promote resume to Google Drive if applicable
-        await self.ensure_resume_promoted_to_drive(application.candidate_id)
+        job = application.job
+        job_folder_name = None
+        if job:
+            job_date = (job.published_at or job.created_at).strftime("%Y-%m-%d") if (job.published_at or job.created_at) else "undated"
+            job_folder_name = f"{job.title} - {job_date}"
+        await self.ensure_resume_promoted_to_drive(application.candidate_id, job_folder_name=job_folder_name)
 
         # 2. Check if we should skip email based on city (Safety net)
         if not application.city or application.city.lower() != "haripur":
@@ -412,7 +418,7 @@ class ApplicationService:
         await self.db.commit()
         return True
 
-    async def ensure_resume_promoted_to_drive(self, user_id: int):
+    async def ensure_resume_promoted_to_drive(self, user_id: int, job_folder_name: Optional[str] = None):
         """
         Promotes the candidate's resume from Cloudinary to Google Drive.
         Called when a candidate is shortlisted.
@@ -485,7 +491,8 @@ class ApplicationService:
                 _drive.upload_file,
                 content,
                 original_filename,
-                user.email,          # candidate_identifier
+                user.email,               # candidate_identifier
+                job_folder_name,          # job-specific subfolder
             )
 
             profile.resume_url = _meta.web_view_link
