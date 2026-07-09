@@ -13,8 +13,6 @@ const nextConfig: NextConfig = {
   },
   reactCompiler: false,
   experimental: {
-    // Allow large file uploads (screen recordings can be 50-200MB)
-    serverBodySizeLimit: "250mb",
     // Tree-shake large icon/component libraries — only the icons actually used
     // are bundled. Without this, lucide-react pulls in 500+ icons on every page.
     optimizePackageImports: [
