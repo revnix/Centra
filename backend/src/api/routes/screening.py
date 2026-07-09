@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
@@ -24,17 +24,97 @@ class SubmitAnswersRequest(BaseModel):
     recording_url: Optional[str] = None
 
 
+class ScreeningQuestionInput(BaseModel):
+    question: str = Field(..., min_length=1)
+    options: List[str] = Field(..., min_length=2, max_length=6)
+    correct_index: int = Field(..., ge=0)
+    difficulty: str = "basic"
+
+    @field_validator("question")
+    @classmethod
+    def clean_question(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Question text is required")
+        return cleaned
+
+    @field_validator("options")
+    @classmethod
+    def clean_options(cls, value: List[str]) -> List[str]:
+        cleaned = [option.strip() for option in value if option and option.strip()]
+        if len(cleaned) < 2:
+            raise ValueError("Each question must have at least 2 options")
+        return cleaned
+
+    @field_validator("difficulty")
+    @classmethod
+    def clean_difficulty(cls, value: str) -> str:
+        normalized = (value or "basic").strip().lower()
+        return normalized if normalized in {"basic", "intermediate", "advanced"} else "basic"
+
+    @model_validator(mode="after")
+    def validate_correct_index(self):
+        if self.correct_index >= len(self.options):
+            raise ValueError("correct_index must point to one of the options")
+        return self
+
+
+class CreateScreeningRequest(BaseModel):
+    questions: Optional[List[ScreeningQuestionInput]] = None
+    raw_questions: Optional[List[str]] = None
+    time_limit_minutes: int = Field(default=10, ge=1, le=180)
+
+    @field_validator("raw_questions")
+    @classmethod
+    def clean_raw_questions(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return value
+        cleaned = [question.strip() for question in value if question and question.strip()]
+        if not cleaned:
+            raise ValueError("Add at least one screening question")
+        return cleaned
+
+
 # ── HR endpoints (auth required) ───────────────────────────────────────────────
 
 @router.post("/create/{application_id}")
 async def create_screening(
     application_id: int,
+    request: Optional[CreateScreeningRequest] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ScreeningService(db)
     try:
-        test = await service.create_screening_test(application_id)
+        questions = None
+        raw_questions = None
+        time_limit_minutes = 10
+        if request:
+            time_limit_minutes = request.time_limit_minutes
+            if request.questions is not None:
+                if len(request.questions) == 0:
+                    raise HTTPException(status_code=400, detail="Add at least one screening question")
+                questions = [
+                    {
+                        "id": index + 1,
+                        "question": question.question,
+                        "options": question.options,
+                        "correct_index": question.correct_index,
+                        "difficulty": question.difficulty,
+                    }
+                    for index, question in enumerate(request.questions)
+                ]
+            elif request.raw_questions is not None:
+                raw_questions = request.raw_questions
+
+        test = await service.create_screening_test(
+            application_id,
+            questions=questions,
+            raw_questions=raw_questions,
+            time_limit_minutes=time_limit_minutes,
+        )
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -61,12 +141,15 @@ async def create_screening(
                 job_title=job_title,
                 test_url=test_url,
                 expires_hours=72,
+                total_questions=test.total_questions,
             )
             email_sent = True
         except Exception:
             pass  # email failure should not block the response
 
     # ✅ Move the candidate into the Screening Test pipeline stage
+    test_token = test.token
+    test_id = test.id
     if application:
         from src.api.models.application import ApplicationStatus
         application.status = ApplicationStatus.SCREENING_TEST
@@ -75,7 +158,7 @@ async def create_screening(
         db.add(application)
         await db.commit()
 
-    return {"token": test.token, "test_url": test_url, "id": test.id, "email_sent": email_sent}
+    return {"token": test_token, "test_url": test_url, "id": test_id, "email_sent": email_sent}
 
 
 @router.get("/result/{application_id}")
@@ -127,11 +210,12 @@ async def get_test(token: str, db: AsyncSession = Depends(get_db)):
         await db.commit()
         raise HTTPException(status_code=400, detail="This test link has expired (72-hour window passed)")
 
+    needs_commit = False
     if test.status == "PENDING":
         test.status = "IN_PROGRESS"
         test.started_at = datetime.now(timezone.utc)
         db.add(test)
-        await db.commit()
+        needs_commit = True
 
     # Strip correct_index so the candidate cannot see answers
     safe_questions = [
@@ -151,7 +235,7 @@ async def get_test(token: str, db: AsyncSession = Depends(get_db)):
     )
     application = app_result.scalars().first()
 
-    return {
+    response_data = {
         "token": test.token,
         "status": test.status,
         "total_questions": test.total_questions,
@@ -160,6 +244,11 @@ async def get_test(token: str, db: AsyncSession = Depends(get_db)):
         "candidate_name": application.candidate.full_name if application else "Candidate",
         "job_title": application.job.title if application else "Position",
     }
+
+    if needs_commit:
+        await db.commit()
+
+    return response_data
 
 
 @router.post("/submit/{token}")

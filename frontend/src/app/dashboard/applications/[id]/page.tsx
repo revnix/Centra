@@ -7,7 +7,7 @@ import { screeningApi } from "@/lib/api/screening";
 import { apiClient, resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText } from "lucide-react";
+import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -21,8 +21,16 @@ import { ScoreRing } from "@/components/ui/score-ring";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+const parseRawQuestions = (value: string) =>
+    value
+        .split(/\n+/)
+        .map((q) => q.replace(/^\s*(?:\d+[\).\-\s]+|[-*]\s+)/, "").trim())
+        .filter(Boolean);
 
 function getViewableResumeUrl(url: string): string {
     if (!url.includes('cloudinary.com')) return url;
@@ -124,6 +132,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [isResetting, setIsResetting] = useState(false);
     const [isSendingScreening, setIsSendingScreening] = useState(false);
     const [screening, setScreening] = useState<any>(null);
+    const [isScreeningDialogOpen, setIsScreeningDialogOpen] = useState(false);
+    const [rawQuestionsText, setRawQuestionsText] = useState("");
+    const [timeLimitMinutes, setTimeLimitMinutes] = useState(10);
 
     // Editable email dialog for Onboarding & Reject
     const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | 'documents' | null>(null);
@@ -143,6 +154,47 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const removeFile = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, index: number) => {
         setter(prev => prev.filter((_, i) => i !== index));
     }, []);
+
+    const openScreeningDialog = () => {
+        setRawQuestionsText("");
+        setTimeLimitMinutes(10);
+        setIsScreeningDialogOpen(true);
+    };
+
+    const closeScreeningDialog = () => {
+        setIsScreeningDialogOpen(false);
+        setRawQuestionsText("");
+        setTimeLimitMinutes(10);
+    };
+
+    const handleSendScreeningTest = async () => {
+        const rawQuestions = parseRawQuestions(rawQuestionsText);
+        if (rawQuestions.length === 0) {
+            toast.error("Please add at least one question.");
+            return;
+        }
+
+        setIsSendingScreening(true);
+        try {
+            await screeningApi.create(id, {
+                raw_questions: rawQuestions,
+                time_limit_minutes: timeLimitMinutes,
+            });
+            toast.success("Screening test email sent! Candidate has 72 hours to complete it.");
+            closeScreeningDialog();
+            const [updatedApplication, updatedScreening] = await Promise.all([
+                api.applications.get(id),
+                screeningApi.getResult(id),
+            ]);
+            setApp(updatedApplication);
+            setScreening(updatedScreening);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to send screening test";
+            toast.error(message);
+        } finally {
+            setIsSendingScreening(false);
+        }
+    };
 
     useEffect(() => {
         const fetchApplication = async () => {
@@ -314,17 +366,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                         variant="outline"
                         className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
                         disabled={isSendingScreening || isActionLoading}
-                        onClick={async () => {
-                            setIsSendingScreening(true);
-                            try {
-                                await apiClient.post(`/screening/create/${id}`);
-                                toast.success("Screening test email sent! Candidate has 72 hours to complete it.");
-                            } catch (err: any) {
-                                toast.error(err?.message || "Failed to send screening test");
-                            } finally {
-                                setIsSendingScreening(false);
-                            }
-                        }}
+                        onClick={openScreeningDialog}
                     >
                         {isSendingScreening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                         {isSendingScreening ? "Sending…" : "Send Screening Test"}
@@ -550,6 +592,56 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
             </div>
 
             {/* Dialogs */}
+            <Dialog open={isScreeningDialogOpen} onOpenChange={(open) => !open && closeScreeningDialog()}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Send Screening Test</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="grid gap-2 sm:max-w-[220px]">
+                            <label className="text-sm font-medium text-slate-700">Time limit (minutes)</label>
+                            <Input
+                                type="number"
+                                min={1}
+                                max={180}
+                                value={timeLimitMinutes}
+                                onChange={(event) =>
+                                    setTimeLimitMinutes(Math.min(180, Math.max(1, Number(event.target.value) || 1)))
+                                }
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Questions</label>
+                            <Textarea
+                                value={rawQuestionsText}
+                                onChange={(event) => setRawQuestionsText(event.target.value)}
+                                placeholder={"Paste questions here, one per line.\nExample:\n1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
+                                className="min-h-[280px] font-mono text-sm"
+                            />
+                            <p className="text-xs text-slate-500">
+                                {parseRawQuestions(rawQuestionsText).length} question(s). LLM will generate options and correct answers before the email is sent.
+                            </p>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={closeScreeningDialog}>
+                            Cancel
+                        </Button>
+                        <Button type="button" onClick={handleSendScreeningTest} disabled={isSendingScreening}>
+                            {isSendingScreening ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Send className="h-4 w-4" />
+                            )}
+                            Send Screening Test
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={!!emailDialogMode} onOpenChange={(open) => { if (!open) setEmailDialogMode(null); }}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
