@@ -9,7 +9,18 @@ import { screeningApi } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, CheckCircle2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -24,6 +35,12 @@ interface Application {
     job?: { title?: string };
     screening_test?: { status: string; score: number | null };
 }
+
+const parseRawQuestions = (value: string) =>
+    value
+        .split(/\n+/)
+        .map((question) => question.replace(/^\s*(?:\d+[\).\-\s]+|[-*]\s+)/, "").trim())
+        .filter(Boolean);
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
@@ -245,6 +262,9 @@ const emailPill = (
 export default function PipelinePage() {
     const router = useRouter();
     const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
+    const [screeningTarget, setScreeningTarget] = useState<Application | null>(null);
+    const [rawQuestionsText, setRawQuestionsText] = useState("");
+    const [timeLimitMinutes, setTimeLimitMinutes] = useState(10);
 
     const { data: applications = [], isLoading } = useApplications();
     const updateStatus = useUpdateApplicationStatus();
@@ -255,10 +275,34 @@ export default function PipelinePage() {
     // and updates the application status all in one request.
     const handleSendScreeningTest = async (e: React.MouseEvent, app: Application) => {
         e.stopPropagation();
+        setScreeningTarget(app);
+        setRawQuestionsText("");
+        setTimeLimitMinutes(10);
+    };
+
+    const handleCloseScreeningDialog = () => {
+        setScreeningTarget(null);
+        setRawQuestionsText("");
+        setTimeLimitMinutes(10);
+    };
+
+    const handleSubmitScreeningQuestions = async () => {
+        if (!screeningTarget) return;
+        const rawQuestions = parseRawQuestions(rawQuestionsText);
+        if (rawQuestions.length === 0) {
+            toast.error("Please add at least one question.");
+            return;
+        }
+
+        const app = screeningTarget;
         setMovingIds((prev) => new Set(prev).add(app.id));
         try {
-            await screeningApi.create(app.id);
+            await screeningApi.create(app.id, {
+                raw_questions: rawQuestions,
+                time_limit_minutes: timeLimitMinutes,
+            });
             await queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
+            handleCloseScreeningDialog();
             toast.success("Screening test sent! Candidate moved to Screening Test.");
         } catch {
             toast.error("Failed to send screening test");
@@ -388,9 +432,63 @@ export default function PipelinePage() {
             : applications.filter((a) =>
                 statuses.includes((a.status || "").toUpperCase())
             ).length;
+    const isSendingScreening = screeningTarget ? movingIds.has(screeningTarget.id) : false;
 
     return (
         <div className="space-y-6">
+            <Dialog open={!!screeningTarget} onOpenChange={(open) => !open && handleCloseScreeningDialog()}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Send Screening Test</DialogTitle>
+                        <DialogDescription>
+                            Add the questions candidate will see after clicking Start Test in the email.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="grid gap-2 sm:max-w-[220px]">
+                            <label className="text-sm font-medium text-slate-700">Time limit (minutes)</label>
+                            <Input
+                                type="number"
+                                min={1}
+                                max={180}
+                                value={timeLimitMinutes}
+                                onChange={(event) =>
+                                    setTimeLimitMinutes(Math.min(180, Math.max(1, Number(event.target.value) || 1)))
+                                }
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Questions</label>
+                            <Textarea
+                                value={rawQuestionsText}
+                                onChange={(event) => setRawQuestionsText(event.target.value)}
+                                placeholder={"Paste questions here, one per line.\nExample:\n1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
+                                className="min-h-[280px] font-mono text-sm"
+                            />
+                            <p className="text-xs text-slate-500">
+                                {parseRawQuestions(rawQuestionsText).length} question(s). LLM will generate options and correct answers before the email is sent.
+                            </p>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={handleCloseScreeningDialog}>
+                            Cancel
+                        </Button>
+                        <Button type="button" onClick={handleSubmitScreeningQuestions} disabled={isSendingScreening}>
+                            {isSendingScreening ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Send className="h-4 w-4" />
+                            )}
+                            Send Screening Test
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Page header */}
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Candidate Pipeline</h1>
