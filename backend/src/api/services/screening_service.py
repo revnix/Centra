@@ -117,7 +117,11 @@ class ScreeningService:
             if is_qualified:
                 from src.api.services.application_service import ApplicationService
                 app_service = ApplicationService(self.db)
-                await app_service.ensure_resume_promoted_to_drive(int(candidate.id))
+                _job_folder = None
+                if job:
+                    _jdate = (job.published_at or job.created_at).strftime("%Y-%m-%d") if (job.published_at or job.created_at) else "undated"
+                    _job_folder = f"{job.title} - {_jdate}"
+                await app_service.ensure_resume_promoted_to_drive(int(candidate.id), job_folder_name=_job_folder)
 
             logger.info(
                 f"[SCREENING] ✅ App {application_id} scored: {score}/100 | "

@@ -385,8 +385,13 @@ async def send_interview_invite(
     if sent:
         # Promote resume to Google Drive now that candidate has been invited
         try:
+            _job = application.job
+            _job_folder = None
+            if _job:
+                _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
+                _job_folder = f"{_job.title} - {_jdate}"
             app_service = ApplicationService(db)
-            await app_service.ensure_resume_promoted_to_drive(application.candidate_id)
+            await app_service.ensure_resume_promoted_to_drive(application.candidate_id, job_folder_name=_job_folder)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Resume promotion failed for candidate {application.candidate_id}: {e}")
@@ -440,7 +445,12 @@ async def update_application_status(
     
     # Promote resume to Google Drive if the new status is SHORTLISTED
     if new_status == ApplicationStatus.SHORTLISTED:
-        await app_service.ensure_resume_promoted_to_drive(int(application.candidate_id))
+        _job = application.job
+        _job_folder = None
+        if _job:
+            _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
+            _job_folder = f"{_job.title} - {_jdate}"
+        await app_service.ensure_resume_promoted_to_drive(int(application.candidate_id), job_folder_name=_job_folder)
     
     # Sync with interview tracking status
     if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:

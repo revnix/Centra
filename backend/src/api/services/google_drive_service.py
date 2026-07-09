@@ -149,8 +149,74 @@ class GoogleDriveService:
             kwargs["supportsAllDrives"] = True
         svc.permissions().create(**kwargs).execute()  # type: ignore[attr-defined]
 
+    def _get_or_create_subfolder(self, folder_name: str) -> str:
+        """
+        Find or create a subfolder inside the root Drive folder.
+
+        Args:
+            folder_name: Human-readable folder name, e.g. "Backend Engineer - 2026-07-09".
+
+        Returns:
+            The Google Drive folder ID of the (possibly newly created) subfolder.
+        """
+        svc = self._get_service()
+
+        # Sanitize the folder name for the Drive query (escape single quotes)
+        safe_name = folder_name.replace("'", "\\'")
+
+        query = (
+            f"mimeType='application/vnd.google-apps.folder' "
+            f"and name='{safe_name}' "
+            f"and '{self.folder_id}' in parents "
+            f"and trashed=false"
+        )
+
+        list_kwargs: dict = {"q": query, "fields": "files(id, name)", "pageSize": 1}
+        if not self._use_oauth:
+            list_kwargs["supportsAllDrives"] = True
+            list_kwargs["includeItemsFromAllDrives"] = True
+            list_kwargs["corpora"] = "allDrives"
+
+        results = svc.files().list(**list_kwargs).execute()  # type: ignore[attr-defined]
+        files = results.get("files", [])
+
+        if files:
+            logger.info(
+                "GoogleDriveService: reusing existing subfolder '%s' (id=%s)",
+                folder_name,
+                files[0]["id"],
+            )
+            return files[0]["id"]
+
+        # Create the subfolder
+        folder_metadata: dict = {
+            "name": folder_name,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [self.folder_id],
+        }
+
+        create_kwargs: dict = {
+            "body": folder_metadata,
+            "fields": "id",
+        }
+        if not self._use_oauth:
+            create_kwargs["supportsAllDrives"] = True
+
+        folder = svc.files().create(**create_kwargs).execute()  # type: ignore[attr-defined]
+        folder_id = folder["id"]
+        logger.info(
+            "GoogleDriveService: created new subfolder '%s' (id=%s)",
+            folder_name,
+            folder_id,
+        )
+        return folder_id
+
     def upload_file(
-        self, content: bytes, original_filename: str, candidate_identifier: Optional[str] = None
+        self,
+        content: bytes,
+        original_filename: str,
+        candidate_identifier: Optional[str] = None,
+        job_folder_name: Optional[str] = None,
     ) -> ResumeUploadMetadata:
         """
         Upload *content* to Google Drive and return rich metadata.
@@ -159,6 +225,8 @@ class GoogleDriveService:
             content: Raw bytes of the resume file.
             original_filename: Original filename uploaded by the candidate (used to derive extension).
             candidate_identifier: Optional prefix (e.g. candidate e-mail / id) for file naming clarity.
+            job_folder_name: Optional subfolder name (e.g. "Backend Engineer - 2026-07-09").
+                             If provided, the file is uploaded into that subfolder under the root folder.
 
         Returns:
             :class:`ResumeUploadMetadata` with file_id, web_view_link, web_content_link, file_name.
@@ -179,9 +247,22 @@ class GoogleDriveService:
             safe_prefix = candidate_identifier.replace("@", "_at_").replace("+", "_").replace(" ", "_")
             unique_name = f"{safe_prefix}_{unique_name}"
 
+        # Determine the target parent folder (job-specific subfolder or root)
+        target_folder_id = self.folder_id
+        if job_folder_name:
+            try:
+                target_folder_id = self._get_or_create_subfolder(job_folder_name)
+            except Exception as subfolder_exc:
+                logger.warning(
+                    "GoogleDriveService: failed to resolve subfolder '%s', "
+                    "falling back to root folder: %s",
+                    job_folder_name,
+                    subfolder_exc,
+                )
+
         file_metadata = {
             "name": unique_name,
-            "parents": [self.folder_id],
+            "parents": [target_folder_id],
         }
 
         media = MediaIoBaseUpload(io.BytesIO(content), mimetype=mime_type, resumable=False)
