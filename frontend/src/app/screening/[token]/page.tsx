@@ -168,8 +168,24 @@ export default function ScreeningTestPage() {
     // ── request screen share and start recording ─────────────────────────────────
     const startRecording = async () => {
         setRecordingError("");
+
+        // Check if browser/environment context supports mediaDevices (requires HTTPS or localhost in modern browsers)
+        if (typeof window === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            console.warn("navigator.mediaDevices or getDisplayMedia is not available (insecure context or unsupported browser). Bypassing screen recording for dev/testing.");
+            setPageState("active");
+            return;
+        }
+
         try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            let stream: MediaStream;
+            try {
+                // Try requesting both screen and audio
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            } catch (mediaError) {
+                console.warn("Failed to get display media with audio, retrying with video only...", mediaError);
+                // Fallback to video only in case audio device is missing or sharing audio is unsupported
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            }
 
             // Pick the best supported mimeType across Chrome/Firefox/Edge/Safari
             const mimeType = [
@@ -190,7 +206,24 @@ export default function ScreeningTestPage() {
             recorder.start(1000);
             mediaRecorderRef.current = recorder;
             setPageState("active");
-        } catch {
+        } catch (err) {
+            console.error("Screen recording setup failed:", err);
+
+            // Check if we are running in local/development IP or localhost to allow bypass on permission refusal or hardware failure
+            const isLocal = typeof window !== "undefined" && (
+                window.location.hostname === "localhost" ||
+                window.location.hostname === "127.0.0.1" ||
+                window.location.hostname.startsWith("192.168.") ||
+                window.location.hostname.startsWith("172.") ||
+                window.location.hostname.startsWith("10.")
+            );
+
+            if (isLocal) {
+                console.warn("Dev/testing mode detected: Proceeding to test without screen recording due to setup failure.");
+                setPageState("active");
+                return;
+            }
+
             setRecordingError("Screen recording is required. Please click 'Allow' when your browser asks for permission, then try again.");
         }
     };

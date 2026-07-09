@@ -1,15 +1,46 @@
 import { apiClient } from './client';
 
+export type ScreeningQuestionPayload = {
+    question: string;
+    options: string[];
+    correct_index: number;
+    difficulty?: 'basic' | 'intermediate' | 'advanced';
+};
+
+export type ScreeningResult = {
+    id: number;
+    application_id: number;
+    token: string;
+    questions: ScreeningQuestionPayload[];
+    answers: (number | null)[] | null;
+    score: number | null;
+    total_questions: number;
+    time_limit_minutes: number;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    recording_url: string | null;
+    created_at: string | null;
+};
+
 export const screeningApi = {
     /** HR: create a screening test for an application. Returns {token, test_url, id} */
-    create: (applicationId: number | string) =>
+    create: (
+        applicationId: number | string,
+        payload?: {
+            questions?: ScreeningQuestionPayload[];
+            raw_questions?: string[];
+            time_limit_minutes?: number;
+        }
+    ) =>
         apiClient.post<{ token: string; test_url: string; id: number }>(
-            `/screening/create/${applicationId}`
+            `/screening/create/${applicationId}`,
+            payload
         ),
 
     /** HR: get result for an application. */
     getResult: (applicationId: number | string) =>
-        apiClient.get<any>(`/screening/result/${applicationId}`),
+        apiClient.get<ScreeningResult>(`/screening/result/${applicationId}`),
 
     /** Public: get test data by token (no auth). */
     getTest: (token: string) =>
