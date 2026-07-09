@@ -134,6 +134,25 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [dialogTab, setDialogTab] = useState<'write' | 'preview'>('write');
     const emailFileRef = useRef<HTMLInputElement>(null);
     const emailEditorRef = useRef<HTMLDivElement>(null);
+    const emailDialogModeRef = useRef(emailDialogMode);
+    useEffect(() => { emailDialogModeRef.current = emailDialogMode; }, [emailDialogMode]);
+
+    // Seed the contentEditable's DOM content the instant its real DOM node is created.
+    // Radix's Dialog portal mounts one render late (it renders null until an internal
+    // layout effect flips `mounted`), so a useEffect keyed on emailDialogMode fires too
+    // early and finds the ref still null. A ref *callback* sidesteps that race — React
+    // invokes it exactly when the node is attached, however many commits that takes.
+    // We deliberately do NOT bind content via dangerouslySetInnerHTML in the JSX below —
+    // that would make React re-apply `emailMessage` to the live DOM on every unrelated
+    // re-render of this page (background poll, Fast Refresh, any sibling state change),
+    // wiping out whatever the user is mid-way through typing or cutting.
+    const seedDocumentsEditor = useCallback((node: HTMLDivElement | null) => {
+        emailEditorRef.current = node;
+        if (node) {
+            node.innerHTML = emailMessage;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [emailMessage]);
 
     const addFiles = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, incoming: FileList | null) => {
         if (!incoming) return;
@@ -145,15 +164,21 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     }, []);
 
     useEffect(() => {
+        let hasLoadedOnce = false;
+
         const fetchApplication = async () => {
             try {
                 const data = await api.applications.get(id);
                 setApp(data);
             } catch (error) {
                 console.error("Failed to fetch application:", error);
-                setApp(null);
+                // Only blank the page on the very first load. A transient failure on a
+                // background refresh (e.g. Neon cold-start) must not wipe the page out
+                // from under the user — especially while an email dialog is open.
+                if (!hasLoadedOnce) setApp(null);
             } finally {
                 setIsLoading(false);
+                hasLoadedOnce = true;
             }
         };
         const fetchScreening = async () => {
@@ -167,8 +192,12 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         fetchApplication();
         fetchScreening();
 
-        // Auto-refresh the application status every 10 seconds in the background
-        const interval = setInterval(fetchApplication, 10_000);
+        // Auto-refresh the application status every 10 seconds in the background.
+        // Skip while an email dialog is open so composing a message is never interrupted.
+        const interval = setInterval(() => {
+            if (emailDialogModeRef.current) return;
+            fetchApplication();
+        }, 10_000);
         return () => clearInterval(interval);
     }, [id]);
 
@@ -604,9 +633,8 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                         <div
                                             contentEditable
                                             suppressContentEditableWarning
-                                            ref={emailEditorRef}
+                                            ref={seedDocumentsEditor}
                                             className="w-full p-3 border border-slate-200 rounded-md min-h-[320px] max-h-[460px] overflow-y-auto bg-white font-sans text-sm focus:outline-none focus:ring-1 focus:ring-slate-400 text-slate-800 leading-relaxed outline-none"
-                                            dangerouslySetInnerHTML={{ __html: emailMessage }}
                                         />
                                     </div>
                                 ) : (
