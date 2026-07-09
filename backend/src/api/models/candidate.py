@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.api.db.base import Base
@@ -20,7 +19,10 @@ class CandidateProfile(Base):
     linkedin_url = Column(String, nullable=True)
     portfolio_url = Column(String, nullable=True)
 
-    skills = Column(ARRAY(String), default=list, nullable=False)
+    # DB column is `json` (existing rows store JSON-encoded arrays), not a native
+    # Postgres array — must match ARRAY(String) previously caused every write to fail
+    # with "column is of type json but expression is of type character varying[]".
+    skills = Column(JSON, default=list, nullable=False)
     experience_years = Column(Integer, default=0)
     bio = Column(Text, nullable=True)
 
