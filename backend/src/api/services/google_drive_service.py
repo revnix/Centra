@@ -240,12 +240,13 @@ class GoogleDriveService:
 
         ext = Path(original_filename).suffix.lower()
         mime_type = RESUME_MIME_TYPES.get(ext, "application/octet-stream")
-        unique_name = self._unique_filename(original_filename)
 
-        # Optionally prefix with a readable candidate identifier for easier searching in Drive
         if candidate_identifier:
-            safe_prefix = candidate_identifier.replace("@", "_at_").replace("+", "_").replace(" ", "_")
-            unique_name = f"{safe_prefix}_{unique_name}"
+            safe_prefix = candidate_identifier.strip()
+            short_id = uuid.uuid4().hex[:6]
+            unique_name = f"{safe_prefix} - {short_id}{ext}"
+        else:
+            unique_name = self._unique_filename(original_filename)
 
         # Determine the target parent folder (job-specific subfolder or root)
         target_folder_id = self.folder_id
