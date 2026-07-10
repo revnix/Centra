@@ -491,7 +491,7 @@ class ApplicationService:
                 _drive.upload_file,
                 content,
                 original_filename,
-                user.email,               # candidate_identifier
+                user.full_name or user.email, # candidate_identifier
                 job_folder_name,          # job-specific subfolder
             )
 
