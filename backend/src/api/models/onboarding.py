@@ -78,9 +78,9 @@ class Onboarding(Base):
     ind_manager_buddy_assigned = Column(Boolean, default=False)
     ind_manager_team_intro = Column(Boolean, default=False)
     
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     application = relationship("Application", backref="onboarding", uselist=False, passive_deletes=True)
     user = relationship("User", backref="onboardings")

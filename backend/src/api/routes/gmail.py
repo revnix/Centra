@@ -1053,6 +1053,11 @@ async def sync_email_applications(
     # Deduplicate by sender email within this batch
     seen_emails: set[str] = set()
 
+    # Batch-fetch every existing user for this run's sender addresses in one query
+    # instead of one SELECT per email inside the loop below.
+    unique_sender_emails = list({e["sender_email"] for e in emails})
+    existing_users_by_email = await auth_svc.get_users_by_emails(unique_sender_emails)
+
     for email in emails:
         sender_email = email["sender_email"]
         sender_name = email["sender_name"] or sender_email.split("@")[0].title()
@@ -1068,7 +1073,7 @@ async def sync_email_applications(
             matched_job = _match_job(email["subject"], email["snippet"], list(active_jobs))
 
             # Skip if candidate already applied for this job
-            existing_user = await auth_svc.get_user_by_email(sender_email)
+            existing_user = existing_users_by_email.get(sender_email)
             if existing_user:
                 dup = await db.execute(
                     select(AppModel).where(

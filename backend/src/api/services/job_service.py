@@ -51,14 +51,8 @@ class JobService:
         return jobs
 
     async def get_job(self, job_id: int):
-        import json
         result = await self.db.execute(select(Posts).where(Posts.id == job_id))
-        job = result.scalars().first()
-        if job:
-            print(f"DEBUG: [JobService.get_job] Job retrieved: {json.dumps(job.to_dict(), default=str)}")
-        else:
-            print(f"DEBUG: [JobService.get_job] Job not found: {job_id}")
-        return job
+        return result.scalars().first()
 
     async def create_job(self, job_in: JobCreate, user_id: int):
         import json

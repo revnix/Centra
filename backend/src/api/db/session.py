@@ -2,7 +2,7 @@ import asyncio
 import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.pool import NullPool, AsyncAdaptedQueuePool
+from sqlalchemy.pool import AsyncAdaptedQueuePool
 from src.api.core.config import settings
 import ssl as ssl_module
 
@@ -45,26 +45,26 @@ print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # L
 
 _is_neon = "neon.tech" in settings.DATABASE_URL
 
-# Neon is a serverless / suspend-on-idle database. Using a connection pool
-# is counter-productive because pooled connections go stale while the server
-# is asleep and every reconnect attempt hangs until the cold-start timeout
-# fires (~60 s). NullPool opens a fresh connection per request and closes it
-# immediately after, which is the pattern Neon officially recommends for
-# serverless workloads. For non-Neon Postgres we keep a normal pool.
+# Neon is serverless/suspend-on-idle, so a stale pooled connection is a real risk —
+# but NullPool (a fresh TCP+TLS+Postgres handshake on *every* request) is expensive
+# and was the wrong trade-off once _periodic_neon_ping (main.py) started keeping the
+# compute warm continuously. We now use a small pool with pool_pre_ping=True, which
+# transparently discards and replaces any connection that's gone stale (Neon suspended
+# it, or PgBouncer dropped it) before handing it to a request — this removes the
+# staleness risk NullPool was originally guarding against while still reusing live
+# connections for the common case. pool_recycle is kept short for Neon since its
+# PgBouncer layer can close idle connections server-side well before typical defaults.
 engine = create_async_engine(
     database_url,
     echo=False,
     future=True,
     connect_args=connect_args,
-    # NullPool for Neon: no stale connections, wake-up handled per-request
-    poolclass=NullPool if _is_neon else AsyncAdaptedQueuePool,
-    **({} if _is_neon else {
-        "pool_pre_ping": True,
-        "pool_recycle": 1800,
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_timeout": 30,
-    }),
+    poolclass=AsyncAdaptedQueuePool,
+    pool_pre_ping=True,
+    pool_recycle=180 if _is_neon else 1800,
+    pool_size=5 if _is_neon else 20,
+    max_overflow=5 if _is_neon else 10,
+    pool_timeout=30,
 )
 
 # Enable WAL mode for SQLite to improve concurrency and prevent locking
