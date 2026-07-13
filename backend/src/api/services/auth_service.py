@@ -21,6 +21,17 @@ class AuthService:
         )
         return result.scalars().first()
 
+    async def get_users_by_emails(self, emails: list[str]) -> dict[str, User]:
+        """Batch lookup — one round trip instead of one query per email in a loop."""
+        if not emails:
+            return {}
+        result = await self.db.execute(
+            select(User)
+            .where(User.email.in_(emails))
+            .options(joinedload(User.candidate_profile))
+        )
+        return {user.email: user for user in result.scalars().all()}
+
     async def get_user_by_username(self, username: str) -> User | None:
         result = await self.db.execute(
             select(User)

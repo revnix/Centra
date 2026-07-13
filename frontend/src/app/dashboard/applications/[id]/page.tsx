@@ -249,7 +249,7 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         const interval = setInterval(() => {
             if (emailDialogModeRef.current) return;
             fetchApplication();
-        }, 10_000);
+        }, 20_000);
         return () => clearInterval(interval);
     }, [id]);
 

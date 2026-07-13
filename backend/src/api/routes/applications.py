@@ -32,6 +32,24 @@ async def run_screening(application_id: int):
         await service.evaluate_and_invite(application_id)
 
 
+async def run_resume_promotion(candidate_id: int, job_folder_name: Optional[str]):
+    """Background task: promote a shortlisted candidate's resume to Google Drive.
+
+    Runs off the request path — the Drive upload (network call + synchronous
+    client library on a thread) previously blocked the HR-facing status-update
+    response for several seconds on every SHORTLISTED transition.
+    """
+    async with AsyncSessionLocal() as db:
+        service = ApplicationService(db)
+        try:
+            await service.ensure_resume_promoted_to_drive(candidate_id, job_folder_name=job_folder_name)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Background resume promotion failed for candidate %s", candidate_id
+            )
+
+
 @router.post("/guest", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def guest_apply(
     background_tasks: BackgroundTasks,
@@ -229,7 +247,7 @@ async def list_applications(
     db: AsyncSession = Depends(get_db),
 ):
     app_service = ApplicationService(db)
-    return await app_service.list_applications(skip, limit)
+    return await app_service.list_applications(skip, min(limit, 200))
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)
@@ -414,6 +432,7 @@ class UpdateStatusRequest(BaseModel):
 async def update_application_status(
     application_id: int,
     body: UpdateStatusRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -440,17 +459,18 @@ async def update_application_status(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    app_service = ApplicationService(db)
     application.status = new_status
-    
-    # Promote resume to Google Drive if the new status is SHORTLISTED
+
+    # Promote resume to Google Drive if the new status is SHORTLISTED.
+    # Runs in the background — the Drive upload is a multi-second network call
+    # that shouldn't block the HR-facing status-update response.
     if new_status == ApplicationStatus.SHORTLISTED:
         _job = application.job
         _job_folder = None
         if _job:
             _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
             _job_folder = f"{_job.title} - {_jdate}"
-        await app_service.ensure_resume_promoted_to_drive(int(application.candidate_id), job_folder_name=_job_folder)
+        background_tasks.add_task(run_resume_promotion, int(application.candidate_id), _job_folder)
     
     # Sync with interview tracking status
     if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:

@@ -30,6 +30,10 @@ router = APIRouter()
 
 _public_jobs_cache: dict = {}
 CACHE_TTL = 60  # seconds
+_PUBLIC_JOBS_CACHE_MAX_ENTRIES = 200  # pagination key combos; cheap safety cap, not a real LRU
+
+_dashboard_stats_cache: dict = {}
+DASHBOARD_STATS_CACHE_TTL = 20  # seconds — short enough that HR sees near-live counts
 
 
 class SendToTeamRequest(BaseModel):
@@ -68,8 +72,15 @@ async def get_dashboard_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    now = time.time()
+    cached = _dashboard_stats_cache.get(current_user.id)
+    if cached and now - cached[1] < DASHBOARD_STATS_CACHE_TTL:
+        return cached[0]
+
     job_service = JobService(db)
-    return await job_service.get_dashboard_stats(user_id=current_user.id)
+    stats = await job_service.get_dashboard_stats(user_id=current_user.id)
+    _dashboard_stats_cache[current_user.id] = (stats, now)
+    return stats
 
 
 @router.get("/public", response_model=List[JobResponse])
@@ -89,6 +100,8 @@ async def read_public_jobs(
 
     job_service = JobService(db)
     jobs = await job_service.get_jobs(skip=skip, limit=limit, status=JobStatus.PUBLISHED.value)
+    if len(_public_jobs_cache) >= _PUBLIC_JOBS_CACHE_MAX_ENTRIES:
+        _public_jobs_cache.clear()  # cheap reset rather than a full LRU — pagination combos are few and re-fill fast
     _public_jobs_cache[cache_key] = (jobs, now)
     return jobs
 

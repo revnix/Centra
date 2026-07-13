@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -270,6 +270,36 @@ export default function PipelinePage() {
     const updateStatus = useUpdateApplicationStatus();
     const queryClient = useQueryClient();
 
+    // Recomputed only when the applications list actually changes (new data from
+    // the server), not on every render — this page previously re-scanned the full
+    // applications array up to 15 times (8 columns + 7 summary stats) on every
+    // render, including every 10s background poll tick and every local UI state
+    // change (hovering, moving a card) that had nothing to do with the data itself.
+    const grouped = useMemo(
+        () =>
+            COLUMNS.map((col) => ({
+                ...col,
+                cards: applications.filter((app) => {
+                    const s = (app.status || "").toUpperCase();
+                    if (col.status === "INTERVIEW_SCHEDULED") {
+                        return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED" || s === "SENT" || s === "RESPONDED";
+                    }
+                    return s === col.status;
+                }),
+            })),
+        [applications]
+    );
+
+    const summaryCounts = useMemo(
+        () =>
+            SUMMARY.map(({ statuses }) =>
+                statuses === null
+                    ? applications.length
+                    : applications.filter((a) => statuses.includes((a.status || "").toUpperCase())).length
+            ),
+        [applications]
+    );
+
     // Special handler for Shortlisted → Screening Test:
     // calls POST /screening/create which creates the test, sends the email,
     // and updates the application status all in one request.
@@ -415,23 +445,6 @@ export default function PipelinePage() {
         );
     }
 
-    const grouped = COLUMNS.map((col) => ({
-        ...col,
-        cards: applications.filter((app) => {
-            const s = (app.status || "").toUpperCase();
-            if (col.status === "INTERVIEW_SCHEDULED") {
-                return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED" || s === "SENT" || s === "RESPONDED";
-            }
-            return s === col.status;
-        }),
-    }));
-
-    const statCount = (statuses: string[] | null) =>
-        statuses === null
-            ? applications.length
-            : applications.filter((a) =>
-                statuses.includes((a.status || "").toUpperCase())
-            ).length;
     const isSendingScreening = screeningTarget ? movingIds.has(screeningTarget.id) : false;
 
     return (
@@ -509,7 +522,7 @@ export default function PipelinePage() {
                             }`}
                     >
                         <span className={`text-2xl font-bold ${color}`}>
-                            {statCount(statuses)}
+                            {summaryCounts[i]}
                         </span>
                         <span className="text-xs font-medium text-muted-foreground">{label}</span>
                     </motion.div>

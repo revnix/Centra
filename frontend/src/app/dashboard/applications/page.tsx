@@ -30,11 +30,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, Search, Filter, Loader2, Trash2, Mail, Send, Download } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
+// jszip/file-saver are only needed by the (rare) resume-download actions below —
+// dynamically imported inside those handlers instead of shipped in this page's
+// main bundle on every visit.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,30 +163,41 @@ export default function ApplicationsPage() {
         }
     };
 
-    // ── Filter
-    const filteredApps = Array.isArray(applications)
-        ? applications.filter((app) => {
-            const candidateName = app?.candidate?.full_name || "Unknown Candidate";
-            const jobTitle = app?.job?.title || "Unknown Job";
-            const email = app?.candidate?.email || "";
-            const term = searchTerm.toLowerCase();
+    // ── Filter — memoized so every keystroke/poll-tick/unrelated state change
+    // doesn't re-scan the full applications list (this page can list hundreds).
+    const filteredApps = useMemo(
+        () =>
+            Array.isArray(applications)
+                ? applications.filter((app) => {
+                    const candidateName = app?.candidate?.full_name || "Unknown Candidate";
+                    const jobTitle = app?.job?.title || "Unknown Job";
+                    const email = app?.candidate?.email || "";
+                    const term = searchTerm.toLowerCase();
 
-            const matchesSearch =
-                candidateName.toLowerCase().includes(term) ||
-                jobTitle.toLowerCase().includes(term) ||
-                email.toLowerCase().includes(term);
+                    const matchesSearch =
+                        candidateName.toLowerCase().includes(term) ||
+                        jobTitle.toLowerCase().includes(term) ||
+                        email.toLowerCase().includes(term);
 
-            if (cityFilter !== "all") {
-                const appCity = app.city ? app.city.toLowerCase() : "unknown";
-                if (appCity !== cityFilter.toLowerCase()) return false;
-            }
+                    if (cityFilter !== "all") {
+                        const appCity = app.city ? app.city.toLowerCase() : "unknown";
+                        if (appCity !== cityFilter.toLowerCase()) return false;
+                    }
 
-            return matchesSearch;
-        })
-        : [];
+                    return matchesSearch;
+                })
+                : [],
+        [applications, searchTerm, cityFilter]
+    );
 
-    const allFilteredSelected = filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id));
-    const someFilteredSelected = filteredApps.some((app) => selectedIds.has(app.id));
+    const allFilteredSelected = useMemo(
+        () => filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id)),
+        [filteredApps, selectedIds]
+    );
+    const someFilteredSelected = useMemo(
+        () => filteredApps.some((app) => selectedIds.has(app.id)),
+        [filteredApps, selectedIds]
+    );
 
     const handleSelectAll = () => {
         setSelectedIds((prev) => {
@@ -218,6 +230,10 @@ export default function ApplicationsPage() {
             return;
         }
         setIsDownloading(true);
+        const [{ default: JSZip }, { saveAs }] = await Promise.all([
+            import("jszip"),
+            import("file-saver"),
+        ]);
         const zip = new JSZip();
         let failed = 0;
 
@@ -263,6 +279,7 @@ export default function ApplicationsPage() {
             const blob = await response.blob();
             const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
             const job = (app.job?.title || "Unknown_Job").replace(/\s+/g, "_");
+            const { saveAs } = await import("file-saver");
             saveAs(blob, `${name}_${job}.pdf`);
         } catch {
             toast.error("Failed to download resume");
