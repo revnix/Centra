@@ -64,6 +64,8 @@ class ScreeningTestSummaryResponse(BaseModel):
     id: int
     status: str
     score: Optional[float] = None
+    correct_count: Optional[int] = None
+    total_questions: Optional[int] = None
     completed_at: Optional[datetime] = None
 
 class ApplicationResponse(ApplicationBase):
@@ -78,6 +80,8 @@ class ApplicationResponse(ApplicationBase):
     email_logs: Optional[Any] = None
     interview_invitation_status: Optional[str] = None
     last_interview_invite_id: Optional[str] = None
+    cover_letter: Optional[str] = None
+    phone_number: Optional[str] = None
     city: Optional[str] = None
     qualification: Optional[str] = None
     interview_invite_sent_at: Optional[datetime] = None

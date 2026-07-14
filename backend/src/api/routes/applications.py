@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Optional, List
 
@@ -106,19 +107,25 @@ async def guest_apply(
                 detail=f"File is too large ({len(content) // (1024 * 1024)} MB). Maximum allowed size is 10 MB.",
             )
 
-        # ── Always upload to Cloudinary at candidate submission ───────────────
+        # ── Upload to Cloudinary concurrently with the DB user lookup below —
+        # neither depends on the other's result, and the upload never touches
+        # `db`, so running them in parallel is safe and saves a full Cloudinary
+        # round trip (previously done strictly before any DB work started).
         from src.api.utils.cloudinary_upload import upload_file
         safe_email = email.replace("@", "_at_").replace("+", "_")
-        resume_url = await upload_file(content, resume_file.filename or "resume", folder=f"evalyn/resumes/{safe_email}")
+        resume_url, user = await asyncio.gather(
+            upload_file(content, resume_file.filename or "resume", folder=f"evalyn/resumes/{safe_email}"),
+            auth_service.get_user_by_email(email),
+        )
         resume_storage_provider = "cloudinary"
-
+    else:
+        user = await auth_service.get_user_by_email(email)
 
     try:
         skills_list = json.loads(skills)
     except (json.JSONDecodeError, ValueError):
         skills_list = []
 
-    user = await auth_service.get_user_by_email(email)
     if not user:
         import secrets
         user_in = UserCreate(
@@ -207,7 +214,9 @@ async def apply(
         qualification=apply_data.qualification,
     )
     background_tasks.add_task(run_screening, application.id)
-    return application
+    # This route serializes via ApplicationResponse (candidate/job/screening_test
+    # relationships), so it needs the eager-loaded reload create_application skips.
+    return await app_service.get_application_by_id(application.id) or application
 
 
 @router.get("/me", response_model=List[ApplicationResponse])

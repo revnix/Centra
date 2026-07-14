@@ -23,3 +23,17 @@ class ScreeningTest(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     application = relationship("Application", back_populates="screening_test")
+
+    @property
+    def correct_count(self) -> int | None:
+        """Number of correctly-answered questions, derived from questions/answers JSON.
+
+        Plain Python property (not a DB column) so HR-facing views can show
+        "8/10" instead of a bare percentage without a schema migration.
+        """
+        if not self.questions or self.answers is None:
+            return None
+        return sum(
+            1 for i, q in enumerate(self.questions)
+            if i < len(self.answers) and self.answers[i] is not None and self.answers[i] == q.get("correct_index")
+        )

@@ -180,6 +180,7 @@ async def get_result(
         "questions": test.questions,
         "answers": test.answers,
         "score": test.score,
+        "correct_count": test.correct_count,
         "total_questions": test.total_questions,
         "time_limit_minutes": test.time_limit_minutes,
         "status": test.status,
@@ -261,14 +262,21 @@ async def submit_test(
     test = result.scalars().first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    if test.status == "COMPLETED":
-        return {"message": "Test already submitted", "score": test.score}
-
     service = ScreeningService(db)
-    score = service.calculate_score(test.questions, request.answers)
+
+    if test.status == "COMPLETED":
+        breakdown = service.calculate_score_breakdown(test.questions, test.answers or [])
+        return {
+            "message": "Test already submitted",
+            "score": test.score,
+            "correct_count": breakdown["correct"],
+            "total_questions": breakdown["total"],
+        }
+
+    breakdown = service.calculate_score_breakdown(test.questions, request.answers)
 
     test.answers = list(request.answers)
-    test.score = score
+    test.score = breakdown["percentage"]
     test.status = "COMPLETED"
     test.completed_at = datetime.now(timezone.utc)
     if request.recording_url:
@@ -277,4 +285,9 @@ async def submit_test(
     db.add(test)
     await db.commit()
 
-    return {"message": "Test submitted successfully", "score": score}
+    return {
+        "message": "Test submitted successfully",
+        "score": breakdown["percentage"],
+        "correct_count": breakdown["correct"],
+        "total_questions": breakdown["total"],
+    }

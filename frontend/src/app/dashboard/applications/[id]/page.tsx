@@ -7,7 +7,7 @@ import { screeningApi } from "@/lib/api/screening";
 import { apiClient, resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send } from "lucide-react";
+import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -475,12 +475,61 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                     <Card className="border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle>Candidate Bio</CardTitle>
+                            <CardTitle>Application Details</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <p className="text-sm text-muted-foreground leading-relaxed italic">
-                                "{profile?.bio || "No biography provided by the candidate."}"
-                            </p>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {app.phone_number && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <span>{app.phone_number}</span>
+                                    </div>
+                                )}
+                                {app.city && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <span className="capitalize">{app.city}</span>
+                                    </div>
+                                )}
+                                {app.qualification && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <GraduationCap className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <span>{app.qualification}</span>
+                                    </div>
+                                )}
+                                {typeof profile?.experience_years === "number" && profile.experience_years > 0 && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <span>{profile.experience_years} year{profile.experience_years === 1 ? "" : "s"} experience</span>
+                                    </div>
+                                )}
+                                {profile?.linkedin_url && (
+                                    <div className="flex items-center gap-3 text-sm sm:col-span-2">
+                                        <Linkedin className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <a
+                                            href={profile.linkedin_url.startsWith("http") ? profile.linkedin_url : `https://${profile.linkedin_url}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-indigo-600 hover:underline truncate"
+                                        >
+                                            {profile.linkedin_url}
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+
+                            {app.cover_letter && (
+                                <div className="pt-2 border-t border-border">
+                                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Cover Letter</h4>
+                                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                        {app.cover_letter}
+                                    </p>
+                                </div>
+                            )}
+
+                            {!app.phone_number && !app.city && !app.qualification && !profile?.experience_years && !profile?.linkedin_url && !app.cover_letter && (
+                                <p className="text-sm text-muted-foreground italic">No additional application details provided.</p>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -564,7 +613,9 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                                         <div className="flex justify-center mb-2">
                                             <ScoreRing score={Math.round(screening.score)} size="lg" />
                                         </div>
-                                        <div className="text-2xl font-bold">{Math.round(screening.score)}/100</div>
+                                        <div className="text-2xl font-bold">
+                                            {screening.correct_count != null ? `${screening.correct_count}/${screening.total_questions}` : `${Math.round(screening.score)}%`}
+                                        </div>
                                         <div className="text-sm text-muted-foreground">Screening Score</div>
                                         <div className="text-xs text-muted-foreground mt-1">
                                             {screening.total_questions} questions
