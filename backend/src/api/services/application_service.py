@@ -69,9 +69,12 @@ class ApplicationService:
         # Centralized Notification Trigger
         await self._trigger_new_app_notification(application, background_tasks)
 
-        # Re-fetch with all relationships eagerly loaded so response serialization
-        # never triggers a lazy load (MissingGreenlet in async context)
-        return await self.get_application_by_id(application.id) or application  # type: ignore[arg-type]
+        # NOTE: this does NOT eager-load relationships. Most callers (guest_apply,
+        # the Gmail sync loop) only need application.id and never serialize this
+        # object, so the extra round trip was pure latency for them. The one caller
+        # that DOES serialize it through ApplicationResponse (POST /applications)
+        # re-fetches with joins itself right after calling this method.
+        return application
 
     async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
         """Delegates notification to the centralized handler."""

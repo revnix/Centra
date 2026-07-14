@@ -71,6 +71,21 @@ const defaultSubject = (jobTitle: string) => `Interview Invitation – ${jobTitl
 const defaultMessage = (candidateName: string, jobTitle: string) =>
     `We are pleased to inform you that after reviewing your application for the ${jobTitle} position, we would like to invite you for an interview.\n\nPlease reply to this email or contact us to schedule a convenient time.\n\nWe look forward to speaking with you.`;
 
+// Resumes are uploaded in whatever format the candidate provided (pdf/doc/docx).
+// Hardcoding ".pdf" on download renamed docx files to *.pdf, so PDF viewers then
+// failed to open what was actually a Word document. Preserve the real extension.
+const getResumeExtension = (resumeUrl: string): string => {
+    try {
+        const pathname = new URL(resumeUrl).pathname;
+        const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
+        if (match) return `.${match[1].toLowerCase()}`;
+    } catch {
+        // not a parseable absolute URL — fall through to the plain-string check below
+    }
+    const match = resumeUrl.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
+    return match ? `.${match[1].toLowerCase()}` : ".pdf";
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ApplicationsPage() {
@@ -248,7 +263,7 @@ export default function ApplicationsPage() {
                     .replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
                 const job = (app.job?.title || "Unknown_Job")
                     .replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
-                zip.file(`${name}_${job}.pdf`, blob);
+                zip.file(`${name}_${job}${getResumeExtension(resumeUrl)}`, blob);
             } catch {
                 failed++;
             }
@@ -280,7 +295,7 @@ export default function ApplicationsPage() {
             const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
             const job = (app.job?.title || "Unknown_Job").replace(/\s+/g, "_");
             const { saveAs } = await import("file-saver");
-            saveAs(blob, `${name}_${job}.pdf`);
+            saveAs(blob, `${name}_${job}${getResumeExtension(resumeUrl)}`);
         } catch {
             toast.error("Failed to download resume");
         }

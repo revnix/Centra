@@ -216,6 +216,16 @@ class ScreeningService:
         )
         return round((correct / len(questions)) * 100, 1)
 
+    def calculate_score_breakdown(self, questions: list, answers: list) -> dict:
+        """Return correct/total counts alongside the percentage (candidate-facing result screen)."""
+        total = len(questions)
+        correct = sum(
+            1 for i, q in enumerate(questions)
+            if i < len(answers) and answers[i] is not None and answers[i] == q.get("correct_index")
+        )
+        percentage = round((correct / total) * 100, 1) if total else 0.0
+        return {"correct": correct, "total": total, "percentage": percentage}
+
     async def create_screening_test(
         self,
         application_id: int,

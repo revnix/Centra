@@ -33,7 +33,7 @@ interface Application {
     email_delivery_status?: string;
     candidate?: { full_name?: string; email?: string };
     job?: { title?: string };
-    screening_test?: { status: string; score: number | null };
+    screening_test?: { status: string; score: number | null; correct_count?: number | null; total_questions?: number | null };
 }
 
 const parseRawQuestions = (value: string) =>
@@ -670,9 +670,9 @@ export default function PipelinePage() {
                                                                         ? "text-indigo-600"
                                                                         : "text-slate-400"
                                                                         }`}>
-                                                                        {app.screening_test?.score != null
-                                                                            ? `${app.screening_test.score}%`
-                                                                            : "0%"}
+                                                                        {app.screening_test?.correct_count != null && app.screening_test?.total_questions != null
+                                                                            ? `${app.screening_test.correct_count}/${app.screening_test.total_questions}`
+                                                                            : "—"}
                                                                     </span>
                                                                 </div>
                                                             </div>

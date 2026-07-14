@@ -34,7 +34,7 @@ export default function ScreeningTestPage() {
     const [answers, setAnswers] = useState<(number | null)[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(0);
-    const [finalScore, setFinalScore] = useState<number | null>(null);
+    const [finalResult, setFinalResult] = useState<{ correct: number; total: number } | null>(null);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
@@ -135,7 +135,9 @@ export default function ScreeningTestPage() {
                     body: JSON.stringify({ answers: finalAnswers, recording_url: recordingUrl ?? null }),
                 });
                 const data = await res.json();
-                setFinalScore(data.score ?? null);
+                if (typeof data.correct_count === "number" && typeof data.total_questions === "number") {
+                    setFinalResult({ correct: data.correct_count, total: data.total_questions });
+                }
             } catch {
                 // show done anyway
             }
@@ -322,10 +324,10 @@ export default function ScreeningTestPage() {
                     <div className="text-6xl">🎉</div>
                     <h1 className="text-2xl font-bold text-slate-800">Test Completed!</h1>
                     <p className="text-slate-500">Your results have been submitted. Our team will review them and get back to you shortly.</p>
-                    {finalScore !== null && (
+                    {finalResult !== null && (
                         <div className="bg-indigo-50 rounded-xl p-4">
                             <p className="text-sm text-indigo-600 font-medium">Your Score</p>
-                            <p className="text-4xl font-bold text-indigo-700">{finalScore}%</p>
+                            <p className="text-4xl font-bold text-indigo-700">{finalResult.correct}/{finalResult.total}</p>
                         </div>
                     )}
                     <p className="text-xs text-slate-400">You may close this window.</p>
