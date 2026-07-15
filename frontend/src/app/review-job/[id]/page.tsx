@@ -277,22 +277,6 @@ export default function JobReviewPage({ params }: { params: Promise<{ id: string
                                         )}
                                     </section>
 
-                                    {job.requirements && job.requirements.length > 0 && (
-                                        <section>
-                                            <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
-                                                <CheckCircle2 className="w-5 h-5 mr-2 text-green-500" />
-                                                Key Requirements
-                                            </h3>
-                                            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {job.requirements.map((req, idx) => (
-                                                    <li key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-slate-100 text-slate-600 text-sm">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 flex-shrink-0" />
-                                                        {req}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </section>
-                                    )}
                                 </div>
                             </CardContent>
                         </Card>
