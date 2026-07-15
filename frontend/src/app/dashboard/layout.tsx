@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
@@ -60,6 +60,16 @@ export default function DashboardLayout({
     const { isSidebarOpen, toggleSidebar } = useUIStore();
     const { data: stats } = useDashboardStats();
     const pendingActions = stats?.pending_actions || 0;
+
+    // The sidebar used to show a hardcoded "Admin User / admin@company.com" regardless
+    // of who was actually logged in, which made it impossible to tell which account a
+    // session belonged to. Read the real values login stored instead.
+    const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+    useEffect(() => {
+        setCurrentUserEmail(localStorage.getItem('userEmail'));
+        setCurrentUserRole(localStorage.getItem('userRole'));
+    }, []);
 
     // Background-prefetch the most-visited pages' data right after layout mounts.
     // By the time the user clicks Jobs or Applications the data is already in cache
@@ -158,11 +168,11 @@ export default function DashboardLayout({
                     <div className="p-4 border-t border-white/10 relative z-10">
                         <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-white/5">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-indigo-400/30">
-                                AU
+                                {currentUserEmail ? currentUserEmail.slice(0, 2).toUpperCase() : "?"}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-medium text-white truncate">Admin User</p>
-                                <p className="text-sm text-indigo-300 truncate">admin@company.com</p>
+                                <p className="font-medium text-white truncate capitalize">{currentUserRole || "Unknown role"}</p>
+                                <p className="text-sm text-indigo-300 truncate">{currentUserEmail || "Not signed in"}</p>
                             </div>
                         </div>
                         <Button
