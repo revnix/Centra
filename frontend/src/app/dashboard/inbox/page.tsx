@@ -5,11 +5,26 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import {
     Mail, RefreshCw, Reply, X, Loader2, Send, ChevronLeft,
-    Paperclip, Pencil, Trash2, CheckCheck, Square, CheckSquare, UserPlus,
+    Paperclip, Pencil, Trash2, CheckCheck, Square, CheckSquare, UserPlus, Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { gmailApi, type EmailSummary, type EmailMessage } from '@/lib/api/gmail';
+import { gmailApi, type EmailSummary, type EmailMessage, type EmailAttachment } from '@/lib/api/gmail';
+
+function formatFileSize(bytes: number): string {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function handleDownloadAttachment(messageId: string, att: EmailAttachment) {
+    try {
+        await gmailApi.downloadAttachment(messageId, att.attachment_id, att.filename);
+    } catch {
+        toast.error(`Failed to download "${att.filename}"`);
+    }
+}
 
 function OAuthToastHandler() {
     const searchParams = useSearchParams();
@@ -739,6 +754,23 @@ export default function InboxPage() {
                                                     : <div className="p-4 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{msg.body || <span className="text-slate-400 italic">No content</span>}</div>
                                                 }
                                             </div>
+                                            {msg.attachments && msg.attachments.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 p-3 border-t border-slate-100 bg-slate-50/60">
+                                                    {msg.attachments.map((att) => (
+                                                        <button
+                                                            key={att.attachment_id}
+                                                            onClick={() => handleDownloadAttachment(msg.id, att)}
+                                                            className="inline-flex items-center gap-2 text-xs bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 rounded-lg pl-2.5 pr-3 py-1.5 transition-colors"
+                                                            title={`Download ${att.filename}`}
+                                                        >
+                                                            <Paperclip className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                                            <span className="max-w-[200px] truncate text-slate-700 font-medium">{att.filename}</span>
+                                                            {att.size > 0 && <span className="text-slate-400">{formatFileSize(att.size)}</span>}
+                                                            <Download className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

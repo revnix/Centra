@@ -121,6 +121,15 @@ export const applicationsApi = {
     },
 
     /**
+     * Send a free-form email to the candidate (To/CC/BCC + attachments) without
+     * changing their pipeline stage — used by the Offer Extended / Offer Accepted
+     * compose dialog on the Pipeline board.
+     */
+    sendEmail: async (id: string, data: FormData): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/send-email`, data);
+    },
+
+    /**
      * Update the status of an application (move between pipeline stages)
      */
     updateStatus: async (id: string, status: string): Promise<any> => {
