@@ -16,6 +16,13 @@ export interface EmailSummary {
     unread: boolean;
 }
 
+export interface EmailAttachment {
+    filename: string;
+    attachment_id: string;
+    mime_type: string;
+    size: number;
+}
+
 export interface EmailMessage {
     id: string;
     thread_id: string;
@@ -25,6 +32,7 @@ export interface EmailMessage {
     body: string;
     body_html?: string;
     date: string;
+    attachments?: EmailAttachment[];
 }
 
 export interface EmailThread {
@@ -65,6 +73,21 @@ export const gmailApi = {
 
     getThread: (threadId: string) =>
         apiClient.get<EmailThread>(`/gmail/thread/${threadId}`),
+
+    downloadAttachment: async (messageId: string, attachmentId: string, filename: string): Promise<void> => {
+        const blob = await apiClient.get<Blob>(
+            `/gmail/attachment/${messageId}/${attachmentId}`,
+            { params: { filename }, responseType: 'blob' }
+        );
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    },
 
     sendEmail: (payload: SendEmailPayload & { attachments?: File[] }) => {
         const form = new FormData();

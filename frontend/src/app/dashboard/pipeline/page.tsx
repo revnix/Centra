@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApplications, useUpdateApplicationStatus, applicationKeys } from "@/lib/hooks/useApplications";
-import { screeningApi } from "@/lib/api";
+import { screeningApi, applicationsApi } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle2, Send } from "lucide-react";
+import { Loader2, CheckCircle2, Send, Mail, Paperclip, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -102,6 +102,17 @@ const COLUMNS: ColumnDef[] = [
         avatarBg: "bg-sky-100",
         avatarText: "text-sky-700",
         cardsBg: "bg-sky-50/30",
+    },
+    {
+        label: "Interview Email Sent",
+        status: "INTERVIEW_INVITED",
+        topStrip: "bg-purple-500",
+        headerText: "text-purple-700",
+        countBg: "bg-purple-100",
+        countText: "text-purple-700",
+        avatarBg: "bg-purple-100",
+        avatarText: "text-purple-700",
+        cardsBg: "bg-purple-50/30",
     },
     {
         label: "Interview Scheduled",
@@ -191,8 +202,9 @@ COLUMNS.forEach((col, i) => {
         NEXT_STATUS[col.status] = COLUMNS[i + 1].status;
     }
 });
-NEXT_STATUS["INTERVIEW_INVITED"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
-NEXT_STATUS["SENT"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
+// "SENT" is a legacy alias for INTERVIEW_INVITED (email sent, not yet scheduled);
+// "RESPONDED" is a legacy alias for INTERVIEW_SCHEDULED (candidate responded/booked).
+NEXT_STATUS["SENT"] = NEXT_STATUS["INTERVIEW_INVITED"];
 NEXT_STATUS["RESPONDED"] = NEXT_STATUS["INTERVIEW_SCHEDULED"];
 
 // Build a reverse map: status → previous status
@@ -202,8 +214,7 @@ COLUMNS.forEach((col, i) => {
         PREV_STATUS[col.status] = COLUMNS[i - 1].status;
     }
 });
-PREV_STATUS["INTERVIEW_INVITED"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
-PREV_STATUS["SENT"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
+PREV_STATUS["SENT"] = PREV_STATUS["INTERVIEW_INVITED"];
 PREV_STATUS["RESPONDED"] = PREV_STATUS["INTERVIEW_SCHEDULED"];
 
 // ─── Summary bar config ───────────────────────────────────────────────────────
@@ -266,6 +277,19 @@ export default function PipelinePage() {
     const [rawQuestionsText, setRawQuestionsText] = useState("");
     const [timeLimitMinutes, setTimeLimitMinutes] = useState(10);
 
+    // Compose-email dialog (Offer Extended / Offer Accepted) — a blank, Gmail-style
+    // composer: HR picks the candidate and everything else starts empty.
+    const [emailTarget, setEmailTarget] = useState<Application | null>(null);
+    const [emailCc, setEmailCc] = useState("");
+    const [emailBcc, setEmailBcc] = useState("");
+    const [showCc, setShowCc] = useState(false);
+    const [showBcc, setShowBcc] = useState(false);
+    const [emailSubject, setEmailSubject] = useState("");
+    const [emailBody, setEmailBody] = useState("");
+    const [emailFiles, setEmailFiles] = useState<File[]>([]);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const emailFileRef = useRef<HTMLInputElement>(null);
+
     const { data: applications = [], isLoading } = useApplications();
     const updateStatus = useUpdateApplicationStatus();
     const queryClient = useQueryClient();
@@ -281,8 +305,11 @@ export default function PipelinePage() {
                 ...col,
                 cards: applications.filter((app) => {
                     const s = (app.status || "").toUpperCase();
+                    if (col.status === "INTERVIEW_INVITED") {
+                        return s === "INTERVIEW_INVITED" || s === "SENT";
+                    }
                     if (col.status === "INTERVIEW_SCHEDULED") {
-                        return s === "INTERVIEW_SCHEDULED" || s === "INTERVIEW_INVITED" || s === "SENT" || s === "RESPONDED";
+                        return s === "INTERVIEW_SCHEDULED" || s === "RESPONDED";
                     }
                     return s === col.status;
                 }),
@@ -437,6 +464,70 @@ export default function PipelinePage() {
         }
     };
 
+    const openEmailDialog = (e: React.MouseEvent, app: Application) => {
+        e.stopPropagation();
+        setEmailTarget(app);
+        setEmailSubject("");
+        setEmailBody("");
+        setEmailCc("");
+        setEmailBcc("");
+        setShowCc(false);
+        setShowBcc(false);
+        setEmailFiles([]);
+    };
+
+    const handleCloseEmailDialog = () => {
+        setEmailTarget(null);
+        setEmailSubject("");
+        setEmailBody("");
+        setEmailCc("");
+        setEmailBcc("");
+        setShowCc(false);
+        setShowBcc(false);
+        setEmailFiles([]);
+    };
+
+    const addEmailFiles = (incoming: FileList | null) => {
+        if (!incoming) return;
+        setEmailFiles((prev) => [...prev, ...Array.from(incoming)]);
+    };
+
+    const removeEmailFile = (index: number) => {
+        setEmailFiles((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const handleSendCandidateEmail = async () => {
+        if (!emailTarget) return;
+        if (!emailSubject.trim()) {
+            toast.error("Please add a subject.");
+            return;
+        }
+        if (!emailBody.trim()) {
+            toast.error("Please write a message.");
+            return;
+        }
+
+        setIsSendingEmail(true);
+        try {
+            const formData = new FormData();
+            formData.append("subject", emailSubject.trim());
+            formData.append("message", emailBody.trim());
+            formData.append("cc", emailCc.trim());
+            formData.append("bcc", emailBcc.trim());
+            emailFiles.forEach((f) => formData.append("attachments", f));
+
+            await applicationsApi.sendEmail(emailTarget.id, formData);
+            await queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
+            toast.success(`Email sent to ${emailTarget.candidate?.email ?? "candidate"}`);
+            handleCloseEmailDialog();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to send email";
+            toast.error(message);
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex min-h-[400px] items-center justify-center">
@@ -498,6 +589,166 @@ export default function PipelinePage() {
                             )}
                             Send Screening Test
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Compose Email — Offer Extended / Offer Accepted */}
+            <Dialog open={!!emailTarget} onOpenChange={(open) => !open && handleCloseEmailDialog()}>
+                <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100">
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            <Mail className="h-4 w-4 text-emerald-600" />
+                            New Message
+                        </DialogTitle>
+                        <DialogDescription>
+                            {emailTarget?.candidate?.full_name ?? "Candidate"} · {emailTarget?.job?.title ?? "—"}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="max-h-[65vh] overflow-y-auto">
+                        {/* To / Cc / Bcc block */}
+                        <div className="px-5 py-2 border-b border-slate-100 space-y-1.5">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-slate-400 w-8 flex-shrink-0">To</span>
+                                <span className="flex-1 text-sm text-slate-700 truncate">
+                                    {emailTarget?.candidate?.email || "No email on file"}
+                                </span>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    {!showCc && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCc(true)}
+                                            className="text-xs text-slate-400 hover:text-slate-600"
+                                        >
+                                            Cc
+                                        </button>
+                                    )}
+                                    {!showBcc && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowBcc(true)}
+                                            className="text-xs text-slate-400 hover:text-slate-600"
+                                        >
+                                            Bcc
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {showCc && (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-slate-400 w-8 flex-shrink-0">Cc</span>
+                                    <input
+                                        type="text"
+                                        value={emailCc}
+                                        onChange={(e) => setEmailCc(e.target.value)}
+                                        placeholder="cc@example.com, another@example.com"
+                                        className="flex-1 text-sm py-1 outline-none placeholder:text-slate-300"
+                                    />
+                                </div>
+                            )}
+
+                            {showBcc && (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-slate-400 w-8 flex-shrink-0">Bcc</span>
+                                    <input
+                                        type="text"
+                                        value={emailBcc}
+                                        onChange={(e) => setEmailBcc(e.target.value)}
+                                        placeholder="bcc@example.com, another@example.com"
+                                        className="flex-1 text-sm py-1 outline-none placeholder:text-slate-300"
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Subject */}
+                        <div className="px-5 border-b border-slate-100">
+                            <input
+                                type="text"
+                                value={emailSubject}
+                                onChange={(e) => setEmailSubject(e.target.value)}
+                                placeholder="Subject"
+                                className="w-full text-sm font-medium py-2.5 outline-none placeholder:text-slate-300 placeholder:font-normal"
+                            />
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-5 py-3">
+                            <textarea
+                                value={emailBody}
+                                onChange={(e) => setEmailBody(e.target.value)}
+                                placeholder="Write your message…"
+                                rows={10}
+                                className="w-full text-sm leading-relaxed outline-none resize-none placeholder:text-slate-300"
+                            />
+                        </div>
+
+                        {/* Attachments */}
+                        {emailFiles.length > 0 && (
+                            <div className="px-5 pb-3 flex flex-wrap gap-2">
+                                {emailFiles.map((f, i) => (
+                                    <span
+                                        key={`${f.name}-${i}`}
+                                        className="inline-flex items-center gap-1.5 text-xs bg-slate-100 text-slate-600 rounded-full pl-3 pr-1.5 py-1"
+                                    >
+                                        <Paperclip className="h-3 w-3 flex-shrink-0" />
+                                        <span className="max-w-[160px] truncate">{f.name}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeEmailFile(i)}
+                                            className="hover:bg-slate-200 rounded-full p-0.5"
+                                        >
+                                            <XIcon className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <input
+                        ref={emailFileRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                            addEmailFiles(e.target.files);
+                            e.target.value = "";
+                        }}
+                    />
+
+                    <DialogFooter className="px-5 py-3 border-t border-slate-100 flex-row items-center sm:justify-between">
+                        <div className="flex items-center gap-1">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                title="Attach files"
+                                onClick={() => emailFileRef.current?.click()}
+                            >
+                                <Paperclip className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" onClick={handleCloseEmailDialog}>
+                                Discard
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleSendCandidateEmail}
+                                disabled={isSendingEmail || !emailTarget?.candidate?.email}
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                            >
+                                {isSendingEmail ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Send className="h-4 w-4" />
+                                )}
+                                Send
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -743,6 +994,17 @@ export default function PipelinePage() {
                                                                     </button>
                                                                 )}
                                                             </div>
+                                                        )}
+
+                                                        {/* Email Candidate — Offer Extended & Offer Accepted only */}
+                                                        {(col.status === "OFFER_EXTENDED" || col.status === "OFFER_ACCEPTED") && (
+                                                            <button
+                                                                onClick={(e) => openEmailDialog(e, app)}
+                                                                className="w-full flex items-center justify-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 transition-colors"
+                                                            >
+                                                                <Mail className="h-3.5 w-3.5" />
+                                                                Email Candidate
+                                                            </button>
                                                         )}
 
                                                         {/* Move to Next Stage + Move Back (all other columns) */}
