@@ -128,4 +128,19 @@ export const gmailApi = {
                 reason?: string;
             }>;
         }>(`/gmail/sync-applications?days=${days}`, {}),
+
+    importSingleApplication: (messageId: string, jobId?: number) => {
+        const params = new URLSearchParams({ message_id: messageId });
+        if (jobId !== undefined) params.set('job_id', String(jobId));
+        return apiClient.post<{
+            success: boolean;
+            application_id: number;
+            candidate_name: string;
+            candidate_email: string;
+            job_title: string;
+            job_id: number;
+            resume_uploaded: boolean;
+            message: string;
+        }>(`/gmail/import-single-application?${params.toString()}`, {});
+    },
 };

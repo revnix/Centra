@@ -1328,3 +1328,246 @@ async def sync_email_applications(
         "message": f"Scanned {len(emails)} job application emails — {created} new applications created, {skipped} skipped.",
         "details": details,
     }
+
+
+
+@router.post("/import-single-application")
+async def import_single_email_application(
+    background_tasks: BackgroundTasks,
+    message_id: str = Query(..., description="Gmail message ID to import"),
+    job_id: Optional[int] = Query(default=None, description="Specific job ID to attach. If omitted, auto-matches."),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Import a single Gmail email as a candidate application.  HR can look at any
+    email in the inbox and click "Import Application" — this endpoint fetches
+    that specific message, extracts the sender's name/email, downloads any CV
+    attachment, creates a candidate user (if needed), and files an application
+    against the chosen (or auto-matched) job.
+    """
+    import secrets as _secrets
+    from datetime import datetime, timezone
+    from sqlalchemy import or_
+    from src.api.models.job import Posts, JobStatus
+    from src.api.models.application import Application as AppModel
+    from src.api.models.user import UserRole as _UserRole
+    from src.api.schemas.user import UserCreate
+    from src.api.schemas.candidate import CandidateProfileCreate
+    from src.api.services.auth_service import AuthService
+    from src.api.services.application_service import ApplicationService
+    from src.api.services.candidate_service import CandidateService
+    from src.api.db.session import AsyncSessionLocal
+    from src.api.utils.cloudinary_upload import upload_file
+
+    creds, integration = await _get_credentials(current_user.id, db)
+    await _maybe_refresh(creds, integration, db)
+
+    # ── 1. Fetch the specific message from Gmail ──────────────────────────────
+    def _fetch_message(c, mid: str) -> dict:
+        from googleapiclient.discovery import build as _build
+        svc = _build("gmail", "v1", credentials=c)
+        return svc.users().messages().get(  # type: ignore[attr-defined]
+            userId="me", id=mid, format="full"
+        ).execute()
+
+    try:
+        msg = await run_in_threadpool(lambda: _fetch_message(creds, message_id))
+    except Exception as exc:
+        from google.auth.exceptions import RefreshError as _RefreshError
+        if isinstance(exc, _RefreshError) or "invalid_grant" in str(exc):
+            raise HTTPException(status_code=400, detail="Gmail token expired. Please reconnect.")
+        logger.exception("import-single-application: failed to fetch message %s: %s", message_id, exc)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch email: {exc}")
+
+    # ── 2. Extract sender info ────────────────────────────────────────────────
+    hdrs = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    from_hdr = hdrs.get("From", "")
+
+    m = re.search(r'"?([^"<]*)"?\s*<([^>]+)>', from_hdr)
+    if m:
+        sender_name = m.group(1).strip()
+        sender_email = m.group(2).strip().lower()
+    else:
+        sender_email = from_hdr.strip().lower()
+        sender_name = sender_email.split("@")[0].replace(".", " ").title()
+
+    if not sender_email or "@" not in sender_email:
+        raise HTTPException(status_code=400, detail="Could not extract a valid email address from this message.")
+
+    subject = hdrs.get("Subject", "(no subject)")
+
+    # ── 3. Check for duplicate import ─────────────────────────────────────────
+    already = await db.execute(
+        select(AppModel).where(AppModel.gmail_message_id == message_id)
+    )
+    if already.scalars().first():
+        raise HTTPException(status_code=409, detail="This email has already been imported as an application.")
+
+    # ── 4. Resolve target job ─────────────────────────────────────────────────
+    if job_id:
+        job_result = await db.execute(select(Posts).where(Posts.id == job_id, Posts.deleted_at.is_(None)))
+        matched_job = job_result.scalars().first()
+        if not matched_job:
+            raise HTTPException(status_code=404, detail=f"Job #{job_id} not found.")
+    else:
+        # Auto-match: pick published jobs, match by subject keywords
+        jobs_result = await db.execute(
+            select(Posts).where(
+                Posts.deleted_at.is_(None),
+                Posts.status == JobStatus.PUBLISHED,
+                or_(Posts.expires_at.is_(None), Posts.expires_at > datetime.now(timezone.utc)),
+            ).order_by(Posts.created_at.desc())
+        )
+        active_jobs = jobs_result.scalars().all()
+        if not active_jobs:
+            raise HTTPException(
+                status_code=400,
+                detail="No active published jobs to attach this application to. Please publish a job first, or select a specific job.",
+            )
+        # Simple keyword match
+        combined = (subject + " " + msg.get("snippet", "")).lower()
+        best_job, best_score = None, 0
+        for job in active_jobs:
+            words = [w for w in job.title.lower().split() if len(w) > 3]
+            score = sum(1 for w in words if w in combined)
+            if score > best_score:
+                best_score = score
+                best_job = job
+        matched_job = best_job or active_jobs[0]
+
+    # ── 5. Check if candidate already applied for this job ────────────────────
+    auth_svc = AuthService(db)
+    app_svc = ApplicationService(db)
+    cand_svc = CandidateService(db)
+
+    existing_user = await auth_svc.get_user_by_email(sender_email)
+    if existing_user:
+        dup = await db.execute(
+            select(AppModel).where(
+                AppModel.candidate_id == existing_user.id,
+                AppModel.job_id == matched_job.id,
+            )
+        )
+        if dup.scalars().first():
+            raise HTTPException(
+                status_code=409,
+                detail=f"'{sender_name or sender_email}' has already applied for '{matched_job.title}'.",
+            )
+
+    # ── 6. Find and download CV attachment ────────────────────────────────────
+    resume_url: str | None = None
+    payload = msg.get("payload", {})
+    cv_att: dict | None = None
+    stack = list(payload.get("parts", []))
+    while stack and cv_att is None:
+        part = stack.pop()
+        fname = part.get("filename", "")
+        if fname:
+            ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+            if ext in ("pdf", "doc", "docx"):
+                att_id = part.get("body", {}).get("attachmentId")
+                if att_id:
+                    cv_att = {"attachment_id": att_id, "filename": fname}
+        stack.extend(part.get("parts", []))
+
+    if cv_att:
+        try:
+            def _dl_att(c, mid: str, aid: str) -> bytes:
+                import base64 as _b64
+                from googleapiclient.discovery import build as _build
+                svc = _build("gmail", "v1", credentials=c)
+                att = svc.users().messages().attachments().get(  # type: ignore[attr-defined]
+                    userId="me", messageId=mid, id=aid
+                ).execute()
+                data = att.get("data", "")
+                padding = (4 - len(data) % 4) % 4
+                return _b64.urlsafe_b64decode(data + "=" * padding)
+
+            cv_bytes = await run_in_threadpool(
+                _dl_att, creds, message_id, cv_att["attachment_id"]
+            )
+            safe = sender_email.replace("@", "_at_").replace("+", "_")
+            resume_url = await upload_file(cv_bytes, cv_att["filename"],
+                                           folder=f"evalyn/resumes/{safe}")
+        except Exception as exc:
+            logger.warning("CV upload failed for %s: %s", sender_email, exc)
+
+    # ── 7. Create candidate user if needed ────────────────────────────────────
+    if not existing_user:
+        user_in = UserCreate(
+            email=sender_email,
+            password=_secrets.token_urlsafe(16),
+            full_name=sender_name,
+            role=_UserRole.CANDIDATE,
+        )
+        try:
+            candidate = await auth_svc.create_user(user_in)
+        except Exception as exc:
+            logger.exception("import-single-application: failed to create user for %s: %s", sender_email, exc)
+            raise HTTPException(status_code=500, detail=f"Failed to create candidate account: {exc}")
+    else:
+        candidate = existing_user
+
+    cand_id: int = int(candidate.id)  # type: ignore[arg-type]
+
+    # ── 8. Create / update candidate profile with CV ──────────────────────────
+    try:
+        profile = await cand_svc.get_profile_by_user_id(cand_id)
+        if not profile:
+            await cand_svc.create_profile(cand_id, CandidateProfileCreate(resume_url=resume_url))
+        elif resume_url:
+            profile.resume_url = resume_url  # type: ignore[assignment]
+            db.add(profile)
+            await db.commit()
+    except Exception as exc:
+        logger.warning("import-single-application: profile upsert failed for %s: %s", sender_email, exc)
+        await db.rollback()
+
+    # ── 9. Create application ─────────────────────────────────────────────────
+    snippet_text: str = msg.get("snippet", "")[:500]
+    try:
+        application = await app_svc.create_application(
+            cand_id,
+            int(matched_job.id),  # type: ignore[arg-type]
+            cover_letter=snippet_text if snippet_text else None,  # type: ignore[arg-type]
+            source="email",
+            background_tasks=background_tasks,
+        )
+    except ValueError as exc:
+        # create_application raises ValueError for closed/not-found jobs
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("import-single-application: create_application failed for %s: %s", sender_email, exc)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create application: {exc}")
+
+    # Tag with Gmail message ID so it's never re-imported
+    if not application.gmail_message_id:
+        try:
+            application.gmail_message_id = message_id
+            db.add(application)
+            await db.commit()
+            await db.refresh(application)
+        except Exception as exc:
+            logger.warning("import-single-application: failed to tag gmail_message_id: %s", exc)
+            await db.rollback()
+
+    # ── 10. Run AI screening in background ────────────────────────────────────
+    async def _run_screening(application_id: int) -> None:
+        async with AsyncSessionLocal() as _sdb:
+            from src.api.services.screening_service import ScreeningService as _SS
+            await _SS(_sdb).evaluate_and_invite(application_id)
+
+    background_tasks.add_task(_run_screening, int(application.id))  # type: ignore[arg-type]
+
+    return {
+        "success": True,
+        "application_id": int(application.id),  # type: ignore[arg-type]
+        "candidate_name": sender_name,
+        "candidate_email": sender_email,
+        "job_title": matched_job.title,
+        "job_id": int(matched_job.id),  # type: ignore[arg-type]
+        "resume_uploaded": resume_url is not None,
+        "message": f"Application created for '{sender_name}' → '{matched_job.title}'",
+    }
