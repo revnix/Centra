@@ -6,10 +6,12 @@ import { useSearchParams } from 'next/navigation';
 import {
     Mail, RefreshCw, Reply, X, Loader2, Send, ChevronLeft,
     Paperclip, Pencil, Trash2, CheckCheck, Square, CheckSquare, UserPlus, Download,
+    Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { gmailApi, type EmailSummary, type EmailMessage, type EmailAttachment } from '@/lib/api/gmail';
+import { jobsApi } from '@/lib/api/jobs';
 
 function formatFileSize(bytes: number): string {
     if (!bytes) return '';
@@ -253,6 +255,100 @@ function EmailBodyFrame({ html }: { html: string }) {
     );
 }
 
+// ── Import Application Dialog ─────────────────────────────────────────────────
+interface ImportDialogProps {
+    messageId: string;
+    senderName: string;
+    onClose: () => void;
+    onImported: () => void;
+}
+
+function ImportApplicationDialog({ messageId, senderName, onClose, onImported }: ImportDialogProps) {
+    const [selectedJobId, setSelectedJobId] = useState<number | undefined>(undefined);
+    const [importing, setImporting] = useState(false);
+
+    const { data: jobs, isLoading: jobsLoading } = useQuery({
+        queryKey: ['jobs', 'all'],
+        queryFn: () => jobsApi.getAll({ status: 'PUBLISHED' }),
+    });
+
+    const handleImport = async () => {
+        setImporting(true);
+        try {
+            const result = await gmailApi.importSingleApplication(messageId, selectedJobId);
+            toast.success(result.message);
+            onImported();
+            onClose();
+        } catch (err: any) {
+            toast.error(err?.message || 'Failed to import application.');
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-[460px] max-w-[calc(100vw-2rem)] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl">
+                    <div className="flex items-center gap-2">
+                        <UserPlus className="h-5 w-5 text-white" />
+                        <span className="text-white font-semibold text-sm">Import Application</span>
+                    </div>
+                    <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-5 space-y-4">
+                    <p className="text-sm text-slate-600">
+                        Import <strong className="text-slate-800">{senderName}</strong> as a candidate application.
+                        {' '}Any CV/resume attachment will be uploaded automatically.
+                    </p>
+
+                    {/* Job selector */}
+                    <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1.5">Assign to Job</label>
+                        {jobsLoading ? (
+                            <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
+                                <Loader2 className="h-4 w-4 animate-spin" /> Loading jobs…
+                            </div>
+                        ) : (
+                            <select
+                                value={selectedJobId ?? ''}
+                                onChange={e => setSelectedJobId(e.target.value ? Number(e.target.value) : undefined)}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-colors"
+                            >
+                                <option value="">Auto-match by email subject</option>
+                                {(jobs || []).map(job => (
+                                    <option key={job.id} value={job.id}>{job.title}{job.department ? ` — ${job.department}` : ''}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">
+                    <Button variant="ghost" size="sm" onClick={onClose} disabled={importing}
+                        className="text-slate-500 hover:text-slate-700">
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleImport}
+                        disabled={importing}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg px-5 h-9 text-sm font-medium"
+                    >
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+                        {importing ? 'Importing…' : 'Import Application'}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 type GmailTab = 'inbox' | 'sent';
 
 // ── Main Gmail Page ───────────────────────────────────────────────────────────
@@ -261,6 +357,8 @@ export default function InboxPage() {
     const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
     const [showCompose, setShowCompose] = useState(false);
     const [replyTarget, setReplyTarget] = useState<EmailMessage | null>(null);
+    // Per-email import dialog state
+    const [importTarget, setImportTarget] = useState<{ messageId: string; senderName: string } | null>(null);
 
     // Track whether the next inbox/sent update was triggered by an explicit Refresh button click.
     // Background refetches (window focus, staleTime) should NOT overwrite the full list —
@@ -739,14 +837,30 @@ export default function InboxPage() {
                                                     {msg.to && <p className="text-xs text-slate-500 truncate">To: {msg.to}</p>}
                                                     <p className="text-xs text-slate-400 mt-0.5">{msg.date}</p>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleReply(msg)}
-                                                    className="ml-2 flex-shrink-0 text-indigo-600 hover:bg-indigo-50"
-                                                >
-                                                    <Reply className="h-4 w-4 mr-1" />Reply
-                                                </Button>
+                                                <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            // Extract display name from "Name <email>" format
+                                                            const nameMatch = msg.from_.match(/^"?([^"<]*)"?\s*</);
+                                                            const senderName = nameMatch ? nameMatch[1].trim() : msg.from_;
+                                                            setImportTarget({ messageId: msg.id, senderName });
+                                                        }}
+                                                        className="text-emerald-600 hover:bg-emerald-50"
+                                                        title="Import as application"
+                                                    >
+                                                        <Briefcase className="h-4 w-4 mr-1" />Import
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleReply(msg)}
+                                                        className="text-indigo-600 hover:bg-indigo-50"
+                                                    >
+                                                        <Reply className="h-4 w-4 mr-1" />Reply
+                                                    </Button>
+                                                </div>
                                             </div>
                                             <div className="overflow-hidden">
                                                 {msg.body_html
@@ -776,6 +890,18 @@ export default function InboxPage() {
                                 </div>
                             </div>
                         ) : null}
+
+                        {/* Import application dialog */}
+                        {importTarget && (
+                            <ImportApplicationDialog
+                                messageId={importTarget.messageId}
+                                senderName={importTarget.senderName}
+                                onClose={() => setImportTarget(null)}
+                                onImported={() => {
+                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
