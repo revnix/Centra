@@ -241,7 +241,10 @@ export default function GeneratedJobsPage() {
 
         try {
             // 1. Publish to selected social platforms (allSettled — one failed platform won't block DB update)
-            const jobUrl = `${window.location.origin}/jobs/${selectedJob.id}/apply`;
+            // Use NEXT_PUBLIC_APP_URL (public domain) when available so LinkedIn makes it clickable.
+            // Falls back to window.location.origin for local dev.
+            const appBase = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+            const jobUrl = `${appBase}/jobs/${selectedJob.id}/apply`;
             const publishPromises = selectedAccounts.map(async (accId) => {
                 const account = connectedAccounts.find(a => a.id === accId);
                 if (account?.platform === 'linkedin') {
@@ -351,8 +354,8 @@ export default function GeneratedJobsPage() {
                             <Card
                                 key={job.id}
                                 className={`group transition-all duration-200 overflow-hidden ${isChecked
-                                        ? 'border-indigo-400 shadow-md shadow-indigo-100 ring-1 ring-indigo-300'
-                                        : 'border-slate-200 hover:shadow-lg hover:border-indigo-100'
+                                    ? 'border-indigo-400 shadow-md shadow-indigo-100 ring-1 ring-indigo-300'
+                                    : 'border-slate-200 hover:shadow-lg hover:border-indigo-100'
                                     }`}
                             >
                                 <div className="flex flex-col md:flex-row md:items-center gap-6 p-6">
@@ -360,8 +363,8 @@ export default function GeneratedJobsPage() {
                                     <div
                                         onClick={() => toggleSelect(job.id)}
                                         className={`flex-shrink-0 cursor-pointer w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-150 ${isChecked
-                                                ? 'bg-indigo-600 border-indigo-600'
-                                                : 'border-slate-300 hover:border-indigo-400'
+                                            ? 'bg-indigo-600 border-indigo-600'
+                                            : 'border-slate-300 hover:border-indigo-400'
                                             }`}
                                     >
                                         {isChecked && <Check className="h-3 w-3 text-white" />}

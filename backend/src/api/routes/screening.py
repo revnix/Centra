@@ -77,6 +77,23 @@ class CreateScreeningRequest(BaseModel):
 
 # ── HR endpoints (auth required) ───────────────────────────────────────────────
 
+@router.post("/generate-questions/{application_id}")
+async def generate_screening_questions(
+    application_id: int,
+    count: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ScreeningService(db)
+    try:
+        raw_questions = await service.generate_raw_questions_for_app(application_id, count=count)
+        return {"questions": raw_questions}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate questions: {str(e)}")
+
+
 @router.post("/create/{application_id}")
 async def create_screening(
     application_id: int,
