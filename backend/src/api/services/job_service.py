@@ -51,14 +51,8 @@ class JobService:
         return jobs
 
     async def get_job(self, job_id: int):
-        import json
         result = await self.db.execute(select(Posts).where(Posts.id == job_id))
-        job = result.scalars().first()
-        if job:
-            print(f"DEBUG: [JobService.get_job] Job retrieved: {json.dumps(job.to_dict(), default=str)}")
-        else:
-            print(f"DEBUG: [JobService.get_job] Job not found: {job_id}")
-        return job
+        return result.scalars().first()
 
     async def create_job(self, job_in: JobCreate, user_id: int):
         import json
@@ -287,13 +281,67 @@ class JobService:
             pass  # Indeed upload failure should not block job publish
         
         return db_job
-
     async def review_job(self, job_id: int, status: str, feedback: str = None):
         db_job = await self.get_job(job_id)
         if not db_job:
             return None
             
         db_job.status = status
+        db_job.manager_feedback = feedback
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job
+
+    async def submit_edit(self, job_id: int, title: str, description: str, editor_email: str = None):
+        """Store proposed edits from a team member and set status to EDIT_SUBMITTED."""
+        from src.api.models.job import JobStatus
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+        
+        db_job.edited_title = title
+        db_job.edited_description = description
+        db_job.edited_by_email = editor_email
+        db_job.status = JobStatus.EDIT_SUBMITTED
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job
+
+    async def accept_edit(self, job_id: int):
+        """Accept proposed edits: copy edited fields to actual fields, clear edit data, set APPROVED."""
+        from src.api.models.job import JobStatus
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+        
+        if db_job.edited_title:
+            db_job.title = db_job.edited_title
+        if db_job.edited_description:
+            db_job.description = db_job.edited_description
+        
+        db_job.edited_title = None
+        db_job.edited_description = None
+        db_job.edited_by_email = None
+        db_job.status = JobStatus.APPROVED
+        db_job.manager_feedback = None
+        
+        await self.db.commit()
+        await self.db.refresh(db_job)
+        return db_job
+
+    async def decline_edit(self, job_id: int, feedback: str = None):
+        """Decline proposed edits: clear edit data, store feedback, set CHANGES_REQUESTED."""
+        from src.api.models.job import JobStatus
+        db_job = await self.get_job(job_id)
+        if not db_job:
+            return None
+        
+        db_job.edited_title = None
+        db_job.edited_description = None
+        db_job.edited_by_email = None
+        db_job.status = JobStatus.EDIT_DECLINED
         db_job.manager_feedback = feedback
         
         await self.db.commit()
@@ -348,4 +396,4 @@ class JobService:
         # ── Step 2: now it's safe to delete the job itself ───────────────────
         await self.db.delete(db_job)
         await self.db.commit()
-        return True
+        return True

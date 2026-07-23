@@ -2,12 +2,12 @@
 
 import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useJob, usePublishJob, useCloseJob } from "@/lib/hooks/useJobs";
+import { useJob, usePublishJob, useCloseJob, useAcceptEdit, useDeclineEdit } from "@/lib/hooks/useJobs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw, Calendar, Share2 } from "lucide-react";
+import { ArrowLeft, Edit, Globe, Users, Archive, CheckCircle2, AlertCircle, MessageSquare, Rocket, Loader2, Check, RefreshCw, Calendar, Share2, X, FileText } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -35,6 +35,8 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const { data: job, isLoading, error, refetch: refetchJob } = useJob(id);
     const publishMutation = usePublishJob();
     const closeMutation = useCloseJob();
+    const acceptEditMutation = useAcceptEdit();
+    const declineEditMutation = useDeclineEdit();
 
     const [showPublishDialog, setShowPublishDialog] = useState(false);
     const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
@@ -53,8 +55,9 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
     const [showTeamDialog, setShowTeamDialog] = useState(false);
     const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
     const [isSendingToTeam, setIsSendingToTeam] = useState(false);
+    const [customEmail, setCustomEmail] = useState("");
 
-    // Prefetch team members on mount so the dialog opens instantly
+    // Prefetch team members on mount so the dialog opens instantlys
     const { data: teamMembers = [] } = useQuery({
         queryKey: ['team-members'],
         queryFn: () => jobsApi.getTeamMembers(),
@@ -63,14 +66,31 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
 
     const handleOpenTeamDialog = () => {
         setSelectedTeamEmails([]);
+        setCustomEmail("");
         setShowTeamDialog(true);
     };
 
     const handleSendToTeam = async () => {
-        if (!job || selectedTeamEmails.length === 0) return;
+        if (!job) return;
+
+        const allEmails = [...selectedTeamEmails];
+        if (customEmail.trim()) {
+            // Basic email validation
+            if (!/^\S+@\S+\.\S+$/.test(customEmail.trim())) {
+                toast.error("Please enter a valid custom email address");
+                return;
+            }
+            allEmails.push(customEmail.trim());
+        }
+
+        if (allEmails.length === 0) {
+            toast.error("Please select at least one team member or enter a custom email");
+            return;
+        }
+
         setIsSendingToTeam(true);
         try {
-            const result = await jobsApi.sendToTeam(id, selectedTeamEmails);
+            const result = await jobsApi.sendToTeam(id, allEmails);
             toast.success(result.message);
             setShowTeamDialog(false);
         } catch (error: any) {
@@ -152,6 +172,30 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
         }
     };
 
+    const handleAcceptEdit = async () => {
+        try {
+            await acceptEditMutation.mutateAsync(id);
+            toast.success("Edits accepted! The job post has been updated.");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error: any) {
+            toast.error(`Failed to accept edits: ${error.message || "Unknown error"}`);
+        }
+    };
+
+    const handleDeclineEdit = async (declineFeedback: string) => {
+        try {
+            await declineEditMutation.mutateAsync({ jobId: id, feedback: declineFeedback });
+            toast.success("Edits declined. Feedback has been sent.");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error: any) {
+            toast.error(`Failed to decline edits: ${error.message || "Unknown error"}`);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="space-y-6">
@@ -184,6 +228,111 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
 
     return (
         <div className="max-w-5xl mx-auto space-y-8">
+            {/* Proposed Edits Alert */}
+            {job.status === 'EDIT_SUBMITTED' && (
+                <Alert className="bg-indigo-50 border-indigo-200 text-indigo-900 shadow-lg animate-in fade-in slide-in-from-top-4 duration-500 rounded-2xl border-2">
+                    <Edit className="h-6 w-6 text-indigo-600 mt-1" />
+                    <AlertDescription className="ml-2 w-full">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-4 border-b border-indigo-100">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 animate-pulse">PROPOSED EDITS</Badge>
+                                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Action Required</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mt-1">Review Proposed Changes</h3>
+                                <p className="text-slate-600 mt-1 flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-slate-400" />
+                                    Submitted by: <span className="font-semibold text-indigo-700">{job.edited_by_email || 'A Team Member'}</span>
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    size="lg"
+                                    className="bg-green-600 hover:bg-green-700 text-white px-8 shadow-md transition-all active:scale-95"
+                                    onClick={handleAcceptEdit}
+                                    disabled={acceptEditMutation.isPending}
+                                >
+                                    {acceptEditMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Check className="w-5 h-5 mr-2" />}
+                                    Accept Edits & Update Post
+                                </Button>
+                                <Button
+                                    size="lg"
+                                    variant="outline"
+                                    className="border-red-200 text-red-600 hover:bg-red-50 px-8 transition-all active:scale-95"
+                                    onClick={() => {
+                                        const feedback = window.prompt("Reason for declining (optional):");
+                                        if (feedback !== null) handleDeclineEdit(feedback);
+                                    }}
+                                    disabled={declineEditMutation.isPending}
+                                >
+                                    {declineEditMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <X className="w-5 h-5 mr-2" />}
+                                    Decline Edits
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-bold text-slate-500 uppercase flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                                        Current Title
+                                    </h4>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-sm">
+                                        {job.title}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-bold text-indigo-500 uppercase flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                        Proposed Title
+                                    </h4>
+                                    <div className="p-4 bg-white rounded-xl border-2 border-indigo-200 text-indigo-900 font-bold text-md shadow-sm">
+                                        {job.edited_title || job.title}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-bold text-indigo-500 uppercase flex items-center gap-2">
+                                    <FileText className="w-4 h-4" />
+                                    Proposed Description
+                                </h4>
+                                <div className="text-sm bg-white p-6 rounded-xl border-2 border-indigo-100 max-h-[400px] overflow-y-auto whitespace-pre-wrap text-slate-700 leading-relaxed shadow-sm">
+                                    {job.edited_description || job.description}
+                                </div>
+                            </div>
+                        </div>
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {/* Success Alert for Approved with Edits */}
+            {job.status === 'APPROVED' && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl animate-in fade-in zoom-in duration-300">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-green-900">Post Content Updated</p>
+                        <p className="text-sm text-green-700">The proposed edits have been accepted and the job post is now up to date.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Success Alert for Declined Edits */}
+            {job.status === 'EDIT_DECLINED' && job.manager_feedback && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl animate-in fade-in zoom-in duration-300">
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <X className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-red-900">Edit Decline</p>
+                        <p className="text-sm text-red-700">The edits were rejected. Feedback: "{job.manager_feedback}"</p>
+                    </div>
+                </div>
+            )}
+
             {/* Manager Feedback Alert */}
             {job.manager_feedback && (
                 <Alert className="bg-orange-50 border-orange-200 text-orange-900 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
@@ -206,14 +355,15 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                     <div>
                         <h1 className="text-3xl font-bold text-foreground">{job.title}</h1>
                         <div className="flex items-center gap-3 mt-2">
-                            <Badge 
+                            <Badge
                                 variant={
-                                    job.status === "PUBLISHED" ? "default" : 
-                                    job.status === "APPROVED" ? "outline" : 
-                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
-                                    "secondary"
-                                } 
-                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                                    job.status === "PUBLISHED" ? "default" :
+                                        job.status === "APPROVED" ? "outline" :
+                                            job.status === "CHANGES_REQUESTED" ? "destructive" :
+                                                job.status === "EDIT_SUBMITTED" ? "secondary" :
+                                                    "secondary"
+                                }
+                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''} ${job.status === 'EDIT_SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}`}
                             >
                                 {job.status.toLowerCase().replace('_', ' ')}
                             </Badge>
@@ -502,13 +652,16 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                     onClick={async () => {
                                         setIsPublishing(true);
                                         try {
-                                            const jobUrl = `${window.location.origin}/jobs/${job.id}/apply`;
+                                            // Use NEXT_PUBLIC_APP_URL (public domain) when set so LinkedIn makes it clickable.
+                                            // Falls back to window.location.origin for local dev.
+                                            const appBase = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+                                            const jobUrl = `${appBase}/jobs/${job.id}/apply`;
                                             const publishPromises = selectedAccounts.map(async (accId) => {
                                                 const account = connectedAccounts.find(a => a.id === accId);
                                                 if (account?.platform === 'linkedin') {
-                                                    const snippet = (job.short_description || job.description || '').substring(0, 500).trimEnd();
+                                                    const jobDescription = job.description || job.short_description || '';
                                                     const tag = `#${(job.title || '').replace(/\s+/g, '')}`;
-                                                    const linkedInText = `🚀 We're Hiring: ${job.title}!\n\n📍 ${job.location || 'Remote'} | 💼 ${job.job_type || 'Full-time'} | 🏢 ${job.department || 'Engineering'}\n\n${snippet}${snippet.length >= 500 ? '...' : ''}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
+                                                    const linkedInText = `🚀 We're Hiring: ${job.title}!\n\n📍 ${job.location || 'Remote'} | 💼 ${job.job_type || 'Full-time'} | 🏢 ${job.department || 'Engineering'}\n\n${jobDescription}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
                                                     return integrationsApi.linkedin.publish(linkedInText, jobUrl);
                                                 } else if (account?.platform === 'indeed') {
                                                     return integrationsApi.indeed.postJob({
@@ -558,41 +711,55 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3 py-4">
-                        {teamMembers.length === 0 ? (
-                            <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
-                        ) : (
-                            teamMembers.map((member) => {
-                                const isSelected = selectedTeamEmails.includes(member.email);
-                                return (
-                                    <div
-                                        key={member.email}
-                                        onClick={() => setSelectedTeamEmails(prev =>
-                                            prev.includes(member.email)
-                                                ? prev.filter(e => e !== member.email)
-                                                : [...prev, member.email]
-                                        )}
-                                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                            isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            checked={isSelected}
-                                            onCheckedChange={() => setSelectedTeamEmails(prev =>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-3">
+                            <p className="text-sm font-medium text-slate-700">Team Members</p>
+                            {teamMembers.length === 0 ? (
+                                <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
+                            ) : (
+                                teamMembers.map((member) => {
+                                    const isSelected = selectedTeamEmails.includes(member.email);
+                                    return (
+                                        <div
+                                            key={member.email}
+                                            onClick={() => setSelectedTeamEmails(prev =>
                                                 prev.includes(member.email)
                                                     ? prev.filter(e => e !== member.email)
                                                     : [...prev, member.email]
                                             )}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 text-sm">{member.label}</p>
-                                            <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            <Checkbox
+                                                checked={isSelected}
+                                                className="pointer-events-none"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-slate-900 text-sm">{member.label}</p>
+                                                <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            </div>
+                                            {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
                                         </div>
-                                        {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
-                                    </div>
-                                );
-                            })
-                        )}
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Custom Email Address</label>
+                                <div className="relative">
+                                    <MessageSquare className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="e.g. manager@company.com"
+                                        className="pl-10"
+                                        value={customEmail}
+                                        onChange={(e) => setCustomEmail(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-500">Enter a specific email to send the review request to.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter className="flex gap-2">
@@ -601,7 +768,7 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                         </Button>
                         <Button
                             onClick={handleSendToTeam}
-                            disabled={isSendingToTeam || selectedTeamEmails.length === 0}
+                            disabled={isSendingToTeam || (selectedTeamEmails.length === 0 && !customEmail.trim())}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
                             {isSendingToTeam ? (

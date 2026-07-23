@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import { useApplications, applicationKeys } from "@/lib/hooks/useApplications";
 import { useQueryClient } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -29,11 +30,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, Search, Filter, Loader2, Trash2, Mail, Send, Download } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
+// jszip/file-saver are only needed by the (rare) resume-download actions below —
+// dynamically imported inside those handlers instead of shipped in this page's
+// main bundle on every visit.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +45,9 @@ interface Application {
     match_score?: number;
     ai_score?: number;
     email_delivery_status?: string;
-    email_logs?: string;
+    email_logs?: any;
+    interview_invitation_status?: string;
+    interview_invite_sent_at?: string;
     city?: string;
     qualification?: string;
     expected_salary?: number;
@@ -67,6 +71,21 @@ const defaultSubject = (jobTitle: string) => `Interview Invitation – ${jobTitl
 const defaultMessage = (candidateName: string, jobTitle: string) =>
     `We are pleased to inform you that after reviewing your application for the ${jobTitle} position, we would like to invite you for an interview.\n\nPlease reply to this email or contact us to schedule a convenient time.\n\nWe look forward to speaking with you.`;
 
+// Resumes are uploaded in whatever format the candidate provided (pdf/doc/docx).
+// Hardcoding ".pdf" on download renamed docx files to *.pdf, so PDF viewers then
+// failed to open what was actually a Word document. Preserve the real extension.
+const getResumeExtension = (resumeUrl: string): string => {
+    try {
+        const pathname = new URL(resumeUrl).pathname;
+        const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
+        if (match) return `.${match[1].toLowerCase()}`;
+    } catch {
+        // not a parseable absolute URL — fall through to the plain-string check below
+    }
+    const match = resumeUrl.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
+    return match ? `.${match[1].toLowerCase()}` : ".pdf";
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ApplicationsPage() {
@@ -83,7 +102,13 @@ export default function ApplicationsPage() {
     const [isSending, setIsSending] = useState(false);
 
     // React Query replaces manual useState/useEffect/fetchApplications pattern.
-    const { data: applications = [], isLoading } = useApplications();
+    const {
+        data: applications = [],
+        isLoading,
+        isError,
+        error,
+        refetch,
+    } = useApplications();
 
     // Auto-select all applications when data first arrives (for bulk resume download).
     useEffect(() => {
@@ -91,6 +116,13 @@ export default function ApplicationsPage() {
             setSelectedIds(new Set((applications as any[]).map((app) => app.id)));
         }
     }, [applications]);
+
+    // Sync Gmail replies on page mount — marks candidates as RESPONDED if they replied to invite email.
+    useEffect(() => {
+        gmailApi.syncReplies()
+            .then(res => { if (res.updated > 0) queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); })
+            .catch(() => {}); // silently ignore if Gmail not connected
+    }, [queryClient]);
 
     // ── Open invite modal
     const openInviteModal = (app: Application) => {
@@ -122,7 +154,6 @@ export default function ApplicationsPage() {
             closeInviteModal();
             queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
-            console.error("Invite error:", err);
             toast.error(`Failed to send invite: ${err.message || "Please try again."}`);
         } finally {
             setIsSending(false);
@@ -143,35 +174,45 @@ export default function ApplicationsPage() {
             toast.success(`Application for ${name} deleted successfully`);
             queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
         } catch (err: any) {
-            console.error("Delete error:", err);
             toast.error(`Failed to delete application: ${err.message || "Unauthorized"}`);
         }
     };
 
-    // ── Filter
-    const filteredApps = Array.isArray(applications)
-        ? applications.filter((app) => {
-              const candidateName = app?.candidate?.full_name || "Unknown Candidate";
-              const jobTitle = app?.job?.title || "Unknown Job";
-              const email = app?.candidate?.email || "";
-              const term = searchTerm.toLowerCase();
+    // ── Filter — memoized so every keystroke/poll-tick/unrelated state change
+    // doesn't re-scan the full applications list (this page can list hundreds).
+    const filteredApps = useMemo(
+        () =>
+            Array.isArray(applications)
+                ? applications.filter((app) => {
+                    const candidateName = app?.candidate?.full_name || "Unknown Candidate";
+                    const jobTitle = app?.job?.title || "Unknown Job";
+                    const email = app?.candidate?.email || "";
+                    const term = searchTerm.toLowerCase();
 
-              const matchesSearch =
-                  candidateName.toLowerCase().includes(term) ||
-                  jobTitle.toLowerCase().includes(term) ||
-                  email.toLowerCase().includes(term);
+                    const matchesSearch =
+                        candidateName.toLowerCase().includes(term) ||
+                        jobTitle.toLowerCase().includes(term) ||
+                        email.toLowerCase().includes(term);
 
-              if (cityFilter !== "all") {
-                  const appCity = app.city ? app.city.toLowerCase() : "unknown";
-                  if (appCity !== cityFilter.toLowerCase()) return false;
-              }
+                    if (cityFilter !== "all") {
+                        const appCity = app.city ? app.city.toLowerCase() : "unknown";
+                        if (appCity !== cityFilter.toLowerCase()) return false;
+                    }
 
-              return matchesSearch;
-          })
-        : [];
+                    return matchesSearch;
+                })
+                : [],
+        [applications, searchTerm, cityFilter]
+    );
 
-    const allFilteredSelected = filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id));
-    const someFilteredSelected = filteredApps.some((app) => selectedIds.has(app.id));
+    const allFilteredSelected = useMemo(
+        () => filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id)),
+        [filteredApps, selectedIds]
+    );
+    const someFilteredSelected = useMemo(
+        () => filteredApps.some((app) => selectedIds.has(app.id)),
+        [filteredApps, selectedIds]
+    );
 
     const handleSelectAll = () => {
         setSelectedIds((prev) => {
@@ -204,6 +245,10 @@ export default function ApplicationsPage() {
             return;
         }
         setIsDownloading(true);
+        const [{ default: JSZip }, { saveAs }] = await Promise.all([
+            import("jszip"),
+            import("file-saver"),
+        ]);
         const zip = new JSZip();
         let failed = 0;
 
@@ -218,7 +263,7 @@ export default function ApplicationsPage() {
                     .replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
                 const job = (app.job?.title || "Unknown_Job")
                     .replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
-                zip.file(`${name}_${job}.pdf`, blob);
+                zip.file(`${name}_${job}${getResumeExtension(resumeUrl)}`, blob);
             } catch {
                 failed++;
             }
@@ -249,7 +294,8 @@ export default function ApplicationsPage() {
             const blob = await response.blob();
             const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
             const job = (app.job?.title || "Unknown_Job").replace(/\s+/g, "_");
-            saveAs(blob, `${name}_${job}.pdf`);
+            const { saveAs } = await import("file-saver");
+            saveAs(blob, `${name}_${job}${getResumeExtension(resumeUrl)}`);
         } catch {
             toast.error("Failed to download resume");
         }
@@ -260,6 +306,33 @@ export default function ApplicationsPage() {
         return (
             <div className="flex min-h-[400px] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+        );
+    }
+
+    if (isError) {
+        const message = error instanceof Error ? error.message : "Failed to load applications.";
+
+        return (
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Applications</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Review candidates, AI-scored automatically. Send interview invites manually.
+                    </p>
+                </div>
+
+                <Card className="border-destructive/20 bg-destructive/5">
+                    <CardContent className="flex flex-col items-start gap-3 p-6">
+                        <div>
+                            <h2 className="text-lg font-semibold text-destructive">Could not load applications</h2>
+                            <p className="text-sm text-muted-foreground mt-1">{message}</p>
+                        </div>
+                        <Button onClick={() => refetch()} variant="outline">
+                            Retry
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
@@ -341,7 +414,6 @@ export default function ApplicationsPage() {
                                     <TableHead>Job Role</TableHead>
                                     <TableHead>Applied</TableHead>
                                     <TableHead>Status</TableHead>
-                                    <TableHead>Email Invite</TableHead>
                                     <TableHead>Salary</TableHead>
                                     <TableHead className="text-center">ATS Score</TableHead>
                                     <TableHead className="text-right pr-6">Actions</TableHead>
@@ -351,11 +423,10 @@ export default function ApplicationsPage() {
                                 {filteredApps.map((app) => (
                                     <TableRow
                                         key={app.id}
-                                        className={`group cursor-pointer transition-colors ${
-                                            selectedIds.has(app.id)
-                                                ? "bg-indigo-50/70 dark:bg-indigo-950/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
-                                                : "hover:bg-slate-50 dark:hover:bg-slate-900/50"
-                                        }`}
+                                        className={`group cursor-pointer transition-colors ${selectedIds.has(app.id)
+                                            ? "bg-indigo-50/70 dark:bg-indigo-950/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                                            : "hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                                            }`}
                                     >
                                         <TableCell className="pl-4">
                                             <input
@@ -417,27 +488,6 @@ export default function ApplicationsPage() {
                                         {/* Status */}
                                         <TableCell>
                                             <StatusBadge status={app.status || "APPLIED"} />
-                                        </TableCell>
-
-                                        {/* Email Invite Status */}
-                                        <TableCell>
-                                            {app.email_delivery_status === "SENT" ? (
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                                                        Sent
-                                                    </span>
-                                                </div>
-                                            ) : app.email_delivery_status === "FAILED" ? (
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-rose-500" />
-                                                    <span className="text-xs font-semibold text-rose-700 uppercase tracking-wide">
-                                                        Failed
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground italic">Pending</span>
-                                            )}
                                         </TableCell>
 
                                         {/* Salary */}

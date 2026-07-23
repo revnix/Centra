@@ -6,18 +6,40 @@ import { apiClient } from './client';
 
 export const applicationsApi = {
     /**
-     * Submit a guest application (for anonymous candidates)
+     * Submit a guest application (for anonymous candidates).
+     *
+     * Posted directly to the backend instead of through Next.js's /api/v1 rewrite —
+     * the rewrite proxy (dev mode, Turbopack) does not reliably forward
+     * multipart/form-data bodies containing a file (the resume upload), and fails
+     * with a generic Next.js 500 before the request ever reaches FastAPI.
      */
-    guestApply: async (data: any): Promise<{
-        message: string;
-        redirect_url: string;
-        interview_token: string;
-    }> => {
-        return apiClient.post<{
-            message: string;
-            redirect_url: string;
-            interview_token: string;
-        }>("/applications/guest", data);
+    guestApply: async (data: FormData): Promise<{ message: string; status: string }> => {
+        const backendBase = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
+        const res = await fetch(`${backendBase}/api/v1/applications/guest`, {
+            method: "POST",
+            body: data,
+        });
+
+        if (!res.ok) {
+            let message = "Failed to submit application. Please try again.";
+            let details: any = undefined;
+            try {
+                const errJson = await res.json();
+                if (Array.isArray(errJson.detail)) {
+                    details = errJson.detail;
+                } else if (typeof errJson.detail === "string") {
+                    message = errJson.detail;
+                }
+            } catch {
+                // response body wasn't JSON — keep the generic message
+            }
+            const err: any = new Error(message);
+            err.details = details;
+            err.status = res.status;
+            throw err;
+        }
+
+        return res.json();
     },
 
     /**
@@ -84,10 +106,18 @@ export const applicationsApi = {
     },
 
     /**
-     * HR manually sends a custom interview invitation email to a candidate.
+     * HR manually sends a custom email to a candidate, with optional file attachments.
      */
-    invite: async (id: string, subject: string, message: string): Promise<any> => {
-        return apiClient.post<any>(`/applications/${id}/invite`, { subject, message });
+    invite: async (id: string, data: string | FormData, message?: string, files?: File[]): Promise<any> => {
+        if (data instanceof FormData) {
+            return apiClient.post<any>(`/applications/${id}/invite`, data);
+        }
+
+        const body = new FormData();
+        body.append('subject', data);
+        body.append('message', message ?? '');
+        (files ?? []).forEach(f => body.append('attachments', f));
+        return apiClient.post<any>(`/applications/${id}/invite`, body);
     },
 
     /**
@@ -95,5 +125,12 @@ export const applicationsApi = {
      */
     updateStatus: async (id: string, status: string): Promise<any> => {
         return apiClient.patch<any>(`/applications/${id}/status`, { status });
+    },
+
+    /**
+     * Reset email tracking so HR can resend any email for this application.
+     */
+    resetEmailStatus: async (id: string): Promise<any> => {
+        return apiClient.post<any>(`/applications/${id}/reset-email-status`, {});
     },
 };

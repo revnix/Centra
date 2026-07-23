@@ -108,7 +108,20 @@ function OnboardingContent() {
             await fetchOnboarding();
             setActiveStep(2);
         } catch (err: any) {
-            toast.error(err?.message || "Failed to save information");
+            // FastAPI 422 detail is an array of {loc, msg} — extract just the human message
+            let message = err?.message || "Failed to save information";
+            if (Array.isArray(err?.details)) {
+                message = err.details
+                    .map((d: any) => (typeof d?.msg === "string" ? d.msg.replace(/^Value error,\s*/i, "") : ""))
+                    .filter(Boolean)
+                    .join(" • ") || message;
+            } else if (typeof message === "string" && message.startsWith("Validation Error:")) {
+                try {
+                    const parsed = JSON.parse(message.replace("Validation Error: ", ""));
+                    message = parsed.map((d: any) => d.msg?.replace(/^Value error,\s*/i, "")).filter(Boolean).join(" • ");
+                } catch { /* keep original */ }
+            }
+            toast.error(message);
         } finally {
             setIsSaving(false);
         }

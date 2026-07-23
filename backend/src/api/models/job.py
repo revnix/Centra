@@ -1,6 +1,6 @@
 # src/api/models/job.py
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Enum as SQLEnum, Index
 from sqlalchemy.orm import relationship
 from src.api.db.base import Base
 from datetime import datetime, timezone
@@ -24,6 +24,8 @@ class JobStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PENDING = "PENDING"
     PUBLISHED = "PUBLISHED"
+    EDIT_SUBMITTED = "EDIT_SUBMITTED"  # Legacy moderation workflow value
+    EDIT_DECLINED = "EDIT_DECLINED"  # Legacy moderation workflow value
     APPROVED = "APPROVED"
     CHANGES_REQUESTED = "CHANGES_REQUESTED"
     CLOSED = "CLOSED"
@@ -107,6 +109,11 @@ class Posts(Base):
     
     manager_feedback = Column(Text, nullable=True, comment="Feedback from Operation Manager")
     
+    # Team member edit proposals
+    edited_title = Column(Text, nullable=True, comment="Proposed edited title from team member")
+    edited_description = Column(Text, nullable=True, comment="Proposed edited description from team member")
+    edited_by_email = Column(String(255), nullable=True, comment="Email of team member who submitted the edit")
+    
     # Additional Data
     metadata_json = Column(JSON, nullable=True, comment="Additional metadata including publications history")
     
@@ -121,6 +128,13 @@ class Posts(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=True, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index('ix_posts_status_created_at', 'status', 'created_at'),
+        Index('ix_posts_status_deleted_at', 'status', 'deleted_at'),
+        Index('ix_posts_created_by_status', 'created_by', 'status'),
+        Index('ix_posts_created_at', 'created_at'),
+    )
 
     # Relationships
     creator = relationship("User", back_populates="jobs", foreign_keys=[created_by])
@@ -182,6 +196,9 @@ class Posts(Base):
             "tags": self.tags,
             "metadata_json": self.metadata_json,
             "manager_feedback": self.manager_feedback,
+            "edited_title": self.edited_title,
+            "edited_description": self.edited_description,
+            "edited_by_email": self.edited_by_email,
             "view_count": self.view_count,
             "application_count": self.application_count,
             "created_by": self.created_by,
