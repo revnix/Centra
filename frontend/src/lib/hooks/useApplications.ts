@@ -20,6 +20,9 @@ export function useApplications() { // ✨ NEW - OPTIMIZATION
         queryKey: applicationKeys.lists(),
         queryFn: () => applicationsApi.list(),
         staleTime: 5 * 60_000, // 5 min — invalidated explicitly on mutations
+        refetchInterval: 20_000, // Poll to auto-update candidate statuses (no SSE push wired up yet)
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
     });
 }
 
@@ -31,6 +34,7 @@ export function useMyApplications() { // ✨ NEW - OPTIMIZATION
         queryKey: applicationKeys.mine(),
         queryFn: () => applicationsApi.getMyApplications(),
         staleTime: 60_000,
+        refetchOnMount: 'always',
     });
 }
 
@@ -43,6 +47,7 @@ export function useApplication(id: string) { // ✨ NEW - OPTIMIZATION
         queryFn: () => applicationsApi.get(id),
         enabled: !!id,
         staleTime: 60_000,
+        refetchOnMount: 'always',
     });
 }
 

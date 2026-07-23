@@ -112,7 +112,14 @@ class LinkedInService:
         )
         integration = result.scalars().first()
         if not integration:
-            raise Exception("LinkedIn integration not found for user")
+            raise Exception("LinkedIn integration not found. Please connect your LinkedIn account from the Integrations page.")
+
+        if integration.expires_at is not None:
+            exp = integration.expires_at
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp < datetime.now(timezone.utc):
+                raise ValueError("LinkedIn access token has expired. Please reconnect your LinkedIn account from the Integrations page.")
 
         url = "https://api.linkedin.com/v2/ugcPosts"
         headers = {
@@ -125,11 +132,11 @@ class LinkedInService:
 
         # LinkedIn shareCommentary.text has a hard 3000-character limit.
         # Truncate gracefully so the API doesn't reject with 422.
-        MAX_LEN = 2900  # leave room for the apply link appended below
+        MAX_LEN = 2900
         if len(text) > MAX_LEN:
             text = text[:MAX_LEN].rsplit(" ", 1)[0] + "..."
 
-        # Prepare share content
+        # Prepare share content — default to text-only
         share_content = {
             "shareCommentary": {
                 "text": text
@@ -137,30 +144,29 @@ class LinkedInService:
             "shareMediaCategory": "NONE"
         }
 
-        # If an article URL is provided, create a rich share card (ARTICLE)
-        if article_url:
-            if not article_url.startswith('http'):
+        # Only attach an ARTICLE card if the URL is a real, publicly reachable URL.
+        # Localhost / 127.0.0.1 / lvh.me / 192.168.x URLs cause LinkedIn to return 422.
+        LOCAL_HOSTS = ("localhost", "127.0.0.1", "lvh.me", "192.168.")
+        is_local_url = article_url and any(h in article_url for h in LOCAL_HOSTS)
+
+        if article_url and not is_local_url:
+            if not article_url.startswith("http"):
                 article_url = f"https://{article_url}"
 
-            if "localhost" in article_url or "127.0.0.1" in article_url:
-                # LinkedIn rejects localhost URLs in media blocks with 422 error
-                # Fallback: append to text
-                share_content["shareCommentary"]["text"] = f"{text}\n\nApply here: {article_url}"
-            else:
-                share_content["shareMediaCategory"] = "ARTICLE"
-                share_content["media"] = [
-                    {
-                        "status": "READY",
-                        "description": {
-                            "text": "Submit your application for this position."
-                        },
-                        "originalUrl": article_url,
-                        "title": {
-                            "text": "View Job Details & Apply"
-                        }
+            share_content["shareMediaCategory"] = "ARTICLE"
+            share_content["media"] = [
+                {
+                    "status": "READY",
+                    "description": {
+                        "text": "Submit your application for this position."
+                    },
+                    "originalUrl": article_url,
+                    "title": {
+                        "text": "View Job Details & Apply"
                     }
-                ]
-        
+                }
+            ]
+
         payload = {
             "author": author,
             "lifecycleState": "PUBLISHED",
@@ -172,8 +178,17 @@ class LinkedInService:
             }
         }
 
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.debug("LinkedIn UGC payload: %s", payload)
+
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=payload)
+            if not response.is_success:
+                _logger.error(
+                    "LinkedIn API %s error: %s",
+                    response.status_code,
+                    response.text,
+                )
             response.raise_for_status()
             return response.json()
-

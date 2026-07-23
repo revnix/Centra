@@ -20,7 +20,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('posts', sa.Column('requirements', sa.ARRAY(sa.String()), nullable=True, comment='Mandatory requirements/qualifications'))
+    conn = op.get_bind()
+    from sqlalchemy import inspect
+    inspector = inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('posts')]
+    if 'requirements' not in columns:
+        op.add_column('posts', sa.Column('requirements', sa.ARRAY(sa.String()), nullable=True, comment='Mandatory requirements/qualifications'))
+
 
 def downgrade() -> None:
     """Downgrade schema."""

@@ -31,3 +31,7 @@ instagrapi
 requests
 resend
 cloudinary
+
+google-auth
+google-auth-oauthlib
+google-api-python-client

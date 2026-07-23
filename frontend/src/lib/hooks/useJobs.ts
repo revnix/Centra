@@ -176,6 +176,62 @@ export function useReviewJob() {
 }
 
 /**
+ * Submit proposed edits for a job post
+ */
+export function useSubmitEdit() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({
+            jobId,
+            title,
+            description,
+            editor_email,
+        }: {
+            jobId: string;
+            title: string;
+            description: string;
+            editor_email?: string;
+        }) => jobsApi.submitEdit(jobId, { title, description, editor_email }),
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: jobKeys.detail(variables.jobId) });
+            queryClient.invalidateQueries({ queryKey: jobKeys.lists() });
+        },
+    });
+}
+
+/**
+ * Accept proposed edits for a job post
+ */
+export function useAcceptEdit() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (jobId: string) => jobsApi.acceptEdit(jobId),
+        onSuccess: (data, jobId) => {
+            queryClient.invalidateQueries({ queryKey: jobKeys.detail(jobId) });
+            queryClient.invalidateQueries({ queryKey: jobKeys.lists() });
+        },
+    });
+}
+
+/**
+ * Decline proposed edits for a job post
+ */
+export function useDeclineEdit() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ jobId, feedback }: { jobId: string; feedback?: string }) =>
+            jobsApi.declineEdit(jobId, feedback),
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: jobKeys.detail(variables.jobId) });
+            queryClient.invalidateQueries({ queryKey: jobKeys.lists() });
+        },
+    });
+}
+
+/**
  * Fetch dashboard statistics
  */
 export function useDashboardStats() {
