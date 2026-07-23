@@ -7,7 +7,7 @@ import { screeningApi } from "@/lib/api/screening";
 import { apiClient, resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin } from "lucide-react";
+import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin, Sparkles, Plus, Trash2, RefreshCw } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -133,8 +133,11 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [isSendingScreening, setIsSendingScreening] = useState(false);
     const [screening, setScreening] = useState<any>(null);
     const [isScreeningDialogOpen, setIsScreeningDialogOpen] = useState(false);
+    const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
     const [rawQuestionsText, setRawQuestionsText] = useState("");
-    const [timeLimitMinutes, setTimeLimitMinutes] = useState(10);
+    const [timeLimitMinutes, setTimeLimitMinutes] = useState(20);
+    const [questionCountToGenerate, setQuestionCountToGenerate] = useState(20);
+    const [editorTab, setEditorTab] = useState<'list' | 'bulk'>('list');
 
     // Editable email dialog for Onboarding & Reject
     const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | 'documents' | null>(null);
@@ -148,15 +151,6 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const emailDialogModeRef = useRef(emailDialogMode);
     useEffect(() => { emailDialogModeRef.current = emailDialogMode; }, [emailDialogMode]);
 
-    // Seed the contentEditable's DOM content the instant its real DOM node is created.
-    // Radix's Dialog portal mounts one render late (it renders null until an internal
-    // layout effect flips `mounted`), so a useEffect keyed on emailDialogMode fires too
-    // early and finds the ref still null. A ref *callback* sidesteps that race — React
-    // invokes it exactly when the node is attached, however many commits that takes.
-    // We deliberately do NOT bind content via dangerouslySetInnerHTML in the JSX below —
-    // that would make React re-apply `emailMessage` to the live DOM on every unrelated
-    // re-render of this page (background poll, Fast Refresh, any sibling state change),
-    // wiping out whatever the user is mid-way through typing or cutting.
     const seedDocumentsEditor = useCallback((node: HTMLDivElement | null) => {
         emailEditorRef.current = node;
         if (node) {
@@ -174,16 +168,33 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         setter(prev => prev.filter((_, i) => i !== index));
     }, []);
 
+    const handleGenerateQuestions = async () => {
+        setIsGeneratingQuestions(true);
+        try {
+            const count = Math.min(50, Math.max(1, Number(questionCountToGenerate) || 20));
+            const res = await screeningApi.generateQuestions(id, count);
+            if (res.questions && res.questions.length > 0) {
+                setRawQuestionsText(res.questions.map((q, i) => `${i + 1}. ${q}`).join("\n"));
+                toast.success(`Generated ${res.questions.length} screening questions via LLM!`);
+            } else {
+                toast.error("No questions generated");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Failed to generate AI questions");
+        } finally {
+            setIsGeneratingQuestions(false);
+        }
+    };
+
     const openScreeningDialog = () => {
-        setRawQuestionsText("");
-        setTimeLimitMinutes(10);
         setIsScreeningDialogOpen(true);
+        if (!rawQuestionsText) {
+            handleGenerateQuestions();
+        }
     };
 
     const closeScreeningDialog = () => {
         setIsScreeningDialogOpen(false);
-        setRawQuestionsText("");
-        setTimeLimitMinutes(10);
     };
 
     const handleSendScreeningTest = async () => {
@@ -673,44 +684,162 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
             {/* Dialogs */}
             <Dialog open={isScreeningDialogOpen} onOpenChange={(open) => !open && closeScreeningDialog()}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Send Screening Test</DialogTitle>
+                        <DialogTitle className="flex items-center justify-between text-xl">
+                            <span className="flex items-center gap-2">
+                                <Sparkles className="h-5 w-5 text-indigo-600" />
+                                Send Screening Test
+                            </span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleGenerateQuestions}
+                                disabled={isGeneratingQuestions || isSendingScreening}
+                                className="text-xs gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                            >
+                                {isGeneratingQuestions ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                )}
+                                {isGeneratingQuestions ? `Generating ${questionCountToGenerate} AI Questions...` : "Regenerate AI Questions"}
+                            </Button>
+                        </DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-4">
-                        <div className="grid gap-2 sm:max-w-[220px]">
-                            <label className="text-sm font-medium text-slate-700">Time limit (minutes)</label>
-                            <Input
-                                type="number"
-                                min={1}
-                                max={180}
-                                value={timeLimitMinutes}
-                                onChange={(event) =>
-                                    setTimeLimitMinutes(Math.min(180, Math.max(1, Number(event.target.value) || 1)))
-                                }
-                            />
+                    <div className="space-y-4 overflow-y-auto pr-1 flex-1 my-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-800">Time Limit (Minutes)</label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={180}
+                                    value={timeLimitMinutes}
+                                    onChange={(event) =>
+                                        setTimeLimitMinutes(Math.min(180, Math.max(1, Number(event.target.value) || 1)))
+                                    }
+                                    className="h-9 text-sm font-bold text-slate-800 bg-white"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-800">AI Question Quantity</label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={50}
+                                    value={questionCountToGenerate}
+                                    onChange={(event) =>
+                                        setQuestionCountToGenerate(Math.min(50, Math.max(1, Number(event.target.value) || 1)))
+                                    }
+                                    className="h-9 text-sm font-bold text-indigo-700 bg-white"
+                                />
+                            </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700">Questions</label>
-                            <Textarea
-                                value={rawQuestionsText}
-                                onChange={(event) => setRawQuestionsText(event.target.value)}
-                                placeholder={"Paste questions here, one per line.\nExample:\n1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
-                                className="min-h-[280px] font-mono text-sm"
-                            />
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                                    Screening Questions ({parseRawQuestions(rawQuestionsText).length})
+                                </label>
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditorTab('list')}
+                                        className={`px-2.5 py-1 rounded-md transition-all ${editorTab === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Interactive List
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditorTab('bulk')}
+                                        className={`px-2.5 py-1 rounded-md transition-all ${editorTab === 'bulk' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Bulk Text
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isGeneratingQuestions ? (
+                                <div className="flex flex-col items-center justify-center py-12 space-y-3 border-2 border-dashed border-indigo-200 rounded-xl bg-indigo-50/30">
+                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                                    <p className="text-sm font-medium text-indigo-900">AI is crafting 20 screening questions based on the candidate and job requirements...</p>
+                                </div>
+                            ) : editorTab === 'list' ? (
+                                <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+                                    {parseRawQuestions(rawQuestionsText).length === 0 ? (
+                                        <div className="p-6 text-center border-2 border-dashed rounded-xl text-sm text-slate-400">
+                                            No questions yet. Click &quot;Regenerate AI Questions&quot; above or &quot;Add Question&quot; below.
+                                        </div>
+                                    ) : (
+                                        parseRawQuestions(rawQuestionsText).map((qText, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 group">
+                                                <span className="text-xs font-bold text-indigo-600 w-6 shrink-0 text-right">
+                                                    {idx + 1}.
+                                                </span>
+                                                <Input
+                                                    value={qText}
+                                                    onChange={(e) => {
+                                                        const current = parseRawQuestions(rawQuestionsText);
+                                                        current[idx] = e.target.value;
+                                                        setRawQuestionsText(current.map((q, i) => `${i + 1}. ${q}`).join("\n"));
+                                                    }}
+                                                    className="flex-1 text-sm font-sans"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-9 w-9 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shrink-0"
+                                                    onClick={() => {
+                                                        const current = parseRawQuestions(rawQuestionsText);
+                                                        const updated = current.filter((_, i) => i !== idx);
+                                                        setRawQuestionsText(updated.map((q, i) => `${i + 1}. ${q}`).join("\n"));
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    )}
+
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            const current = parseRawQuestions(rawQuestionsText);
+                                            current.push("Enter new question text here");
+                                            setRawQuestionsText(current.map((q, i) => `${i + 1}. ${q}`).join("\n"));
+                                        }}
+                                        className="w-full mt-2 border-dashed text-xs text-slate-600 hover:text-indigo-600 hover:border-indigo-300 gap-1.5"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" /> Add Question
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Textarea
+                                    value={rawQuestionsText}
+                                    onChange={(event) => setRawQuestionsText(event.target.value)}
+                                    placeholder={"Paste or edit questions here, one per line.\nExample:\n1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
+                                    className="min-h-[280px] font-mono text-sm"
+                                />
+                            )}
+
                             <p className="text-xs text-slate-500">
-                                {parseRawQuestions(rawQuestionsText).length} question(s). LLM will generate options and correct answers before the email is sent.
+                                {parseRawQuestions(rawQuestionsText).length} question(s). LLM will auto-generate options and correct answers when the email is sent to candidate.
                             </p>
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="pt-2 border-t border-slate-100">
                         <Button type="button" variant="outline" onClick={closeScreeningDialog}>
                             Cancel
                         </Button>
-                        <Button type="button" onClick={handleSendScreeningTest} disabled={isSendingScreening}>
+                        <Button type="button" onClick={handleSendScreeningTest} disabled={isSendingScreening || isGeneratingQuestions}>
                             {isSendingScreening ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
