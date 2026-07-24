@@ -55,7 +55,7 @@ export interface AuthSession {
 // JOB TYPES
 // ============================================================================
 
-export type JobStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'CLOSED' | 'ARCHIVED';
+export type JobStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'EDIT_SUBMITTED' | 'EDIT_DECLINED' | 'CLOSED' | 'ARCHIVED';
 
 export interface Job {
   id: string;
@@ -99,6 +99,9 @@ export interface Job {
   company_website?: string;
   manager_feedback?: string;
   preferred_qualifications?: string[];
+  edited_title?: string;
+  edited_description?: string;
+  edited_by_email?: string;
 }
 
 export interface JobIntent {

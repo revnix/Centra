@@ -43,3 +43,27 @@ class IndeedJobPostRequest(BaseModel):
     location: str
     company: str
 
+# WhatsApp Integration Schemas
+class WhatsAppSendMessageRequest(BaseModel):
+    to: str
+    message: str
+
+class WhatsAppSendTemplateRequest(BaseModel):
+    to: str
+    template_name: str
+    language_code: str = "en_US"
+    components: list = []
+
+class WhatsAppStatusResponse(BaseModel):
+    connected: bool
+    phone_number_id: str | None = None
+    waba_id: str | None = None
+
+class WhatsAppConnectRequest(BaseModel):
+    phone_number_id: str
+    waba_id: str
+    access_token: str
+    verify_token: str
+
+class WhatsAppOAuthConnectRequest(BaseModel):
+    code: str

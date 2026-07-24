@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload, noload  # ✨ noload added for P2 fix
@@ -20,7 +21,7 @@ class ApplicationService:
         phone_number: str = None,
         source: str = "web",
         background_tasks = None,
-        expected_salary: float = None,
+        expected_salary=None,
         city: str = None,
         qualification: str = None,
     ) -> Application:
@@ -40,6 +41,14 @@ class ApplicationService:
         if job.effective_status != JobStatus.PUBLISHED:
             raise ValueError("Applications for this position are closed.")
 
+        # Convert expected_salary to float if provided
+        salary_value = None
+        if expected_salary is not None:
+            try:
+                salary_value = float(expected_salary)
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert expected_salary '{expected_salary}' to float, storing as None")
+        
         application = Application(
             candidate_id=user_id,
             job_id=job_id,
@@ -47,7 +56,7 @@ class ApplicationService:
             cover_letter=cover_letter,
             phone_number=phone_number,
             source=source,
-            expected_salary=float(expected_salary) if expected_salary is not None else None,
+            expected_salary=salary_value,
             city=city.strip().lower() if city else None,
             qualification=qualification.strip() if qualification else None,
         )
@@ -55,18 +64,25 @@ class ApplicationService:
         await self.db.commit()
         await self.db.refresh(application)
         
-        from src.api.services.email_service import logger
         logger.info(f"✅ Application {application.id} SAVED successfully to DB for Candidate {user_id}")
-        
+
         # Centralized Notification Trigger
         await self._trigger_new_app_notification(application, background_tasks)
-        
+
+        # NOTE: this does NOT eager-load relationships. Most callers (guest_apply,
+        # the Gmail sync loop) only need application.id and never serialize this
+        # object, so the extra round trip was pure latency for them. The one caller
+        # that DOES serialize it through ApplicationResponse (POST /applications)
+        # re-fetches with joins itself right after calling this method.
         return application
 
     async def _trigger_new_app_notification(self, application: Application, background_tasks = None):
         """Delegates notification to the centralized handler."""
-        from src.api.utils.application_handler import handle_new_application
-        await handle_new_application(self.db, application.id, background_tasks)
+        try:
+            from src.api.utils.application_handler import handle_new_application
+            await handle_new_application(self.db, application.id, background_tasks)
+        except Exception as exc:
+            logger.exception("Notification failed for application %s (non-fatal): %s", application.id, exc)
 
 
 
@@ -87,7 +103,8 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                joinedload(Application.interview_session),
+                joinedload(Application.screening_test)
             )
             .where(Application.id == application_id)
         )
@@ -100,6 +117,7 @@ class ApplicationService:
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
+                joinedload(Application.screening_test),
                 # ✨ OPTIMIZATION: noload prevents a lazy async load of interview_session during
                 # Pydantic serialization. Without this, removing the joinedload causes a
                 # MissingGreenlet crash because the Optional field is still in ApplicationResponse.
@@ -117,8 +135,10 @@ class ApplicationService:
         result = await self.db.execute(
             select(Application)
             .options(
+                joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
-                joinedload(Application.interview_session)
+                joinedload(Application.interview_session),
+                joinedload(Application.screening_test),
             )
             .where(Application.candidate_id == user_id)
             .order_by(Application.created_at.desc())
@@ -142,13 +162,13 @@ class ApplicationService:
         job = application.job
 
         try:
-            sent = await EmailService.send_rejection_email(
+            msg_id = await EmailService.send_rejection_email(
                 candidate_email=candidate.email,
                 candidate_name=candidate.full_name or "Candidate",
                 job_title=job.title if job else "the position",
             )
-            application.email_delivery_status = "SENT" if sent else "FAILED"
-            application.email_logs = "Rejection email sent." if sent else "Rejection email failed to deliver."
+            application.email_delivery_status = "SENT" if msg_id else "FAILED"
+            application.email_logs = f"Rejection email sent. ID: {msg_id}" if msg_id else "Rejection email failed to deliver."
         except Exception as e:
             logger.error(f"[REJECT] Failed to send rejection email for application {application_id}: {e}")
             application.email_delivery_status = "FAILED"
@@ -277,6 +297,14 @@ class ApplicationService:
         self.db.add(application)
         await self.db.commit()
 
+        # Promote resume to Google Drive if applicable
+        job = application.job
+        job_folder_name = None
+        if job:
+            job_date = (job.published_at or job.created_at).strftime("%Y-%m-%d") if (job.published_at or job.created_at) else "undated"
+            job_folder_name = f"{job.title} - {job_date}"
+        await self.ensure_resume_promoted_to_drive(application.candidate_id, job_folder_name=job_folder_name)
+
         # 2. Check if we should skip email based on city (Safety net)
         if not application.city or application.city.lower() != "haripur":
             logger.info(f"[SHORTLIST] Email skipped for application {application_id} - not Haripur.")
@@ -309,9 +337,13 @@ class ApplicationService:
         if result["success"] and result.get("email_sent"):
             application.status = ApplicationStatus.INTERVIEW_INVITED
             application.email_delivery_status = "SENT"
-            application.email_logs = f"WhatsApp-invite email sent. Score: {application.match_score}"
+            application.interview_invitation_status = "SENT"
+            # The result from SchedulingService should ideally return the msg_id
+            application.last_interview_invite_id = result.get("message_id")
+            application.email_logs = f"WhatsApp-invite email sent. Score: {application.match_score} | ID: {application.last_interview_invite_id}"
         else:
             application.email_delivery_status = "FAILED"
+            application.interview_invitation_status = "FAILED" # Useful to see failure here
             application.email_logs = result.get("message", "Email failed or score below threshold.")
             
         self.db.add(application)
@@ -338,7 +370,6 @@ class ApplicationService:
         # Trigger Email
         from src.api.services.email_service import EmailService
         from src.api.services.onboarding_service import OnboardingService
-        from starlette.concurrency import run_in_threadpool
         from src.api.core.config import settings
         
         # Initiate onboarding to generate token
@@ -389,3 +420,98 @@ class ApplicationService:
         await self.db.delete(application)
         await self.db.commit()
         return True
+
+    async def ensure_resume_promoted_to_drive(self, user_id: int, job_folder_name: Optional[str] = None):
+        """
+        Promotes the candidate's resume from Cloudinary to Google Drive.
+        Called when a candidate is shortlisted.
+
+        The Google Drive client library is synchronous, so the blocking
+        upload call is offloaded to a thread-pool via asyncio.to_thread()
+        to avoid stalling the event loop.
+        """
+        import asyncio
+        from src.api.models.user import User
+        from src.api.models.candidate import CandidateProfile
+
+        # Load user and profile
+        result = await self.db.execute(
+            select(User)
+            .options(joinedload(User.candidate_profile))
+            .where(User.id == user_id)
+        )
+        user = result.scalars().first()
+        if not user or not user.candidate_profile:
+            logger.warning(f"[DRIVE] User or candidate profile not found for user ID: {user_id} — skipping Drive promotion.")
+            return
+
+        profile = user.candidate_profile
+
+        # Bug 3 fix: log explicitly when resume_url is absent so the skip is traceable.
+        if not profile.resume_url:
+            logger.warning(
+                f"[DRIVE] Candidate {user.email} has no resume_url — "
+                "cannot promote to Drive. Ask candidate to upload a resume first."
+            )
+            return
+
+        if profile.resume_storage_provider == "google_drive":
+            logger.info(f"[DRIVE] Resume for {user.email} is already on Google Drive — skipping.")
+            return
+
+        from src.api.core.config import settings as _settings
+        _drive_available = bool(_settings.GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO and _settings.GOOGLE_DRIVE_FOLDER_ID)
+        if not _drive_available:
+            logger.warning("[DRIVE] Google Drive not configured — skipping resume promotion.")
+            return
+
+        try:
+            import httpx
+            from urllib.parse import urlparse
+            from pathlib import Path
+
+            logger.info(f"[DRIVE] Downloading resume from storage: {profile.resume_url}")
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                response = await client.get(profile.resume_url)
+
+            # Bug 4 fix: raise explicitly on non-200 so the except block captures it.
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to download resume (HTTP {response.status_code}) from {profile.resume_url}"
+                )
+
+            content = response.content
+            parsed_url = urlparse(profile.resume_url)
+            original_filename = Path(parsed_url.path).name or "resume.pdf"
+
+            from src.api.services.google_drive_service import GoogleDriveService
+            _drive = GoogleDriveService()
+
+            # Bug 1 fix: GoogleDriveService.upload_file is synchronous (uses the Google API
+            # client library which is blocking). Run it in a thread-pool so it doesn't stall
+            # the asyncio event loop and silently time-out / be abandoned.
+            _meta = await asyncio.to_thread(
+                _drive.upload_file,
+                content,
+                original_filename,
+                user.full_name or user.email, # candidate_identifier
+                job_folder_name,          # job-specific subfolder
+            )
+
+            profile.resume_url = _meta.web_view_link
+            profile.resume_file_id = _meta.file_id
+            profile.resume_storage_provider = "google_drive"
+
+            self.db.add(profile)
+            await self.db.commit()
+            logger.info(
+                f"[DRIVE] Resume promoted to Google Drive for {user.email}: "
+                f"file_id={_meta.file_id}, link={_meta.web_view_link}"
+            )
+
+        except Exception as e:
+            # Bug 2 fix: log with exc_info so the full traceback appears in prod logs.
+            logger.error(
+                f"[DRIVE] Error promoting resume to Google Drive for user {user_id}: {e}",
+                exc_info=True,
+            )

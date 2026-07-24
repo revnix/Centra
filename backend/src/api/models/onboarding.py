@@ -24,10 +24,10 @@ class Onboarding(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), unique=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     onboarding_token = Column(String, unique=True, nullable=True, index=True)
     
-    status = Column(SqlEnum(OnboardingStatus), default=OnboardingStatus.PENDING_CANDIDATE_JOINING, nullable=False)
+    status = Column(SqlEnum(OnboardingStatus), default=OnboardingStatus.PENDING_CANDIDATE_JOINING, nullable=False, index=True)
     
     # Candidate details
     joining_date = Column(DateTime(timezone=True), nullable=True)
@@ -78,9 +78,9 @@ class Onboarding(Base):
     ind_manager_buddy_assigned = Column(Boolean, default=False)
     ind_manager_team_intro = Column(Boolean, default=False)
     
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     application = relationship("Application", backref="onboarding", uselist=False, passive_deletes=True)
     user = relationship("User", backref="onboardings")
@@ -89,7 +89,7 @@ class OnboardingDocument(Base):
     __tablename__ = "onboarding_documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
     file_name = Column(String(255), nullable=False)
     file_url = Column(String, nullable=False)
     file_type = Column(String(50), nullable=False) # pdf, image, doc

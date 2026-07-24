@@ -26,24 +26,21 @@ class JobBase(BaseModel):
     application_deadline: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     tags: Optional[List[str]] = None
-    
+
     @field_validator('job_type', 'experience_level', mode='before')
     @classmethod
     def validate_enums(cls, v, info):
         """Convert string values to enum values if needed"""
         if v is None:
             return v
-        
-        # Get the field name
+
         field_name = info.field_name
-        
-        # Convert string to enum if necessary
+
         if field_name == 'job_type' and isinstance(v, str):
             v_lower = v.lower().replace('-', '_')
             try:
                 return JobType(v_lower)
             except ValueError:
-                # Try to find a matching enum member by name (case-insensitive)
                 for job_type in JobType:
                     if job_type.name.lower() == v_lower:
                         return job_type
@@ -54,12 +51,11 @@ class JobBase(BaseModel):
             try:
                 return ExperienceLevel(v_lower)
             except ValueError:
-                # Try to find a matching enum member by name (case-insensitive)
                 for exp_level in ExperienceLevel:
                     if exp_level.name.lower() == v_lower:
                         return exp_level
                 raise ValueError(f"Invalid experience_level: {v}. Valid values are: {', '.join([el.value for el in ExperienceLevel])}")
-        
+
         return v
 
     @field_validator('requirements', 'preferred_qualifications', 'required_skills', 'preferred_skills', 'benefits', 'tags', mode='before')
@@ -77,7 +73,7 @@ class JobBase(BaseModel):
             except:
                 return [v]
         return v
-    
+
 class JobCreate(JobBase):
     pass
 
@@ -135,7 +131,15 @@ class JobImproveRequest(BaseModel):
 class JobReviewRequest(BaseModel):
     status: JobStatus
     feedback: Optional[str] = None
-    
+
+class JobSubmitEditRequest(BaseModel):
+    title: str
+    description: str
+    editor_email: Optional[str] = None
+
+class JobDeclineEditRequest(BaseModel):
+    feedback: Optional[str] = None
+
 class JobResponse(JobBase):
     id: int
     created_by: int
@@ -145,10 +149,14 @@ class JobResponse(JobBase):
     effective_status: Optional[JobStatus] = None
     published_at: Optional[datetime] = None
     manager_feedback: Optional[str] = None
+    application_count: Optional[int] = 0
+    edited_title: Optional[str] = None
+    edited_description: Optional[str] = None
+    edited_by_email: Optional[str] = None
 
     class Config:
         from_attributes = True
-        use_enum_values = True  # Serialize enums as their values (strings)
+        use_enum_values = True
 
 class JobExtendDeadlineRequest(BaseModel):
-    expires_at: datetime
+    expires_at: datetime

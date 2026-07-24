@@ -3,13 +3,15 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   compress: true,
+  // Backend (uvicorn) closes idle keep-alive sockets after ~5s; reusing a dead
+  // pooled connection causes random ECONNRESET on proxied /api/v1 requests.
+  httpAgentOptions: {
+    keepAlive: false,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  reactCompiler: true,
+  reactCompiler: false,
   experimental: {
     // Tree-shake large icon/component libraries — only the icons actually used
     // are bundled. Without this, lucide-react pulls in 500+ icons on every page.
@@ -31,6 +33,13 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "172.20.96.1:3000",
     "172.20.96.1",
+    "lvh.me",
+    "lvh.me:3000",
+    "http://lvh.me:3000",
+    "revolute-jerica-uncombatant.ngrok-free.dev",
+    "https://revolute-jerica-uncombatant.ngrok-free.dev",
+    "issuing-coerce-consensus.ngrok-free.dev",
+    "https://issuing-coerce-consensus.ngrok-free.dev"
   ],
   async redirects() {
     return [
@@ -47,15 +56,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:2024";
-
-    if (!process.env.NEXT_PUBLIC_API_URL) {
-      console.warn(
-        "NEXT_PUBLIC_API_URL is not defined. Falling back to http://127.0.0.1:2024"
-      );
-    }
-
+    const backendUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
     return [
       {
         source: "/api/v1/:path*",
