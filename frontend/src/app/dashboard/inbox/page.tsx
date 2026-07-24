@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { gmailApi, type EmailSummary, type EmailMessage } from '@/lib/api/gmail';
+import { gmailApi, type EmailSummary, type EmailMessage, type GmailAliasInfo } from '@/lib/api/gmail';
 
 function OAuthToastHandler() {
     const searchParams = useSearchParams();
@@ -25,11 +25,13 @@ interface ComposeProps {
     defaultTo?: string;
     defaultSubject?: string;
     threadId?: string;
+    aliases?: GmailAliasInfo[];
     onClose: () => void;
     onSent: () => void;
 }
 
-function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, onClose, onSent }: ComposeProps) {
+function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, aliases = [], onClose, onSent }: ComposeProps) {
+    const [fromEmail, setFromEmail] = useState(aliases[0]?.email || '');
     const [to, setTo] = useState(defaultTo);
     const [cc, setCc] = useState('');
     const [bcc, setBcc] = useState('');
@@ -52,6 +54,7 @@ function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, onClose,
                 to: to.trim(),
                 subject: subject.trim() || '(no subject)',
                 body: body.trim(),
+                from_email: fromEmail || undefined,
                 thread_id: threadId,
                 cc: cc.trim() || undefined,
                 bcc: bcc.trim() || undefined,
@@ -79,6 +82,22 @@ function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, onClose,
 
             {/* Fields */}
             <div className="border-b border-slate-100 divide-y divide-slate-100">
+                {/* From (if aliases exist) */}
+                {aliases.length > 0 && (
+                    <div className="flex items-center px-4 py-2 gap-2">
+                        <span className="text-xs text-slate-400 w-12 shrink-0">From</span>
+                        <select
+                            value={fromEmail}
+                            onChange={e => setFromEmail(e.target.value)}
+                            className="flex-1 text-sm bg-transparent outline-none text-slate-800 cursor-pointer font-medium"
+                        >
+                            {aliases.map(alias => (
+                                <option key={alias.email} value={alias.email}>{alias.formatted}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
                 {/* To */}
                 <div className="flex items-center px-4 py-2 gap-2">
                     <span className="text-xs text-slate-400 w-12 shrink-0">To</span>
@@ -316,7 +335,7 @@ export default function InboxPage() {
                 setInboxEmails(prev => [...newEmails, ...prev]);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inbox]);
 
     useEffect(() => {
@@ -332,7 +351,7 @@ export default function InboxPage() {
                 setSentEmails(prev => [...newEmails, ...prev]);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sent]);
 
     const handleLoadMoreInbox = async () => {
@@ -400,7 +419,7 @@ export default function InboxPage() {
             } else {
                 setSentEmails(prev => prev.map(e => e.id === email.id ? { ...e, unread: false } : e));
             }
-            gmailApi.markRead([email.thread_id]).catch(() => {});
+            gmailApi.markRead([email.thread_id]).catch(() => { });
         }
     };
 
@@ -517,7 +536,19 @@ export default function InboxPage() {
                 <div className="flex items-center justify-between flex-shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Gmail</h1>
-                        {status.email && <p className="text-sm text-slate-500 mt-0.5">{status.email}</p>}
+                        {status.email && (
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-sm text-slate-500">{status.email}</p>
+                                {status.aliases && status.aliases.length > 1 && (
+                                    <span
+                                        className="text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2 py-0.5 cursor-help"
+                                        title={`Active send-as aliases:\n${status.aliases.map(a => a.formatted).join('\n')}`}
+                                    >
+                                        {status.aliases.length} Aliases
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         {activeTab === 'inbox' && (
@@ -584,11 +615,10 @@ export default function InboxPage() {
                                 <button
                                     key={tab}
                                     onClick={() => handleTabChange(tab)}
-                                    className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${
-                                        activeTab === tab
-                                            ? 'text-indigo-600 border-b-2 border-indigo-500'
-                                            : 'text-slate-500 hover:text-slate-700'
-                                    }`}
+                                    className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${activeTab === tab
+                                        ? 'text-indigo-600 border-b-2 border-indigo-500'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
                                 >
                                     {tab === 'inbox' ? 'Inbox' : 'Sent'}
                                 </button>
@@ -753,6 +783,7 @@ export default function InboxPage() {
                     defaultTo={replyTarget?.from_ ?? ''}
                     defaultSubject={replyTarget ? (replyTarget.subject.startsWith('Re:') ? replyTarget.subject : `Re: ${replyTarget.subject}`) : ''}
                     threadId={replyTarget ? selectedThreadId ?? undefined : undefined}
+                    aliases={status?.aliases}
                     onClose={() => { setShowCompose(false); setReplyTarget(null); }}
                     onSent={handleSent}
                 />
