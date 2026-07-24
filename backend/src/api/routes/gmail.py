@@ -210,9 +210,17 @@ def _extract_body(payload: dict) -> str:
 
 # ---- Schemas ----
 
+class GmailAliasInfo(BaseModel):
+    email: str
+    name: Optional[str] = ""
+    formatted: str
+    is_default: Optional[bool] = False
+
+
 class GmailStatusResponse(BaseModel):
     connected: bool
     email: Optional[str] = None
+    aliases: Optional[List[GmailAliasInfo]] = None
 
 
 class EmailSummary(BaseModel):
@@ -229,9 +237,34 @@ class SendEmailRequest(BaseModel):
     to: str
     subject: str
     body: str
+    from_email: Optional[str] = None
     thread_id: Optional[str] = None
     cc: Optional[str] = None
     bcc: Optional[str] = None
+
+
+def _fetch_send_as_aliases(creds: Any) -> list[dict[str, Any]]:
+    try:
+        from googleapiclient.discovery import build as _build
+        svc = _build("gmail", "v1", credentials=creds)
+        res = svc.users().settings().sendAs().list(userId="me").execute()  # type: ignore[attr-defined]
+        send_as_list = res.get("sendAs", [])
+        aliases: list[dict[str, Any]] = []
+        for sa in send_as_list:
+            email = sa.get("sendAsEmail")
+            if email:
+                name = sa.get("displayName") or ""
+                formatted = f"{name} <{email}>" if name else email
+                aliases.append({
+                    "email": email,
+                    "name": name,
+                    "formatted": formatted,
+                    "is_default": sa.get("isDefault", False),
+                })
+        return aliases
+    except Exception as exc:
+        logger.warning("Could not fetch Gmail sendAs aliases: %s", exc)
+        return []
 
 
 # ---- Routes ----
@@ -251,7 +284,46 @@ async def gmail_status(
     if not integration:
         return {"connected": False}
     token_data = json.loads(str(integration.access_token))
-    return {"connected": True, "email": token_data.get("email")}
+    primary_email = token_data.get("email")
+    
+    aliases: list[dict[str, Any]] = []
+    try:
+        creds, _ = await _get_credentials(current_user.id, db)
+        await _maybe_refresh(creds, integration, db)
+        aliases = await run_in_threadpool(lambda: _fetch_send_as_aliases(creds))
+    except Exception as exc:
+        logger.warning("Failed to refresh or fetch aliases in gmail_status: %s", exc)
+    
+    if primary_email and not any(a["email"] == primary_email for a in aliases):
+        aliases.insert(0, {
+            "email": primary_email,
+            "name": "",
+            "formatted": primary_email,
+            "is_default": True if not aliases else False,
+        })
+
+    return {"connected": True, "email": primary_email, "aliases": aliases}
+
+
+@router.get("/aliases")
+async def gmail_aliases(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    creds, integration = await _get_credentials(current_user.id, db)
+    await _maybe_refresh(creds, integration, db)
+    
+    aliases = await run_in_threadpool(lambda: _fetch_send_as_aliases(creds))
+    token_data = json.loads(str(integration.access_token))
+    primary_email = token_data.get("email")
+    if primary_email and not any(a["email"] == primary_email for a in aliases):
+        aliases.insert(0, {
+            "email": primary_email,
+            "name": "",
+            "formatted": primary_email,
+            "is_default": True if not aliases else False,
+        })
+    return {"aliases": aliases}
 
 
 @router.get("/auth")
@@ -785,6 +857,7 @@ async def gmail_send(
     to: str = Form(...),
     subject: str = Form(...),
     body: str = Form(...),
+    from_email: Optional[str] = Form(default=None),
     thread_id: Optional[str] = Form(default=None),
     cc: Optional[str] = Form(default=None),
     bcc: Optional[str] = Form(default=None),
@@ -800,6 +873,8 @@ async def gmail_send(
 
     # Use "mixed" to support attachments; body goes in a nested "alternative" part
     msg = MIMEMultipart("mixed")
+    if from_email:
+        msg["From"] = from_email
     msg["To"] = to
     msg["Subject"] = subject
     if cc:
