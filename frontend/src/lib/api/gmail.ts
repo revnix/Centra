@@ -1,8 +1,16 @@
 import { apiClient } from './client';
 
+export interface GmailAliasInfo {
+    email: string;
+    name?: string;
+    formatted: string;
+    is_default?: boolean;
+}
+
 export interface GmailStatus {
     connected: boolean;
     email?: string;
+    aliases?: GmailAliasInfo[];
 }
 
 export interface EmailSummary {
@@ -41,6 +49,7 @@ export interface SendEmailPayload {
     to: string;
     subject: string;
     body: string;
+    from_email?: string;
     thread_id?: string;
     cc?: string;
     bcc?: string;
@@ -49,6 +58,9 @@ export interface SendEmailPayload {
 export const gmailApi = {
     getStatus: () =>
         apiClient.get<GmailStatus>('/gmail/status'),
+
+    getAliases: () =>
+        apiClient.get<{ aliases: GmailAliasInfo[] }>('/gmail/aliases'),
 
     getAuthUrl: () =>
         apiClient.get<{ authorization_url: string }>('/gmail/auth'),
@@ -71,6 +83,7 @@ export const gmailApi = {
         form.append('to', payload.to);
         form.append('subject', payload.subject);
         form.append('body', payload.body);
+        if (payload.from_email) form.append('from_email', payload.from_email);
         if (payload.thread_id) form.append('thread_id', payload.thread_id);
         if (payload.cc) form.append('cc', payload.cc);
         if (payload.bcc) form.append('bcc', payload.bcc);
