@@ -13,6 +13,7 @@ import { jobsApi } from '@/lib/api/jobs';
 import { applicationsApi } from '@/lib/api/applications';
 import {
     Briefcase,
+    Mail,
     Menu,
     X,
     LogOut,
@@ -33,6 +34,7 @@ const NAVIGATION = [
     { name: 'Pipeline', href: '/dashboard/pipeline', icon: KanbanSquare },
     { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
     { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
+    { name: 'Inbox', href: '/dashboard/inbox', icon: Mail },
 ];
 
 // Prefetch map: nav href → what data to warm up for that page
@@ -62,13 +64,22 @@ export default function DashboardLayout({
     // Background-prefetch the most-visited pages' data right after layout mounts.
     // By the time the user clicks Jobs or Applications the data is already in cache
     // and the page renders with zero network wait.
+    //
+    // The route-bundle prefetch is deliberately delayed: firing router.prefetch()
+    // immediately on mount races with Turbopack's on-demand dev compilation (routes
+    // are compiled lazily on first request) and the dev server can return a spurious
+    // 404 for a route that exists and works fine on a real click. A short delay lets
+    // the current route's own compile settle first. Production builds are pre-compiled
+    // so this race doesn't exist there, but the delay is harmless either way.
     useEffect(() => {
         const staleTime = 5 * 60_000;
         PREFETCH_QUERIES.forEach(({ queryKey, queryFn }) => {
             queryClient.prefetchQuery({ queryKey, queryFn, staleTime });
         });
-        // Also prefetch the JS bundles for all sidebar routes
-        NAVIGATION.forEach(({ href }) => router.prefetch(href));
+        const timer = setTimeout(() => {
+            NAVIGATION.forEach(({ href }) => router.prefetch(href));
+        }, 1500);
+        return () => clearTimeout(timer);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleLogout = () => {

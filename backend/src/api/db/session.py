@@ -38,9 +38,8 @@ if "neon.tech" in settings.DATABASE_URL:
     connect_args["command_timeout"] = 60
     # CRITICAL: Disable prepared statement cache for PgBouncer compatibility
     connect_args["statement_cache_size"] = 0
-    # Keep per-attempt timeout short so cold-start retries stay under 90s total:
-    # 4 attempts × 15s + (1+3+8)s delays = 72s max < 90s frontend timeout
-    connect_args["timeout"] = 15
+    # Neon free-tier cold starts can take up to 30s — give enough headroom
+    connect_args["timeout"] = 30
 
 print(f"DEBUG: Initializing engine with URL: {database_url.split('@')[-1]}") # Log host only for safety
 
@@ -52,6 +51,16 @@ _is_neon = "neon.tech" in settings.DATABASE_URL
 # fires (~60 s). NullPool opens a fresh connection per request and closes it
 # immediately after, which is the pattern Neon officially recommends for
 # serverless workloads. For non-Neon Postgres we keep a normal pool.
+#
+# REVERTED 2026-07-14: briefly tried AsyncAdaptedQueuePool + pool_pre_ping=True
+# here to cut per-request connection overhead. In production this caused
+# every DB-touching endpoint to hang indefinitely (observed 90s+, never
+# resolving) — SQLAlchemy's async pre_ping health-check for the asyncpg
+# dialect does not reliably enforce connect_args timeouts, so once Neon's
+# compute was suspended, the pre_ping probe itself hung forever instead of
+# failing fast and reconnecting. NullPool never hits that code path at all,
+# which is exactly why it was chosen originally — do not reintroduce pooling
+# for Neon without first confirming pre_ping timeout behavior is fixed.
 engine = create_async_engine(
     database_url,
     echo=False,
@@ -87,55 +96,67 @@ AsyncSessionLocal = async_sessionmaker(
 
 _db_logger = logging.getLogger(__name__)
 
-# Exceptions asyncpg raises during a Neon cold-start
-_NEON_WAKE_ERRORS = (TimeoutError, OSError, asyncio.TimeoutError)
+# Monotonic timestamp of the last successful Neon ping (0 = never).
+# Updated by _periodic_neon_ping in main.py and by get_async_db() itself.
+import time as _time
+_last_neon_ping: float = 0.0
+
+# Lock to serialise concurrent warmup attempts. Without this, when N requests
+# arrive simultaneously while Neon is cold, all N race to open a connection and
+# all N time-out independently, causing every request to fail with 500.
+# With the lock only the FIRST coroutine does the warmup; the rest wait and then
+# skip it (double-checked locking pattern).
+_neon_warmup_lock: asyncio.Lock | None = None
+
+
+def _get_warmup_lock() -> asyncio.Lock:
+    global _neon_warmup_lock
+    if _neon_warmup_lock is None:
+        _neon_warmup_lock = asyncio.Lock()
+    return _neon_warmup_lock
+
+
+def _update_last_ping() -> None:
+    global _last_neon_ping
+    _last_neon_ping = _time.monotonic()
 
 
 async def get_async_db():
-    """
-    Yield a warm AsyncSession, with automatic retry on Neon cold-start timeouts.
-
-    Neon's free-tier compute suspends after ~5 min of inactivity. Reconnecting
-    to a sleeping instance always raises TimeoutError on the first attempt.
-
-    IMPORTANT: The retry loop and the `yield` are intentionally in SEPARATE
-    phases. Placing `yield` inside a try/except that catches connection errors
-    causes `RuntimeError: generator didn't stop after athrow()` because FastAPI
-    uses AsyncExitStack.athrow() to clean up the generator after a route error,
-    and our handler would incorrectly catch that re-thrown exception and try to
-    loop again — which Python forbids once a generator has already yielded.
-
-    Strategy:
-      Phase 1 (retried): Fire a cheap `SELECT 1` via engine.connect() to wake
-                         up the Neon compute. Retry up to 3 times.
-      Phase 2 (single):  Yield one AsyncSession. Connection is now warm.
-    """
+    """Yield an AsyncSession. For Neon, wake the compute with a SELECT 1 first."""
+    from fastapi import HTTPException as _HTTPException
     if _is_neon:
-        _RETRY_DELAYS = [1, 3, 8]  # seconds to wait between attempts (4 total attempts)
-        last_exc: Exception | None = None
+        # Skip per-request warmup if a successful ping happened within the last 25 s.
+        if _time.monotonic() - _last_neon_ping > 25:
+            lock = _get_warmup_lock()
+            async with lock:
+                # Double-check: another coroutine may have already warmed up while we waited.
+                if _time.monotonic() - _last_neon_ping > 25:
+                    last_exc: Exception | None = None
+                    # 3 attempts: immediate, 5s, 10s — covers Neon free-tier cold starts up to ~45s
+                    for attempt, delay in enumerate([0, 5, 10], start=1):
+                        if delay:
+                            _db_logger.warning("Neon cold-start retry (attempt %d/%d): %s", attempt, 3, last_exc)
+                            await asyncio.sleep(delay)
+                        try:
+                            async with engine.connect() as conn:
+                                await conn.execute(text("SELECT 1"))
+                            _update_last_ping()
+                            last_exc = None
+                            break
+                        except (TimeoutError, asyncio.TimeoutError) as exc:
+                            # Neon cold-start timeout — retry
+                            last_exc = exc
+                        except asyncio.CancelledError:
+                            raise  # never swallow genuine task cancellation
+                        except Exception as exc:
+                            last_exc = exc
+                    if last_exc is not None:
+                        _db_logger.error("DB unreachable after 3 attempts: %s", last_exc)
+                        raise _HTTPException(
+                            status_code=503,
+                            detail="Database is starting up. Please retry in a moment.",
+                        )
 
-        for attempt, delay in enumerate([0] + _RETRY_DELAYS, start=1):
-            if delay:
-                _db_logger.warning(
-                    "Neon cold-start – retrying connection "
-                    "(attempt %d, waited %ds): %s",
-                    attempt, delay, last_exc,
-                )
-                await asyncio.sleep(delay)
-            try:
-                async with engine.connect() as conn:
-                    await conn.execute(text("SELECT 1"))
-                break  # Neon compute is awake
-            except _NEON_WAKE_ERRORS as exc:
-                last_exc = exc
-                if attempt > len(_RETRY_DELAYS):
-                    _db_logger.error(
-                        "DB unreachable after %d attempts: %s", attempt, exc
-                    )
-                    raise
-
-    # Phase 2: yield one session — outside any retry try/except so that
-    # FastAPI's athrow() during cleanup propagates cleanly.
     async with AsyncSessionLocal() as session:
         yield session
 

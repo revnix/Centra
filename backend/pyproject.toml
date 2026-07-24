@@ -30,4 +30,8 @@ dependencies = [
     "requests",
     "resend>=2.29.0",
     "alembic>=1.18.4",
+    "cryptography",
+    "cloudinary",
+    "google-auth",
+    "google-api-python-client",
 ]

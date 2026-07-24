@@ -1,15 +1,11 @@
-.langgraph_api
-.env
+# LangGraph
+.langgraph_api/
+
+# Python virtual environments
 .venv/
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-*.swp
-*.swo
-*~
-# Python virtual environment
+venv/
 myenv/
+env/
 
 # Environment files
 .env
@@ -17,11 +13,34 @@ myenv/
 
 # Python cache
 __pycache__/
+*.py[cod]
+*$py.class
 *.pyc
+*.pyo
 
-# Logs
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor temp files
+*.swp
+*.swo
+*~
+
+# Uploads (user data, not for version control)
+uploads/
+
+# Output/debug text files
+*.txt
+!requirements.txt
+
+# Logs — watchfiles respects .gitignore so *.log entries stop the restart loop
 logs/
+*.log
+langgraph_stdout.log
+langgraph_stderr.log
 
-# VS Code / IDE
+# IDE
 .vscode/
 .idea/

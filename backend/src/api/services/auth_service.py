@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
+from starlette.concurrency import run_in_threadpool
 from src.api.models.user import User
 from src.api.models.password_reset import PasswordResetToken
 from src.api.schemas.user import UserCreate
@@ -20,6 +21,17 @@ class AuthService:
         )
         return result.scalars().first()
 
+    async def get_users_by_emails(self, emails: list[str]) -> dict[str, User]:
+        """Batch lookup — one round trip instead of one query per email in a loop."""
+        if not emails:
+            return {}
+        result = await self.db.execute(
+            select(User)
+            .where(User.email.in_(emails))
+            .options(joinedload(User.candidate_profile))
+        )
+        return {user.email: user for user in result.scalars().all()}
+
     async def get_user_by_username(self, username: str) -> User | None:
         result = await self.db.execute(
             select(User)
@@ -29,7 +41,7 @@ class AuthService:
         return result.scalars().first()
 
     async def create_user(self, user_in: UserCreate) -> User:
-        hashed_password = get_password_hash(user_in.password)
+        hashed_password = await run_in_threadpool(get_password_hash, user_in.password)
         
         base_username = user_in.username or user_in.email.split("@")[0]
         username = base_username
@@ -68,7 +80,7 @@ class AuthService:
         user = await self.get_user_by_email(email)
         if not user:
             return None
-        if not verify_password(password, user.hashed_password):
+        if not await run_in_threadpool(verify_password, password, str(user.hashed_password)):
             return None
         return user
 
@@ -121,7 +133,7 @@ class AuthService:
         if not user:
             return False
             
-        user.hashed_password = get_password_hash(new_password)
+        user.hashed_password = await run_in_threadpool(get_password_hash, new_password)  # type: ignore[assignment]
         reset_token.is_used = True
         
         await self.db.commit()

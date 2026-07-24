@@ -6,12 +6,13 @@ from src.api.models.candidate import CandidateProfile
 from src.api.models.application import Application, ApplicationStatus
 from src.api.models.interview import InterviewSession, InterviewStatus
 from src.api.models.password_reset import PasswordResetToken
-from src.api.models.onboarding import Onboarding, OnboardingDocument, OnboardingStatus, ShiftTiming
+from src.api.models.onboarding import Onboarding
+from src.api.models.screening import ScreeningTest
 
 __all__ = [
     "User",
     "UserRole",
-    "UserIntegration",
+    "UserIntegration", 
     "Posts",
     "JobType",
     "JobStatus",
@@ -23,8 +24,5 @@ __all__ = [
     "InterviewStatus",
     "PasswordResetToken",
     "Onboarding",
-    "OnboardingDocument",
-    "OnboardingStatus",
-    "ShiftTiming",
+    "ScreeningTest",
 ]
-

@@ -1,12 +1,13 @@
-'use client'; // ✅ UNCHANGED
+'use client'; // ✅ UNCHANGEDs
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query'; // ✨ NEW - OPTIMIZATION
 import { useJobs, usePublishJob, useDeleteJob } from '@/lib/hooks/useJobs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, CheckCircle2, Loader2, Rocket, Briefcase, Linkedin, Check, Share2, Trash2, AlertTriangle, Users, MessageSquare, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -39,7 +40,7 @@ export default function GeneratedJobsPage() {
     const publishJob = usePublishJob();
 
     const jobs = useMemo(
-        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'ACTIVE'].includes(j.status)) ?? [],
+        () => jobsResponse?.filter(j => ['DRAFT', 'APPROVED', 'CHANGES_REQUESTED', 'PUBLISHED', 'EDIT_SUBMITTED', 'EDIT_DECLINED'].includes(j.status)) ?? [],
         [jobsResponse]
     );
 
@@ -65,6 +66,7 @@ export default function GeneratedJobsPage() {
     const [teamDialogJob, setTeamDialogJob] = useState<any>(null);
     const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
     const [isSendingToTeam, setIsSendingToTeam] = useState(false);
+    const [customEmail, setCustomEmail] = useState("");
 
     // Prefetch team members on mount so the dialog opens instantly
     const { data: teamMembers = [] } = useQuery({
@@ -76,14 +78,31 @@ export default function GeneratedJobsPage() {
     const handleOpenTeamDialog = (job: any) => {
         setTeamDialogJob(job);
         setSelectedTeamEmails([]);
+        setCustomEmail("");
         setShowTeamDialog(true);
     };
 
     const handleSendToTeam = async () => {
-        if (!teamDialogJob || selectedTeamEmails.length === 0) return;
+        if (!teamDialogJob) return;
+
+        const allEmails = [...selectedTeamEmails];
+        if (customEmail.trim()) {
+            // Basic email validation
+            if (!/^\S+@\S+\.\S+$/.test(customEmail.trim())) {
+                toast.error("Please enter a valid custom email address");
+                return;
+            }
+            allEmails.push(customEmail.trim());
+        }
+
+        if (allEmails.length === 0) {
+            toast.error("Please select at least one team member or enter a custom email");
+            return;
+        }
+
         setIsSendingToTeam(true);
         try {
-            const result = await jobsApi.sendToTeam(teamDialogJob.id, selectedTeamEmails);
+            const result = await jobsApi.sendToTeam(teamDialogJob.id, allEmails);
             toast.success(result.message);
             setShowTeamDialog(false);
         } catch (error: any) {
@@ -221,18 +240,19 @@ export default function GeneratedJobsPage() {
         setIsPublishing(true);
 
         try {
-            // 1. Publish to selected social platforms
+            // 1. Publish to selected social platforms (allSettled — one failed platform won't block DB update)
+            // Use NEXT_PUBLIC_APP_URL (public domain) when available so LinkedIn makes it clickable.
+            // Falls back to window.location.origin for local dev.
+            const appBase = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+            const jobUrl = `${appBase}/jobs/${selectedJob.id}/apply`;
             const publishPromises = selectedAccounts.map(async (accId) => {
                 const account = connectedAccounts.find(a => a.id === accId);
-                const jobUrl = `${window.location.origin}/jobs/${selectedJob.id}/apply`;
-
                 if (account?.platform === 'linkedin') {
-                    const snippet = (selectedJob.short_description || selectedJob.description || '').substring(0, 500).trimEnd();
+                    const jobDescription = selectedJob.description || selectedJob.short_description || '';
                     const tag = `#${(selectedJob.title || '').replace(/\s+/g, '')}`;
-                    const text = `🚀 We're Hiring: ${selectedJob.title}!\n\n📍 ${selectedJob.location || 'Remote'} | 💼 ${selectedJob.job_type || 'Full-time'} | 🏢 ${selectedJob.department || 'Engineering'}\n\n${snippet}${snippet.length >= 500 ? '...' : ''}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
+                    const text = `🚀 We're Hiring: ${selectedJob.title}!\n\n📍 ${selectedJob.location || 'Remote'} | 💼 ${selectedJob.job_type || 'Full-time'} | 🏢 ${selectedJob.department || 'Engineering'}\n\n${jobDescription}\n\n👉 Apply Now: ${jobUrl}\n\n#Hiring #Jobs ${tag}`;
                     return integrationsApi.linkedin.publish(text, jobUrl);
                 } else if (account?.platform === 'indeed') {
-                    // Revert to backend-side publish which now has improved WAF bypass headers
                     return integrationsApi.indeed.postJob({
                         title: selectedJob.title,
                         description: `${selectedJob.description}\n\nApply Now: ${jobUrl}`,
@@ -242,9 +262,27 @@ export default function GeneratedJobsPage() {
                 }
             });
 
-            await Promise.all(publishPromises);
+            const results = await Promise.allSettled(publishPromises);
+            const failed = results.filter(r => r.status === 'rejected');
 
-            // 2. Mark as published in our DB
+            if (failed.length === results.length && results.length > 0) {
+                // All platforms failed — surface the first error, don't mark as published
+                const firstError = (failed[0] as PromiseRejectedResult).reason;
+                const status = firstError?.response?.status;
+                const detail = firstError?.response?.data?.detail || firstError?.message;
+                if (status === 403) {
+                    toast.error("LinkedIn token expired. Please reconnect your LinkedIn account in Integrations.", { duration: 6000 });
+                } else {
+                    toast.error(`Failed to publish: ${detail}`);
+                }
+                return;
+            }
+
+            if (failed.length > 0) {
+                toast.warning(`${failed.length} platform(s) failed to publish, but the job will be marked as published.`);
+            }
+
+            // 2. Mark as published in DB (always runs unless all platforms failed)
             await publishJob.mutateAsync(selectedJob.id);
 
             setPublishSuccess(true);
@@ -252,8 +290,13 @@ export default function GeneratedJobsPage() {
 
         } catch (error: any) {
             console.error("Publish error:", error);
+            const status = error.response?.status;
             const detail = error.response?.data?.detail || error.message;
-            toast.error(`Failed to publish: ${detail}`);
+            if (status === 403) {
+                toast.error("LinkedIn token expired. Please reconnect your LinkedIn account in Integrations.", { duration: 6000 });
+            } else {
+                toast.error(`Failed to publish: ${detail}`);
+            }
         } finally {
             setIsPublishing(false);
         }
@@ -281,9 +324,8 @@ export default function GeneratedJobsPage() {
                         onClick={toggleSelectAll}
                         className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition-all duration-200"
                     >
-                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                            allSelected ? 'bg-indigo-600 border-indigo-600' : someSelected ? 'border-indigo-400' : 'border-slate-300'
-                        }`}>
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${allSelected ? 'bg-indigo-600 border-indigo-600' : someSelected ? 'border-indigo-400' : 'border-slate-300'
+                            }`}>
                             {allSelected && <Check className="h-3 w-3 text-white" />}
                             {someSelected && <div className="w-2 h-0.5 bg-indigo-400 rounded" />}
                         </div>
@@ -309,115 +351,117 @@ export default function GeneratedJobsPage() {
                     {jobs.map((job) => {
                         const isChecked = selectedIds.has(job.id);
                         return (
-                        <Card
-                            key={job.id}
-                            className={`group transition-all duration-200 overflow-hidden ${
-                                isChecked
+                            <Card
+                                key={job.id}
+                                className={`group transition-all duration-200 overflow-hidden ${isChecked
                                     ? 'border-indigo-400 shadow-md shadow-indigo-100 ring-1 ring-indigo-300'
                                     : 'border-slate-200 hover:shadow-lg hover:border-indigo-100'
-                            }`}
-                        >
-                            <div className="flex flex-col md:flex-row md:items-center gap-6 p-6">
-                                {/* Checkbox */}
-                                <div
-                                    onClick={() => toggleSelect(job.id)}
-                                    className={`flex-shrink-0 cursor-pointer w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-150 ${
-                                        isChecked
+                                    }`}
+                            >
+                                <div className="flex flex-col md:flex-row md:items-center gap-6 p-6">
+                                    {/* Checkbox */}
+                                    <div
+                                        onClick={() => toggleSelect(job.id)}
+                                        className={`flex-shrink-0 cursor-pointer w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-150 ${isChecked
                                             ? 'bg-indigo-600 border-indigo-600'
                                             : 'border-slate-300 hover:border-indigo-400'
-                                    }`}
-                                >
-                                    {isChecked && <Check className="h-3 w-3 text-white" />}
-                                </div>
-                                <div className="flex-1 min-w-0 space-y-3">
-                                    <div className="flex items-start justify-between md:justify-start gap-4">
-                                        <h3 className="text-xl font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors">
-                                            {job.title}
-                                        </h3>
-                                        {/* Status Badge */}
-                                        <div className="flex gap-2">
-                                            <Badge 
-                                                variant={
-                                                    job.status === "APPROVED" ? "outline" : 
-                                                    job.status === "CHANGES_REQUESTED" ? "destructive" : 
-                                                    "secondary"
-                                                } 
-                                                className={`capitalize ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
-                                            >
-                                                {job.status.toLowerCase().replace('_', ' ')}
-                                            </Badge>
-                                            {job.manager_feedback && (
-                                                <Badge 
-                                                    variant="outline" 
-                                                    className="bg-orange-50 text-orange-700 border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
-                                                    onClick={() => {
-                                                        setFeedbackToShow(job.manager_feedback ?? "");
-                                                        setShowFeedbackDialog(true);
-                                                    }}
+                                            }`}
+                                    >
+                                        {isChecked && <Check className="h-3 w-3 text-white" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0 space-y-3">
+                                        <div className="flex items-start justify-between md:justify-start gap-4">
+                                            <h3 className="text-xl font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors">
+                                                {job.title}
+                                            </h3>
+                                            {/* Status Badge */}
+                                            <div className="flex gap-2">
+                                                <Badge
+                                                    variant={
+                                                        job.status === "APPROVED" ? "outline" :
+                                                            job.status === "EDIT_SUBMITTED" ? "outline" :
+                                                                job.status === "EDIT_DECLINED" ? "outline" :
+                                                                    job.status === "CHANGES_REQUESTED" ? "destructive" :
+                                                                        "secondary"
+                                                    }
+                                                    className={`capitalize
+                                                    ${job.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                                                    ${job.status === 'EDIT_SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+                                                    ${job.status === 'EDIT_DECLINED' ? 'bg-red-50 text-red-700 border-red-200' : ''}
+                                                `}
                                                 >
-                                                    Feedback Available
+                                                    {job.status === 'EDIT_SUBMITTED' && <Pencil className="h-3 w-3 mr-1" />}
+                                                    {job.status.toLowerCase().replaceAll('_', ' ')}
                                                 </Badge>
+                                                {job.manager_feedback && (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="bg-orange-50 text-orange-700 border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
+                                                        onClick={() => {
+                                                            setFeedbackToShow(job.manager_feedback ?? "");
+                                                            setShowFeedbackDialog(true);
+                                                        }}
+                                                    >
+                                                        Feedback Available
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                                            <span className="flex items-center gap-1.5">
+                                                <Calendar className="h-4 w-4" />
+                                                Generated {job.created_at ? format(new Date(job.created_at), 'PPP') : 'Recently'}
+                                            </span>
+                                            {job.department && (
+                                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                                                    {job.department}
+                                                </span>
+                                            )}
+                                            {job.location && (
+                                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                                                    {job.location}
+                                                </span>
                                             )}
                                         </div>
+
+                                        <p className="text-slate-600 line-clamp-2">
+                                            {job.description}
+                                        </p>
                                     </div>
 
-                                    <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
-                                        <span className="flex items-center gap-1.5">
-                                            <Calendar className="h-4 w-4" />
-                                            Generated {job.created_at ? format(new Date(job.created_at), 'PPP') : 'Recently'}
-                                        </span>
-                                        {job.department && (
-                                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-                                                {job.department}
-                                            </span>
-                                        )}
-                                        {job.location && (
-                                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-                                                {job.location}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <p className="text-slate-600 line-clamp-2">
-                                        {job.description}
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-3 md:border-l md:border-slate-100 md:pl-6">
-                                    <Link href={`/dashboard/jobs/${job.id}`}>
+                                    <div className="flex items-center gap-3 md:border-l md:border-slate-100 md:pl-6">
+                                        <Link href={`/dashboard/jobs/${job.id}`}>
+                                            <Button variant="outline" className="whitespace-nowrap">
+                                                Review Details
+                                            </Button>
+                                        </Link>
                                         <Button
                                             variant="outline"
-                                            className="whitespace-nowrap"
+                                            onClick={() => handleOpenTeamDialog(job)}
+                                            className="whitespace-nowrap flex gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                                         >
-                                            Review Details
+                                            <Users className="h-4 w-4" />
+                                            Send to Team
                                         </Button>
-                                    </Link>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => handleOpenTeamDialog(job)}
-                                        className="whitespace-nowrap flex gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                    >
-                                        <Users className="h-4 w-4" />
-                                        Send to Team
-                                    </Button>
-                                    <Button
-                                        onClick={() => handleOpenPublishDialog(job)}
-                                        className="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                                    >
-                                        <Rocket className="h-4 w-4" />
-                                        Publish Now
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => handleDeleteClick(job)}
-                                        className="whitespace-nowrap border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 gap-2"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Delete
-                                    </Button>
+                                        <Button
+                                            onClick={() => handleOpenPublishDialog(job)}
+                                            className="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                                        >
+                                            <Rocket className="h-4 w-4" />
+                                            Publish Now
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => handleDeleteClick(job)}
+                                            className="whitespace-nowrap border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 gap-2"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            Delete
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        </Card>
+                            </Card>
                         );
                     })}
                 </div>
@@ -561,7 +605,7 @@ export default function GeneratedJobsPage() {
                         <Button variant="outline" onClick={() => setShowFeedbackDialog(false)}>
                             Close
                         </Button>
-                        <Button 
+                        <Button
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                             onClick={() => {
                                 setShowFeedbackDialog(false);
@@ -632,41 +676,55 @@ export default function GeneratedJobsPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3 py-4">
-                        {teamMembers.length === 0 ? (
-                            <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
-                        ) : (
-                            teamMembers.map((member) => {
-                                const isSelected = selectedTeamEmails.includes(member.email);
-                                return (
-                                    <div
-                                        key={member.email}
-                                        onClick={() => setSelectedTeamEmails(prev =>
-                                            prev.includes(member.email)
-                                                ? prev.filter(e => e !== member.email)
-                                                : [...prev, member.email]
-                                        )}
-                                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                            isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            checked={isSelected}
-                                            onCheckedChange={() => setSelectedTeamEmails(prev =>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-3">
+                            <p className="text-sm font-medium text-slate-700">Team Members</p>
+                            {teamMembers.length === 0 ? (
+                                <p className="text-sm text-slate-500 text-center py-4">No team members configured.</p>
+                            ) : (
+                                teamMembers.map((member) => {
+                                    const isSelected = selectedTeamEmails.includes(member.email);
+                                    return (
+                                        <div
+                                            key={member.email}
+                                            onClick={() => setSelectedTeamEmails(prev =>
                                                 prev.includes(member.email)
                                                     ? prev.filter(e => e !== member.email)
                                                     : [...prev, member.email]
                                             )}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 text-sm">{member.label}</p>
-                                            <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            <Checkbox
+                                                checked={isSelected}
+                                                className="pointer-events-none"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-slate-900 text-sm">{member.label}</p>
+                                                <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                                            </div>
+                                            {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
                                         </div>
-                                        {isSelected && <Check className="h-4 w-4 text-indigo-600 flex-shrink-0" />}
-                                    </div>
-                                );
-                            })
-                        )}
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Custom Email Address</label>
+                                <div className="relative">
+                                    <MessageSquare className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="e.g. manager@company.com"
+                                        className="pl-10"
+                                        value={customEmail}
+                                        onChange={(e) => setCustomEmail(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-500">Enter a specific email to send the review request to.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter className="flex gap-2">
@@ -675,7 +733,7 @@ export default function GeneratedJobsPage() {
                         </Button>
                         <Button
                             onClick={handleSendToTeam}
-                            disabled={isSendingToTeam || selectedTeamEmails.length === 0}
+                            disabled={isSendingToTeam || (selectedTeamEmails.length === 0 && !customEmail.trim())}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
                             {isSendingToTeam ? (
