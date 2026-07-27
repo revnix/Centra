@@ -267,3 +267,17 @@ async def send_welcome_email(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send email")
     return {"message": "Onboarding email sent successfully"}
+
+@router.delete("/{application_id}")
+async def delete_onboarding(
+    application_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin_or_reviewer),
+):
+    """
+    Delete an onboarding record. Requires Admin/Reviewer role.
+    """
+    service = OnboardingService(db)
+    await service.delete_onboarding(application_id)
+    return {"message": "Onboarding record deleted successfully"}
+

@@ -1278,25 +1278,36 @@ async def sync_email_applications(
                 db.add(profile)
                 await db.commit()
 
+            # Detect applied channel/source from email headers, sender address, subject, and snippet
+            source_channel = "email"
+            sender_lower = sender_email.lower()
+            subject_lower = (email.get("subject") or "").lower()
+            snippet_lower = (email.get("snippet") or "").lower()
+
+            if "linkedin" in sender_lower or "linkedin" in subject_lower or "linkedin" in snippet_lower:
+                source_channel = "linkedin"
+            elif "indeed" in sender_lower or "indeed" in subject_lower or "indeed" in snippet_lower:
+                source_channel = "indeed"
+            elif "glassdoor" in sender_lower or "glassdoor" in subject_lower or "glassdoor" in snippet_lower:
+                source_channel = "glassdoor"
+
             # Create application
             snippet_text: str = email["snippet"][:500] if email["snippet"] else ""
             application = await app_svc.create_application(
                 cand_id,
                 int(matched_job.id),  # type: ignore[arg-type]
                 cover_letter=snippet_text if snippet_text else None,  # type: ignore[arg-type]
-                source="email",
+                source=source_channel,
                 background_tasks=background_tasks,
             )
 
-            # Tag with the Gmail message ID so this exact email is never re-imported
-            # as a duplicate on a future sync. Only backfill if unset — create_application()
-            # returns the existing row unchanged if the candidate already had an
-            # application for this job through another path.
+            # Update source & Tag with the Gmail message ID so this exact email is never re-imported
+            application.source = source_channel
             if not application.gmail_message_id:
                 application.gmail_message_id = message_id
-                db.add(application)
-                await db.commit()
-                await db.refresh(application)
+            db.add(application)
+            await db.commit()
+            await db.refresh(application)
 
             background_tasks.add_task(_run_screening, int(application.id))  # type: ignore[arg-type]
             created += 1

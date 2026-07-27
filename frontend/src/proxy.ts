@@ -23,8 +23,8 @@ export default function proxy(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Redirect to appropriate dashboard if already logged in (only from auth pages or landing page)
-    const authRoutes = ['/login', '/signup', '/'];
+    // Redirect to appropriate dashboard if already logged in (only from auth pages)
+    const authRoutes = ['/login', '/signup'];
     const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
 
     if (token && authRoutes.includes(pathname) && !skipRedirect) {

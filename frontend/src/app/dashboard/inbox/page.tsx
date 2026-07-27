@@ -5,10 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import {
     Mail, RefreshCw, Reply, X, Loader2, Send, ChevronLeft,
-    Paperclip, Pencil, Trash2, CheckCheck, Square, CheckSquare, UserPlus, Download,
+    Paperclip, Pencil, Trash2, CheckCheck, UserPlus, Download,
     Briefcase,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { gmailApi, type EmailSummary, type EmailMessage, type EmailAttachment } from '@/lib/api/gmail';
 import { jobsApi } from '@/lib/api/jobs';
@@ -85,150 +84,98 @@ function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, onClose,
     };
 
     return (
-        <div className="fixed bottom-4 right-6 z-50 w-[520px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col" style={{ maxHeight: '80vh' }}>
+        <div className="fixed bottom-6 right-6 z-50 w-[520px] max-w-[calc(100vw-2rem)] bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-800 rounded-t-2xl">
-                <span className="text-white font-semibold text-sm">New Message</span>
-                <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors">
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white border-b border-slate-800">
+                <span className="font-bold text-sm text-white flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-blue-400" /> New Message
+                </span>
+                <button onClick={onClose} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors">
                     <X className="h-4 w-4" />
                 </button>
             </div>
 
             {/* Fields */}
-            <div className="border-b border-slate-100 divide-y divide-slate-100">
-                {/* To */}
+            <div className="border-b border-slate-200 divide-y divide-slate-100 bg-slate-50/50">
                 <div className="flex items-center px-4 py-2 gap-2">
-                    <span className="text-xs text-slate-400 w-12 shrink-0">To</span>
+                    <span className="text-xs font-bold text-slate-500 w-12 shrink-0">To</span>
                     <input
-                        autoFocus
-                        value={to}
-                        onChange={e => setTo(e.target.value)}
-                        placeholder="Recipients"
-                        className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400"
+                        autoFocus value={to} onChange={e => setTo(e.target.value)}
+                        placeholder="Recipients" className="w-full bg-transparent text-xs text-slate-900 border-none outline-none font-medium placeholder:text-slate-400"
                     />
-                    <div className="flex gap-1 shrink-0">
-                        {!showCc && (
-                            <button onClick={() => setShowCc(true)} className="text-xs text-slate-400 hover:text-slate-600 px-1">Cc</button>
-                        )}
-                        {!showBcc && (
-                            <button onClick={() => setShowBcc(true)} className="text-xs text-slate-400 hover:text-slate-600 px-1">Bcc</button>
-                        )}
+                    <div className="flex gap-1.5 shrink-0 text-xs font-semibold text-slate-400">
+                        {!showCc && <button onClick={() => setShowCc(true)} className="hover:text-blue-600">Cc</button>}
+                        {!showBcc && <button onClick={() => setShowBcc(true)} className="hover:text-blue-600">Bcc</button>}
                     </div>
                 </div>
 
-                {/* CC */}
                 {showCc && (
                     <div className="flex items-center px-4 py-2 gap-2">
-                        <span className="text-xs text-slate-400 w-12 shrink-0">Cc</span>
-                        <input
-                            value={cc}
-                            onChange={e => setCc(e.target.value)}
-                            placeholder="Cc recipients"
-                            className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400"
-                        />
-                        <button onClick={() => { setShowCc(false); setCc(''); }} className="text-slate-300 hover:text-slate-500">
-                            <X className="h-3 w-3" />
-                        </button>
+                        <span className="text-xs font-bold text-slate-500 w-12 shrink-0">Cc</span>
+                        <input value={cc} onChange={e => setCc(e.target.value)} placeholder="Cc" className="w-full bg-transparent text-xs text-slate-900 border-none outline-none font-medium" />
                     </div>
                 )}
 
-                {/* BCC */}
                 {showBcc && (
                     <div className="flex items-center px-4 py-2 gap-2">
-                        <span className="text-xs text-slate-400 w-12 shrink-0">Bcc</span>
-                        <input
-                            value={bcc}
-                            onChange={e => setBcc(e.target.value)}
-                            placeholder="Bcc recipients"
-                            className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400"
-                        />
-                        <button onClick={() => { setShowBcc(false); setBcc(''); }} className="text-slate-300 hover:text-slate-500">
-                            <X className="h-3 w-3" />
-                        </button>
+                        <span className="text-xs font-bold text-slate-500 w-12 shrink-0">Bcc</span>
+                        <input value={bcc} onChange={e => setBcc(e.target.value)} placeholder="Bcc" className="w-full bg-transparent text-xs text-slate-900 border-none outline-none font-medium" />
                     </div>
                 )}
 
-                {/* Subject */}
                 <div className="flex items-center px-4 py-2 gap-2">
-                    <span className="text-xs text-slate-400 w-12 shrink-0">Subject</span>
-                    <input
-                        value={subject}
-                        onChange={e => setSubject(e.target.value)}
-                        placeholder="Subject"
-                        className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400"
-                    />
+                    <span className="text-xs font-bold text-slate-500 w-12 shrink-0">Subject</span>
+                    <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" className="w-full bg-transparent text-xs text-slate-900 border-none outline-none font-medium" />
                 </div>
             </div>
 
             {/* Body */}
             <textarea
-                value={body}
-                onChange={e => setBody(e.target.value)}
-                placeholder="Write your message..."
-                className="flex-1 p-4 text-sm text-slate-800 placeholder:text-slate-400 resize-none outline-none min-h-[200px]"
+                value={body} onChange={e => setBody(e.target.value)} placeholder="Write your message..."
+                className="flex-1 p-4 text-xs resize-none outline-none min-h-[180px] bg-white text-slate-800 placeholder:text-slate-400"
             />
 
-            {/* Attachments list */}
             {attachments.length > 0 && (
                 <div className="px-4 pb-2 flex flex-wrap gap-2">
                     {attachments.map((f, i) => (
-                        <div key={i} className="flex items-center gap-1 bg-slate-100 rounded-full px-3 py-1 text-xs text-slate-700">
+                        <div key={i} className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
                             <Paperclip className="h-3 w-3" />
                             <span className="max-w-[120px] truncate">{f.name}</span>
                             <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))}>
-                                <X className="h-3 w-3 text-slate-400 hover:text-red-500" />
+                                <X className="h-3 w-3 hover:text-red-600" />
                             </button>
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Footer toolbar */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+            {/* Footer */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-2">
-                    <Button
-                        onClick={handleSend}
-                        disabled={sending || !to.trim() || !body.trim()}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 h-9 text-sm font-medium"
-                    >
-                        {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                        Send
-                    </Button>
-                    <button
-                        onClick={() => fileRef.current?.click()}
-                        className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
-                        title="Attach files"
-                    >
+                    <button onClick={handleSend} disabled={sending || !to.trim() || !body.trim()} className="btn-dribbble text-xs py-1.5 px-4">
+                        {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        Send Message
+                    </button>
+                    <button onClick={() => fileRef.current?.click()} className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors">
                         <Paperclip className="h-4 w-4" />
                     </button>
-                    <input
-                        ref={fileRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={e => {
-                            if (e.target.files) setAttachments(a => [...a, ...Array.from(e.target.files!)]);
-                        }}
-                    />
+                    <input ref={fileRef} type="file" multiple className="hidden" onChange={e => { if (e.target.files) setAttachments(a => [...a, ...Array.from(e.target.files!)]); }} />
                 </div>
-                <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                    <X className="h-4 w-4" />
-                </button>
+                <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
             </div>
         </div>
     );
 }
 
-// ── HTML Email Renderer (sandboxed iframe, auto-height) ───────────────────────
+// ── Sandboxed Email Frame ─────────────────────────────────────────────────────
 const EMAIL_FRAME_CSS = `
-  body{margin:0;padding:16px;font-family:-apple-system,Arial,sans-serif;font-size:14px;color:#202124;line-height:1.6;word-break:break-word;}
-  a{color:#1a73e8;text-decoration:none;}a:hover{text-decoration:underline;}
+  body{margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;color:#334155;line-height:1.6;word-break:break-word;background:#ffffff;}
+  a{color:#2563eb;text-decoration:none;}a:hover{text-decoration:underline;}
   img{max-width:100%;height:auto;}
-  blockquote{margin:4px 0 4px 4px;padding:4px 12px;border-left:3px solid #dadce0;color:#5f6368;}
-  pre,code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:13px;}
+  blockquote{margin:4px 0 4px 4px;padding:4px 12px;border-left:3px solid #2563eb;color:#64748b;}
+  pre,code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;color:#1e293b;}
   table{border-collapse:collapse;}td,th{padding:4px 8px;}
-  hr{border:none;border-top:1px solid #e0e0e0;margin:12px 0;}
-  .gmail_quote{color:#5f6368;}
+  hr{border:none;border-top:1px solid #e2e8f0;margin:12px 0;}
 `;
 
 function EmailBodyFrame({ html }: { html: string }) {
@@ -244,13 +191,8 @@ function EmailBodyFrame({ html }: { html: string }) {
 
     return (
         <iframe
-            ref={iframeRef}
-            srcDoc={srcDoc}
-            sandbox="allow-same-origin allow-popups"
-            className="w-full border-0 block"
-            style={{ minHeight: 80 }}
-            onLoad={resize}
-            title="email-body"
+            ref={iframeRef} srcDoc={srcDoc} sandbox="allow-same-origin allow-popups"
+            className="w-full border-0 block bg-white" style={{ minHeight: 80 }} onLoad={resize} title="email-body"
         />
     );
 }
@@ -287,62 +229,49 @@ function ImportApplicationDialog({ messageId, senderName, onClose, onImported }:
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-[460px] max-w-[calc(100vw-2rem)] overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="bg-white max-w-md w-full border border-slate-200 rounded-2xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200">
                     <div className="flex items-center gap-2">
-                        <UserPlus className="h-5 w-5 text-white" />
-                        <span className="text-white font-semibold text-sm">Import Application</span>
+                        <UserPlus className="h-5 w-5 text-blue-600" />
+                        <span className="font-bold text-lg text-slate-900">Import Candidate</span>
                     </div>
-                    <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
-                        <X className="h-4 w-4" />
-                    </button>
+                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"><X className="h-4 w-4" /></button>
                 </div>
 
-                {/* Content */}
-                <div className="p-5 space-y-4">
-                    <p className="text-sm text-slate-600">
-                        Import <strong className="text-slate-800">{senderName}</strong> as a candidate application.
-                        {' '}Any CV/resume attachment will be uploaded automatically.
+                <div className="space-y-4 mb-6">
+                    <p className="text-xs text-slate-600">
+                        Import <strong className="text-slate-900 font-bold">{senderName}</strong> as an application into your Evalyn candidate pipeline.
                     </p>
-
-                    {/* Job selector */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1.5">Assign to Job</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Assign Job Opening</label>
                         {jobsLoading ? (
-                            <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Loading jobs…
+                            <div className="flex items-center gap-2 text-xs py-2 text-slate-500">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> Loading positions...
                             </div>
                         ) : (
                             <select
                                 value={selectedJobId ?? ''}
                                 onChange={e => setSelectedJobId(e.target.value ? Number(e.target.value) : undefined)}
-                                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-colors"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Auto-match by email subject</option>
                                 {(jobs || []).map(job => (
-                                    <option key={job.id} value={job.id}>{job.title}{job.department ? ` — ${job.department}` : ''}</option>
+                                    <option key={job.id} value={job.id}>
+                                        {job.title}{job.department ? ` — ${job.department}` : ''}
+                                    </option>
                                 ))}
                             </select>
                         )}
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">
-                    <Button variant="ghost" size="sm" onClick={onClose} disabled={importing}
-                        className="text-slate-500 hover:text-slate-700">
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleImport}
-                        disabled={importing}
-                        className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg px-5 h-9 text-sm font-medium"
-                    >
-                        {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
-                        {importing ? 'Importing…' : 'Import Application'}
-                    </Button>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                    <button className="btn-glass text-xs py-1.5 px-4" onClick={onClose} disabled={importing}>Cancel</button>
+                    <button onClick={handleImport} disabled={importing} className="btn-dribbble text-xs py-1.5 px-4">
+                        {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                        Import Application
+                    </button>
                 </div>
             </div>
         </div>
@@ -351,37 +280,29 @@ function ImportApplicationDialog({ messageId, senderName, onClose, onImported }:
 
 type GmailTab = 'inbox' | 'sent';
 
-// ── Main Gmail Page ───────────────────────────────────────────────────────────
+// ── Main Inbox Page ───────────────────────────────────────────────────────────
 export default function InboxPage() {
     const [activeTab, setActiveTab] = useState<GmailTab>('inbox');
     const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
     const [showCompose, setShowCompose] = useState(false);
     const [replyTarget, setReplyTarget] = useState<EmailMessage | null>(null);
-    // Per-email import dialog state
     const [importTarget, setImportTarget] = useState<{ messageId: string; senderName: string } | null>(null);
 
-    // Track whether the next inbox/sent update was triggered by an explicit Refresh button click.
-    // Background refetches (window focus, staleTime) should NOT overwrite the full list —
-    // they should only prepend genuinely new emails at the top.
     const pendingInboxRefreshRef = useRef(false);
     const pendingSentRefreshRef = useRef(false);
 
-    // Inbox state
     const [inboxEmails, setInboxEmails] = useState<EmailSummary[]>([]);
     const [inboxNextToken, setInboxNextToken] = useState<string | null>(null);
     const [loadingMoreInbox, setLoadingMoreInbox] = useState(false);
 
-    // Sent state
     const [sentEmails, setSentEmails] = useState<EmailSummary[]>([]);
     const [sentNextToken, setSentNextToken] = useState<string | null>(null);
     const [loadingMoreSent, setLoadingMoreSent] = useState(false);
 
-    // Selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deletingIds, setDeletingIds] = useState(false);
     const [markingAllRead, setMarkingAllRead] = useState(false);
 
-    // Email-to-application sync state
     type SyncResult = { created: number; skipped: number; total_emails: number; message: string; details: Array<{ email: string; name?: string; status: 'created' | 'skipped'; job?: string; application_id?: number; reason?: string }> };
     const [syncingApps, setSyncingApps] = useState(false);
     const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
@@ -398,9 +319,9 @@ export default function InboxPage() {
         queryFn: () => gmailApi.getInbox(),
         enabled: status?.connected === true,
         retry: false,
-        staleTime: 3 * 60 * 1000,   // refetch after 3 min of inactivity
-        refetchOnWindowFocus: true,  // check for new emails when tab is re-focused
-        refetchOnMount: true,        // always get fresh data on page visit
+        staleTime: 3 * 60 * 1000,
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
     });
 
     const { data: sent, isLoading: sentLoading, isFetching: sentFetching, isError: sentError, refetch: refetchSent } = useQuery({
@@ -416,20 +337,16 @@ export default function InboxPage() {
     useEffect(() => {
         if (!inbox) return;
         if (pendingInboxRefreshRef.current || inboxEmails.length === 0) {
-            // Explicit refresh or initial load — replace the whole list
             setInboxEmails(inbox.emails);
             setInboxNextToken(inbox.next_page_token);
             pendingInboxRefreshRef.current = false;
         } else {
-            // Background refetch — only prepend genuinely new threads at the top
-            // so that "load more" pages are not wiped out
             const existingIds = new Set(inboxEmails.map(e => e.thread_id));
             const newEmails = inbox.emails.filter(e => !existingIds.has(e.thread_id));
             if (newEmails.length > 0) {
                 setInboxEmails(prev => [...newEmails, ...prev]);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inbox]);
 
     useEffect(() => {
@@ -445,75 +362,86 @@ export default function InboxPage() {
                 setSentEmails(prev => [...newEmails, ...prev]);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sent]);
 
-    const handleLoadMoreInbox = async () => {
-        if (!inboxNextToken || loadingMoreInbox) return;
-        setLoadingMoreInbox(true);
-        try {
-            const page = await gmailApi.getInbox(inboxNextToken);
-            setInboxEmails(prev => [...prev, ...page.emails]);
-            setInboxNextToken(page.next_page_token);
-        } finally { setLoadingMoreInbox(false); }
-    };
+    const { data: thread, isLoading: threadLoading } = useQuery({
+        queryKey: ['gmail', 'thread', selectedThreadId],
+        queryFn: () => gmailApi.getThread(selectedThreadId!),
+        enabled: !!selectedThreadId,
+    });
 
-    const handleLoadMoreSent = async () => {
-        if (!sentNextToken || loadingMoreSent) return;
-        setLoadingMoreSent(true);
-        try {
-            const page = await gmailApi.getSent(sentNextToken);
-            setSentEmails(prev => [...prev, ...page.emails]);
-            setSentNextToken(page.next_page_token);
-        } finally { setLoadingMoreSent(false); }
-    };
+    const deleteMutation = useMutation({
+        mutationFn: (msgIds: string[]) => gmailApi.trashMessages(msgIds),
+        onSuccess: () => {
+            toast.success(`Deleted ${selectedIds.size} email(s)`);
+            const deleted = selectedIds;
+            if (activeTab === 'inbox') setInboxEmails(prev => prev.filter(e => !deleted.has(e.id)));
+            else setSentEmails(prev => prev.filter(e => !deleted.has(e.id)));
+            setSelectedIds(new Set());
+            setSelectedThreadId(null);
+        },
+        onError: () => toast.error('Failed to delete emails.'),
+    });
 
-    const handleRefresh = () => {
-        setSelectedIds(new Set());
-        setSelectedThreadId(null);
-        setReplyTarget(null);
-        if (activeTab === 'inbox') {
-            pendingInboxRefreshRef.current = true;
-            setInboxNextToken(null);
-            refetchInbox();
-        } else {
-            pendingSentRefreshRef.current = true;
-            setSentNextToken(null);
-            refetchSent();
+    const handleConnect = async () => {
+        try {
+            const data = await gmailApi.getAuthUrl();
+            window.location.href = data.authorization_url;
+        } catch {
+            toast.error('Failed to initiate Gmail connection.');
         }
     };
 
     const handleTabChange = (tab: GmailTab) => {
         setActiveTab(tab);
         setSelectedThreadId(null);
-        setReplyTarget(null);
+        setSelectedIds(new Set());
     };
 
-    const { data: thread, isLoading: threadLoading } = useQuery({
-        queryKey: ['gmail', 'thread', selectedThreadId],
-        queryFn: () => gmailApi.getThread(selectedThreadId!),
-        enabled: !!selectedThreadId && status?.connected === true,
-    });
+    const handleRefresh = () => {
+        setSelectedIds(new Set());
+        if (activeTab === 'inbox') {
+            pendingInboxRefreshRef.current = true;
+            refetchInbox();
+        } else {
+            pendingSentRefreshRef.current = true;
+            refetchSent();
+        }
+    };
 
-    const handleConnect = async () => {
-        try {
-            const { authorization_url } = await gmailApi.getAuthUrl();
-            window.location.href = authorization_url;
-        } catch { toast.error('Failed to get Gmail authorization URL.'); }
+    const handleLoadMore = async () => {
+        if (activeTab === 'inbox') {
+            if (!inboxNextToken || loadingMoreInbox) return;
+            setLoadingMoreInbox(true);
+            try {
+                const res = await gmailApi.getInbox(inboxNextToken);
+                setInboxEmails(prev => [...prev, ...res.emails]);
+                setInboxNextToken(res.next_page_token);
+            } catch {
+                toast.error('Failed to load more emails.');
+            } finally {
+                setLoadingMoreInbox(false);
+            }
+        } else {
+            if (!sentNextToken || loadingMoreSent) return;
+            setLoadingMoreSent(true);
+            try {
+                const res = await gmailApi.getSent(sentNextToken);
+                setSentEmails(prev => [...prev, ...res.emails]);
+                setSentNextToken(res.next_page_token);
+            } catch {
+                toast.error('Failed to load more sent emails.');
+            } finally {
+                setLoadingMoreSent(false);
+            }
+        }
     };
 
     const handleSelectEmail = (email: EmailSummary) => {
         setSelectedThreadId(email.thread_id);
-        setReplyTarget(null);
-        setShowCompose(false);
-        // Mark as read locally + in Gmail if unread
         if (email.unread) {
-            if (activeTab === 'inbox') {
-                setInboxEmails(prev => prev.map(e => e.id === email.id ? { ...e, unread: false } : e));
-            } else {
-                setSentEmails(prev => prev.map(e => e.id === email.id ? { ...e, unread: false } : e));
-            }
-            gmailApi.markRead([email.thread_id]).catch(() => {});
+            setInboxEmails(prev => prev.map(e => e.id === email.id ? { ...e, unread: false } : e));
+            gmailApi.markAsRead([email.id]).catch(() => {});
         }
     };
 
@@ -521,44 +449,32 @@ export default function InboxPage() {
         e.stopPropagation();
         setSelectedIds(prev => {
             const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
             return next;
         });
     };
 
     const handleDeleteSelected = async () => {
-        if (!selectedIds.size) return;
+        if (selectedIds.size === 0) return;
         setDeletingIds(true);
         try {
-            const emails = activeTab === 'inbox' ? inboxEmails : sentEmails;
-            // Collect thread IDs for selected message IDs so we trash entire conversations
-            const threadIds = [...selectedIds]
-                .map(id => emails.find(e => e.id === id)?.thread_id)
-                .filter(Boolean) as string[];
-            await gmailApi.trashMessages(threadIds);
-            const ids = selectedIds;
-            if (activeTab === 'inbox') setInboxEmails(prev => prev.filter(e => !ids.has(e.id)));
-            else setSentEmails(prev => prev.filter(e => !ids.has(e.id)));
-            setSelectedIds(new Set());
-            if (selectedThreadId && [...ids].some(id => emails.find(e => e.id === id)?.thread_id === selectedThreadId)) {
-                setSelectedThreadId(null);
-            }
-            toast.success(`${ids.size} email${ids.size > 1 ? 's' : ''} moved to trash`);
-        } catch {
-            toast.error('Failed to delete emails. Please try again.');
+            await deleteMutation.mutateAsync(Array.from(selectedIds));
         } finally {
             setDeletingIds(false);
         }
     };
 
     const handleMarkAllRead = async () => {
+        const unreadIds = inboxEmails.filter(e => e.unread).map(e => e.id);
+        if (unreadIds.length === 0) { toast.info('No unread emails.'); return; }
         setMarkingAllRead(true);
         try {
-            const res = await gmailApi.markAllRead();
+            await gmailApi.markAsRead(unreadIds);
             setInboxEmails(prev => prev.map(e => ({ ...e, unread: false })));
-            toast.success(`${res.marked} email${res.marked !== 1 ? 's' : ''} marked as read`);
+            toast.success(`Marked ${unreadIds.length} email(s) as read`);
         } catch {
-            toast.error('Failed to mark all as read.');
+            toast.error('Failed to mark emails as read.');
         } finally {
             setMarkingAllRead(false);
         }
@@ -568,343 +484,281 @@ export default function InboxPage() {
         setSyncingApps(true);
         setSyncResult(null);
         try {
-            const result = await gmailApi.syncApplications(30);
-            setSyncResult(result);
-            if (result.created > 0) {
-                toast.success(`${result.created} new application${result.created !== 1 ? 's' : ''} imported from email!`);
+            const res = await gmailApi.syncApplications();
+            setSyncResult(res);
+            if (res.created > 0) {
+                toast.success(`Imported ${res.created} new candidate application(s)!`);
+                queryClient.invalidateQueries({ queryKey: ['applications'] });
             } else {
-                toast.info('No new email applications found.');
+                toast.info(res.message);
             }
-        } catch {
-            toast.error('Failed to sync email applications. Please try again.');
+        } catch (err: any) {
+            toast.error(err?.message || 'Failed to import applications.');
         } finally {
             setSyncingApps(false);
         }
     };
 
-    const handleReply = (msg: EmailMessage) => { setReplyTarget(msg); setShowCompose(true); };
-    const handleSent = () => { queryClient.invalidateQueries({ queryKey: ['gmail', 'inbox'] }); };
+    const handleReply = (msg: EmailMessage) => {
+        setReplyTarget(msg);
+        setShowCompose(true);
+    };
+
+    const handleSent = () => {
+        if (activeTab === 'sent') {
+            pendingSentRefreshRef.current = true;
+            refetchSent();
+        }
+        if (selectedThreadId) {
+            queryClient.invalidateQueries({ queryKey: ['gmail', 'thread', selectedThreadId] });
+        }
+    };
+
+    const emails = activeTab === 'inbox' ? inboxEmails : sentEmails;
+    const isListLoading = activeTab === 'inbox' ? inboxLoading : sentLoading;
+    const isListFetching = activeTab === 'inbox' ? inboxFetching : sentFetching;
+    const isListError = activeTab === 'inbox' ? inboxError : sentError;
+    const nextToken = activeTab === 'inbox' ? inboxNextToken : sentNextToken;
+    const loadingMore = activeTab === 'inbox' ? loadingMoreInbox : loadingMoreSent;
 
     if (statusLoading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+            <div className="flex min-h-[50vh] items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                    <p className="text-xs font-semibold text-slate-500 animate-pulse">Checking Gmail connection...</p>
+                </div>
             </div>
         );
     }
 
     if (!status?.connected) {
         return (
-            <>
-                <Suspense><OAuthToastHandler /></Suspense>
-                <div className="flex flex-col items-center justify-center h-[calc(100vh-12rem)] gap-6">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
-                        <Mail className="h-10 w-10 text-indigo-500" />
-                    </div>
-                    <div className="text-center">
-                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Connect Gmail</h2>
-                        <p className="text-slate-500 max-w-sm">Connect your Gmail account to manage emails directly from Evalyn.</p>
-                    </div>
-                    <Button onClick={handleConnect} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-3">
-                        <Mail className="h-4 w-4 mr-2" />Connect Gmail
-                    </Button>
+            <div className="max-w-xl mx-auto py-16 text-center animate-in fade-in duration-500">
+                <Suspense fallback={null}><OAuthToastHandler /></Suspense>
+                <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
+                    <Mail className="w-8 h-8 text-white" />
                 </div>
-            </>
+                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
+                    Connect Gmail to Evalyn
+                </h1>
+                <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">
+                    Sync emails with candidate applications, send interview invites, and track replies seamlessly.
+                </p>
+                <button onClick={handleConnect} className="btn-dribbble h-11 px-8 text-sm font-semibold">
+                    <Mail className="w-4 h-4" /> Connect Gmail Account
+                </button>
+            </div>
         );
     }
 
-    const isListLoading = activeTab === 'inbox' ? inboxLoading : sentLoading;
-    const isListFetching = activeTab === 'inbox' ? inboxFetching : sentFetching;
-    const isListError = activeTab === 'inbox' ? inboxError : sentError;
-    const emails = activeTab === 'inbox' ? inboxEmails : sentEmails;
-    const nextToken = activeTab === 'inbox' ? inboxNextToken : sentNextToken;
-    const loadingMore = activeTab === 'inbox' ? loadingMoreInbox : loadingMoreSent;
-    const handleLoadMore = activeTab === 'inbox' ? handleLoadMoreInbox : handleLoadMoreSent;
-
     return (
-        <>
-            <Suspense><OAuthToastHandler /></Suspense>
+        <div className="max-w-7xl mx-auto h-[calc(100vh-8rem)] flex flex-col space-y-6 animate-in fade-in duration-500">
+            <Suspense fallback={null}><OAuthToastHandler /></Suspense>
 
-            <div className="flex flex-col h-[calc(100vh-8rem)] gap-4">
-                {/* Header */}
-                <div className="flex items-center justify-between flex-shrink-0">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Gmail</h1>
-                        {status.email && <p className="text-sm text-slate-500 mt-0.5">{status.email}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {activeTab === 'inbox' && (
-                            <Button variant="outline" size="sm" onClick={handleMarkAllRead} disabled={markingAllRead || isListLoading}>
-                                {markingAllRead ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-1.5" />}
-                                Mark all read
-                            </Button>
-                        )}
-                        <Button
-                            variant="outline" size="sm"
-                            onClick={handleSyncApplications}
-                            disabled={syncingApps}
-                            title="Scan inbox for emails with CV attachments and create applications automatically"
-                        >
-                            {syncingApps
-                                ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                                : <UserPlus className="h-4 w-4 mr-1.5" />}
-                            {syncingApps ? 'Importing...' : 'Import Applications'}
-                        </Button>
-                        <Button
-                            onClick={() => { setReplyTarget(null); setShowCompose(true); }}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 rounded-full px-5"
-                        >
-                            <Pencil className="h-4 w-4" />
-                            Compose
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isListFetching}>
-                            <RefreshCw className={`h-4 w-4 mr-2 ${isListFetching ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </Button>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                        Inbox & Communications
+                    </h1>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <p className="text-xs font-semibold text-slate-500">
+                            Connected as <strong className="text-slate-800">{status.email || 'Gmail user'}</strong>
+                        </p>
                     </div>
                 </div>
 
-                {/* Sync result banner */}
-                {syncResult && (
-                    <div className={`rounded-xl border px-4 py-3 text-sm flex items-start gap-3 ${syncResult.created > 0 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
-                        <div className="flex-1">
-                            <p className="font-medium">{syncResult.message}</p>
-                            {syncResult.details.length > 0 && (
-                                <ul className="mt-2 space-y-0.5">
-                                    {syncResult.details.map((d, i) => (
-                                        <li key={i} className="text-xs">
-                                            {d.status === 'created'
-                                                ? <span>✓ <strong>{d.name || d.email}</strong> → <em>{d.job}</em></span>
-                                                : <span className="text-slate-500">⚬ {d.email} — {d.reason}</span>}
-                                        </li>
-                                    ))}
-                                </ul>
+                <div className="flex flex-wrap items-center gap-3">
+                    {activeTab === 'inbox' && (
+                        <button onClick={handleMarkAllRead} disabled={markingAllRead} className="btn-glass text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold">
+                            {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5 text-blue-600" />}
+                            Mark Read
+                        </button>
+                    )}
+                    <button onClick={() => { setReplyTarget(null); setShowCompose(true); }} className="btn-dribbble text-xs py-2 px-4 flex items-center gap-1.5">
+                        <Pencil className="w-3.5 h-3.5" /> Compose
+                    </button>
+                    <button onClick={handleRefresh} disabled={isListFetching} className="btn-glass p-2">
+                        <RefreshCw className={`w-4 h-4 text-slate-600 ${isListFetching ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Main two-panel container with clean borders & elevated styling */}
+            <div className="flex-1 flex gap-6 overflow-hidden min-h-0">
+                
+                {/* Left List Panel */}
+                <div className={`${selectedThreadId ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-80 xl:w-96 panel-elevated border border-slate-200 overflow-hidden flex-shrink-0 bg-white`}>
+                    
+                    {/* Tab Navigation */}
+                    <div className="flex border-b border-slate-200 bg-slate-50/80 p-1 gap-1">
+                        {(['inbox', 'sent'] as GmailTab[]).map((tab) => (
+                            <button
+                                key={tab} onClick={() => handleTabChange(tab)}
+                                className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                                    activeTab === tab ? 'bg-white text-blue-600 shadow-sm border border-slate-200/60' : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </div>
+
+                    {selectedIds.size > 0 && (
+                        <div className="flex items-center gap-2 px-4 py-2 border-b border-blue-200 bg-blue-50/80 flex-shrink-0">
+                            <span className="text-xs font-bold text-blue-700 flex-1">{selectedIds.size} selected</span>
+                            <button onClick={handleDeleteSelected} disabled={deletingIds} className="p-1 text-rose-600 hover:bg-rose-100 rounded-lg">
+                                {deletingIds ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => setSelectedIds(new Set())} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                    )}
+
+                    {isListLoading ? (
+                        <div className="flex items-center justify-center flex-1">
+                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                        </div>
+                    ) : isListError ? (
+                        <div className="flex flex-col items-center justify-center flex-1 gap-3 p-6 text-center">
+                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                                <Mail className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <p className="text-xs font-bold text-slate-700">Gmail token expired</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Your Gmail session has expired.<br/>Please reconnect your account.</p>
+                            <button
+                                onClick={handleConnect}
+                                className="btn-dribbble text-xs py-1.5 px-4 mt-1"
+                            >
+                                Reconnect Gmail
+                            </button>
+                        </div>
+                    ) : !emails.length ? (
+                        <div className="flex flex-col items-center justify-center flex-1 gap-2 p-6 text-center text-xs text-slate-400 font-medium">
+                            <Mail className="w-8 h-8 opacity-40 mb-1 text-slate-500" />
+                            <p>No emails in {activeTab}</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+                            {emails.map((email) => {
+                                const isChecked = selectedIds.has(email.id);
+                                const isActive = email.thread_id === selectedThreadId;
+                                return (
+                                    <div
+                                        key={email.id} onClick={() => handleSelectEmail(email)}
+                                        className={`p-4 cursor-pointer transition-all space-y-1 relative group ${
+                                            isActive ? 'bg-blue-50/80 border-l-4 border-blue-600' : isChecked ? 'bg-slate-50' : 'hover:bg-slate-50/60'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs font-bold truncate ${email.unread ? 'text-slate-900' : 'text-slate-700'}`}>
+                                                {activeTab === 'sent' ? (email.to_ ? `To: ${email.to_}` : email.from_) : email.from_}
+                                            </span>
+                                            {email.unread && <span className="w-2.5 h-2.5 rounded-full bg-blue-600 flex-shrink-0 shadow-sm" />}
+                                        </div>
+                                        <p className="text-xs font-semibold truncate text-slate-800">{email.subject}</p>
+                                        <p className="text-[11px] truncate text-slate-500 font-medium">{email.snippet}</p>
+                                    </div>
+                                );
+                            })}
+                            {nextToken && (
+                                <div className="p-3 text-center bg-slate-50/50">
+                                    <button onClick={handleLoadMore} disabled={loadingMore} className="btn-glass text-xs py-1 px-3">
+                                        {loadingMore ? 'Loading...' : 'Load more'}
+                                    </button>
+                                </div>
                             )}
                         </div>
-                        <button onClick={() => setSyncResult(null)} className="text-slate-400 hover:text-slate-600 mt-0.5">
-                            <X className="h-4 w-4" />
-                        </button>
-                    </div>
-                )}
+                    )}
+                </div>
 
-                {/* Two-pane layout */}
-                <div className="flex flex-1 gap-4 overflow-hidden min-h-0">
-                    {/* Email list */}
-                    <div className={`${selectedThreadId ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-80 xl:w-96 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex-shrink-0`}>
-                        {/* Tabs */}
-                        <div className="flex border-b border-slate-100 flex-shrink-0">
-                            {(['inbox', 'sent'] as GmailTab[]).map((tab) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => handleTabChange(tab)}
-                                    className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${
-                                        activeTab === tab
-                                            ? 'text-indigo-600 border-b-2 border-indigo-500'
-                                            : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    {tab === 'inbox' ? 'Inbox' : 'Sent'}
-                                </button>
-                            ))}
+                {/* Right Detail Panel */}
+                <div className={`${selectedThreadId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 panel-elevated border border-slate-200 overflow-hidden min-w-0 bg-white`}>
+                    {!selectedThreadId ? (
+                        <div className="flex flex-col items-center justify-center flex-1 gap-3 text-xs text-slate-400 font-medium">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+                                <Mail className="w-6 h-6 text-slate-400" />
+                            </div>
+                            <p className="text-slate-500 font-semibold text-sm">Select an email to view full conversation</p>
                         </div>
-
-                        {/* Selection toolbar */}
-                        {selectedIds.size > 0 && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-100 flex-shrink-0">
-                                <span className="text-xs text-indigo-700 font-medium flex-1">{selectedIds.size} selected</span>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={handleDeleteSelected}
-                                    disabled={deletingIds}
-                                    className="text-red-600 hover:bg-red-50 hover:text-red-700 h-7 px-2 text-xs"
-                                >
-                                    {deletingIds ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
-                                    Delete
-                                </Button>
-                                <button onClick={() => setSelectedIds(new Set())} className="text-slate-400 hover:text-slate-600">
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        )}
-
-                        {isListLoading ? (
-                            <div className="flex items-center justify-center flex-1">
-                                <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
-                            </div>
-                        ) : isListError ? (
-                            <div className="flex flex-col items-center justify-center flex-1 gap-4 p-6 text-center">
-                                <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center">
-                                    <Mail className="h-7 w-7 text-amber-500" />
-                                </div>
-                                <div>
-                                    <p className="font-semibold text-slate-700 text-sm">Gmail reconnection required</p>
-                                    <p className="text-xs text-slate-400 mt-1">Your Gmail token has expired. Reconnect to load emails.</p>
-                                </div>
-                                <Button onClick={handleConnect} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4">
-                                    Reconnect Gmail
-                                </Button>
-                            </div>
-                        ) : !emails.length ? (
-                            <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-400">
-                                <Mail className="h-12 w-12" />
-                                <p className="text-sm">No emails in {activeTab}</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
-                                {emails.map((email) => {
-                                    const isChecked = selectedIds.has(email.id);
-                                    const isActive = email.thread_id === selectedThreadId;
-                                    return (
-                                        <div
-                                            key={email.id}
-                                            className={`relative flex items-start gap-2 px-3 py-3 group cursor-pointer transition-colors
-                                                ${isActive ? 'bg-indigo-50 border-l-2 border-l-indigo-500' : 'hover:bg-slate-50'}
-                                                ${isChecked ? 'bg-blue-50' : ''}
-                                            `}
-                                            onClick={() => handleSelectEmail(email)}
-                                        >
-                                            {/* Checkbox */}
-                                            <div
-                                                className="flex-shrink-0 mt-[3px] opacity-0 group-hover:opacity-100 transition-opacity"
-                                                style={{ opacity: isChecked ? 1 : undefined }}
-                                                onClick={(e) => toggleSelectId(email.id, e)}
-                                            >
-                                                {isChecked
-                                                    ? <CheckSquare className="h-4 w-4 text-indigo-600" />
-                                                    : <Square className="h-4 w-4 text-slate-400" />
-                                                }
-                                            </div>
-
-                                            {/* Unread dot */}
-                                            {email.unread && !isChecked && (
-                                                <span className="mt-[7px] w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
-                                            )}
-
-                                            <div className={`flex-1 min-w-0 ${!email.unread && !isChecked ? 'pl-0' : ''}`}>
-                                                <p className={`text-sm truncate ${email.unread ? 'font-semibold text-slate-800' : 'text-slate-500'}`}>
-                                                    {activeTab === 'sent'
-                                                        ? (email.to_ ? `To: ${email.to_}` : email.from_)
-                                                        : email.from_}
-                                                </p>
-                                                <p className={`text-sm truncate ${email.unread ? 'font-medium text-slate-700' : 'text-slate-400'}`}>
-                                                    {email.subject}
-                                                </p>
-                                                <p className="text-xs text-slate-400 truncate mt-0.5">{email.snippet}</p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {nextToken && (
-                                    <div className="p-3 flex justify-center border-t border-slate-100">
-                                        <Button variant="ghost" size="sm" onClick={handleLoadMore} disabled={loadingMore} className="text-indigo-600 hover:bg-indigo-50 text-xs">
-                                            {loadingMore ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : null}
-                                            {loadingMore ? 'Loading...' : 'Load more emails'}
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Thread detail */}
-                    <div className={`${selectedThreadId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-w-0`}>
-                        {!selectedThreadId ? (
-                            <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-400">
-                                <Mail className="h-12 w-12" />
-                                <p className="text-sm">Select an email to read</p>
-                            </div>
-                        ) : threadLoading ? (
-                            <div className="flex items-center justify-center flex-1">
-                                <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
-                            </div>
-                        ) : thread ? (
-                            <div className="flex flex-col h-full">
-                                <div className="flex items-center gap-3 p-4 border-b border-slate-100 flex-shrink-0">
-                                    <button onClick={() => setSelectedThreadId(null)} className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
-                                        <ChevronLeft className="h-5 w-5 text-slate-600" />
+                    ) : threadLoading ? (
+                        <div className="flex items-center justify-center flex-1">
+                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                        </div>
+                    ) : thread ? (
+                        <div className="flex flex-col h-full">
+                            <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50/50 flex-shrink-0">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <button onClick={() => setSelectedThreadId(null)} className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-200">
+                                        <ChevronLeft className="w-5 h-5" />
                                     </button>
-                                    <h2 className="font-semibold text-slate-800 flex-1 truncate">
+                                    <h2 className="text-base font-extrabold text-slate-900 truncate">
                                         {thread.messages[0]?.subject ?? '(no subject)'}
                                     </h2>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-                                    {thread.messages.map((msg) => (
-                                        <div key={msg.id} className="rounded-xl border border-slate-200 overflow-hidden">
-                                            <div className="flex items-start justify-between p-3 bg-slate-50 border-b border-slate-200">
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="font-medium text-slate-800 text-sm truncate">{msg.from_}</p>
-                                                    {msg.to && <p className="text-xs text-slate-500 truncate">To: {msg.to}</p>}
-                                                    <p className="text-xs text-slate-400 mt-0.5">{msg.date}</p>
-                                                </div>
-                                                <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            // Extract display name from "Name <email>" format
-                                                            const nameMatch = msg.from_.match(/^"?([^"<]*)"?\s*</);
-                                                            const senderName = nameMatch ? nameMatch[1].trim() : msg.from_;
-                                                            setImportTarget({ messageId: msg.id, senderName });
-                                                        }}
-                                                        className="text-emerald-600 hover:bg-emerald-50"
-                                                        title="Import as application"
-                                                    >
-                                                        <Briefcase className="h-4 w-4 mr-1" />Import
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleReply(msg)}
-                                                        className="text-indigo-600 hover:bg-indigo-50"
-                                                    >
-                                                        <Reply className="h-4 w-4 mr-1" />Reply
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                            <div className="overflow-hidden">
-                                                {msg.body_html
-                                                    ? <EmailBodyFrame html={msg.body_html} />
-                                                    : <div className="p-4 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{msg.body || <span className="text-slate-400 italic">No content</span>}</div>
-                                                }
-                                            </div>
-                                            {msg.attachments && msg.attachments.length > 0 && (
-                                                <div className="flex flex-wrap gap-2 p-3 border-t border-slate-100 bg-slate-50/60">
-                                                    {msg.attachments.map((att) => (
-                                                        <button
-                                                            key={att.attachment_id}
-                                                            onClick={() => handleDownloadAttachment(msg.id, att)}
-                                                            className="inline-flex items-center gap-2 text-xs bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 rounded-lg pl-2.5 pr-3 py-1.5 transition-colors"
-                                                            title={`Download ${att.filename}`}
-                                                        >
-                                                            <Paperclip className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                                                            <span className="max-w-[200px] truncate text-slate-700 font-medium">{att.filename}</span>
-                                                            {att.size > 0 && <span className="text-slate-400">{formatFileSize(att.size)}</span>}
-                                                            <Download className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
-                        ) : null}
 
-                        {/* Import application dialog */}
-                        {importTarget && (
-                            <ImportApplicationDialog
-                                messageId={importTarget.messageId}
-                                senderName={importTarget.senderName}
-                                onClose={() => setImportTarget(null)}
-                                onImported={() => {
-                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
-                                }}
-                            />
-                        )}
-                    </div>
+                            <div className="flex-1 overflow-y-auto p-6 space-y-5 min-h-0 bg-slate-50/30">
+                                {thread.messages.map((msg) => (
+                                    <div key={msg.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                                        <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-extrabold text-slate-900 truncate">{msg.from_}</p>
+                                                {msg.to && <p className="text-[11px] text-slate-500 font-medium truncate">To: {msg.to}</p>}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const nameMatch = msg.from_.match(/^"?([^"<]*)"?\s*</);
+                                                        setImportTarget({ messageId: msg.id, senderName: nameMatch ? nameMatch[1].trim() : msg.from_ });
+                                                    }}
+                                                    className="btn-glass text-[11px] py-1 px-2.5 flex items-center gap-1 font-bold"
+                                                >
+                                                    <Briefcase className="w-3 h-3 text-blue-600" /> Import
+                                                </button>
+                                                <button onClick={() => handleReply(msg)} className="btn-glass text-[11px] py-1 px-2.5 flex items-center gap-1 font-bold">
+                                                    <Reply className="w-3 h-3 text-blue-600" /> Reply
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4">
+                                            {msg.body_html
+                                                ? <EmailBodyFrame html={msg.body_html} />
+                                                : <div className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed font-medium">{msg.body || <span className="text-slate-400 italic">No text content</span>}</div>
+                                            }
+                                        </div>
+
+                                        {msg.attachments && msg.attachments.length > 0 && (
+                                            <div className="p-3 border-t border-slate-100 bg-slate-50/50 flex flex-wrap gap-2">
+                                                {msg.attachments.map((att) => (
+                                                    <button
+                                                        key={att.attachment_id} onClick={() => handleDownloadAttachment(msg.id, att)}
+                                                        className="btn-glass text-[11px] py-1 px-2.5 flex items-center gap-1.5 font-bold"
+                                                    >
+                                                        <Paperclip className="w-3 h-3 text-slate-500" />
+                                                        <span className="max-w-[150px] truncate text-slate-700">{att.filename}</span>
+                                                        <Download className="w-3 h-3 text-blue-600" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             </div>
+
+            {importTarget && (
+                <ImportApplicationDialog
+                    messageId={importTarget.messageId} senderName={importTarget.senderName}
+                    onClose={() => setImportTarget(null)}
+                    onImported={() => { queryClient.invalidateQueries({ queryKey: ['applications'] }); }}
+                />
+            )}
 
             {showCompose && (
                 <ComposeDialog
@@ -915,6 +769,6 @@ export default function InboxPage() {
                     onSent={handleSent}
                 />
             )}
-        </>
+        </div>
     );
 }

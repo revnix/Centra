@@ -1,318 +1,215 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Sparkles, Loader2, AlertCircle, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
+import { Sparkles, Loader2, Eye, EyeOff, AlertCircle, ArrowRight, Users, Building2, CheckCircle } from "lucide-react";
 import { authApi } from "@/lib/api";
 import { UserRole } from "@/lib/types";
 
 export default function SignupPage() {
-    const [formData, setFormData] = useState({
-        fullName: "",
-        email: "",
-        company: "",
-        password: "",
-        confirmPassword: ""
-    });
-    const [acceptTerms, setAcceptTerms] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [role, setRole] = useState<UserRole>('candidate');
+  const [formData, setFormData] = useState({
+    fullName: "", email: "", company: "", password: "", confirmPassword: ""
+  });
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [role, setRole] = useState<UserRole>('candidate');
+  const [showPw, setShowPw] = useState(false);
+  const [showCpw, setShowCpw] = useState(false);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
+  const update = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
 
-    const handleSignup = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError("");
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (formData.password !== formData.confirmPassword) { setError("Passwords do not match"); return; }
+    if (!acceptTerms) { setError("Please accept the terms and conditions"); return; }
+    setIsLoading(true);
+    try {
+      const response = await authApi.register({
+        email: formData.email,
+        full_name: formData.fullName,
+        password: formData.password,
+        role: role.toUpperCase() as any,
+      });
+      const token = response.access_token.access_token;
+      const userRole = response.user.role.toLowerCase();
+      localStorage.setItem("access_token", token);
+      localStorage.setItem("userRole", userRole);
+      localStorage.setItem("userEmail", response.user.email);
+      document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `user_role=${userRole}; path=/; max-age=86400; SameSite=Lax`;
+      window.location.href = userRole === "candidate" ? "/portal/status" : "/dashboard";
+    } catch (err: any) {
+      setError(err.message || "Failed to create account. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        // Validation
-        if (formData.password !== formData.confirmPassword) {
-            setError("Passwords do not match");
-            return;
-        }
+  return (
+    <div className="min-h-screen flex bg-gray-50">
+      {/* Left panel */}
+      <div className="hidden lg:flex flex-col justify-between w-5/12 p-12 bg-[#1e1b4b] text-white relative overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
 
-        if (!acceptTerms) {
-            setError("Please accept the terms and conditions");
-            return;
-        }
+        <Link href="/" className="flex items-center gap-2.5 relative z-10">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center">
+            <Sparkles className="w-4.5 h-4.5 text-white" />
+          </div>
+          <span className="text-xl font-bold tracking-tight text-white">Evalyn</span>
+        </Link>
 
-        setIsLoading(true);
-
-        try {
-            // Mapping frontend signup to backend register
-            const response = await authApi.register({
-                email: formData.email,
-                full_name: formData.fullName,
-                password: formData.password,
-                role: role.toUpperCase() as any
-            });
-
-            localStorage.setItem("access_token", response.access_token.access_token);
-
-            // Set cookies for middleware
-            const userRole = response.user.role.toLowerCase();
-            document.cookie = `access_token=${response.access_token.access_token}; path=/; max-age=86400; SameSite=Lax`;
-            document.cookie = `user_role=${userRole}; path=/; max-age=86400; SameSite=Lax`;
-
-            localStorage.setItem("userRole", userRole);
-            localStorage.setItem("userEmail", response.user.email);
-
-            if (userRole === "candidate") {
-                window.location.href = "/portal/status";
-            } else {
-                window.location.href = "/dashboard";
-            }
-        } catch (err: any) {
-            console.error("Signup failed:", err);
-            setError(err.message || "Failed to create account. Please try again.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex items-center justify-center p-6">
-            <Card className="w-full max-w-md shadow-xl border-0">
-                <CardHeader className="space-y-4 text-center pb-8">
-                    <div className="mx-auto p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl w-fit">
-                        <Sparkles className="h-8 w-8 text-white" />
-                    </div>
-                    <div>
-                        <CardTitle className="text-3xl font-bold">Create your account</CardTitle>
-                        <CardDescription className="text-base mt-2">
-                            Start hiring smarter with AI today
-                        </CardDescription>
-                    </div>
-                </CardHeader>
-
-                <CardContent>
-                    <form onSubmit={handleSignup} className="space-y-4">
-                        {error && (
-                            <Alert variant="destructive" className="bg-red-50 border-red-200">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3 mb-6">
-                            <button
-                                type="button"
-                                onClick={() => setRole('candidate')}
-                                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                    role === 'candidate' 
-                                    ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md' 
-                                    : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200'
-                                }`}
-                            >
-                                <Users className="h-5 w-5" />
-                                <span className="text-xs font-bold">Job Seeker</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setRole('admin')}
-                                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                    role === 'admin' 
-                                    ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md' 
-                                    : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200'
-                                }`}
-                            >
-                                <Sparkles className="h-5 w-5" />
-                                <span className="text-xs font-bold">Hiring Manager</span>
-                            </button>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="fullName" className="text-sm font-medium">
-                                Full Name
-                            </Label>
-                            <Input
-                                id="fullName"
-                                name="fullName"
-                                type="text"
-                                placeholder="John Doe"
-                                value={formData.fullName}
-                                onChange={handleInputChange}
-                                required
-                                className="h-11"
-                                disabled={isLoading}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="email" className="text-sm font-medium">
-                                Work Email
-                            </Label>
-                            <Input
-                                id="email"
-                                name="email"
-                                type="email"
-                                placeholder="you@company.com"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                required
-                                className="h-11"
-                                disabled={isLoading}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="company" className="text-sm font-medium">
-                                Company Name
-                            </Label>
-                            <Input
-                                id="company"
-                                name="company"
-                                type="text"
-                                placeholder="Acme Inc."
-                                value={formData.company}
-                                onChange={handleInputChange}
-                                required
-                                className="h-11"
-                                disabled={isLoading}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="password" className="text-sm font-medium">
-                                Password
-                            </Label>
-                            <Input
-                                id="password"
-                                name="password"
-                                type="password"
-                                placeholder="••••••••"
-                                value={formData.password}
-                                onChange={handleInputChange}
-                                required
-                                className="h-11"
-                                disabled={isLoading}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="confirmPassword" className="text-sm font-medium">
-                                Confirm Password
-                            </Label>
-                            <Input
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                type="password"
-                                placeholder="••••••••"
-                                value={formData.confirmPassword}
-                                onChange={handleInputChange}
-                                required
-                                className="h-11"
-                                disabled={isLoading}
-                            />
-                        </div>
-
-                        <div className="flex items-start space-x-2 pt-2">
-                            <Checkbox
-                                id="terms"
-                                checked={acceptTerms}
-                                onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-                                disabled={isLoading}
-                            />
-                            <label
-                                htmlFor="terms"
-                                className="text-sm text-slate-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                                I agree to the{" "}
-                                <Link href="/terms" className="text-blue-600 hover:underline">
-                                    Terms of Service
-                                </Link>{" "}
-                                and{" "}
-                                <Link href="/privacy" className="text-blue-600 hover:underline">
-                                    Privacy Policy
-                                </Link>
-                            </label>
-                        </div>
-
-                        <Button
-                            type="submit"
-                            className="w-full h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-base font-medium mt-6"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Creating account...
-                                </>
-                            ) : (
-                                "Create Account"
-                            )}
-                        </Button>
-
-                        <div className="relative my-6">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-slate-200" />
-                            </div>
-                            <div className="relative flex justify-center text-sm">
-                                <span className="bg-white px-4 text-slate-500">Or sign up with</span>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-11"
-                                onClick={() => setError("SSO not configured yet")}
-                            >
-                                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                                </svg>
-                                Google
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-11"
-                                onClick={() => setError("SSO not configured yet")}
-                            >
-                                <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                                </svg>
-                                LinkedIn
-                            </Button>
-                        </div>
-                    </form>
-
-                    <div className="mt-6 text-center text-sm text-slate-600">
-                        Already have an account?{" "}
-                        <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium hover:underline">
-                            Sign in
-                        </Link>
-                    </div>
-
-                    <div className="mt-6 pt-6 border-t border-slate-100">
-                        <div className="text-xs text-slate-500 text-center space-y-2">
-                            <p className="flex items-center justify-center gap-2">
-                                <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                Free 14-day trial • No credit card required
-                            </p>
-                            <p className="flex items-center justify-center gap-2">
-                                <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                Cancel anytime • Full feature access
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+        <div className="relative z-10">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 mb-6">
+            Join Evalyn
+          </span>
+          <h1 className="text-4xl font-bold leading-tight mb-4 text-white">
+            Start hiring smarter <span className="text-emerald-300">today.</span>
+          </h1>
+          <p className="text-indigo-200/80 text-base leading-relaxed mb-8">
+            Set up your AI hiring workspace in minutes. Automate candidate screening and interview workflows instantly.
+          </p>
+          <div className="space-y-3">
+            {["Free trial, no credit card required", "Full AI screening & Kanban pipeline", "Cancel anytime"].map(f => (
+              <div key={f} className="flex items-center gap-2.5 text-sm text-indigo-100">
+                <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>{f}</span>
+              </div>
+            ))}
+          </div>
         </div>
-    );
+
+        <p className="text-xs text-indigo-300/50 relative z-10">© 2026 Evalyn AI. All rights reserved.</p>
+      </div>
+
+      {/* Right form panel */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 bg-white overflow-y-auto">
+        <div className="w-full max-w-md py-6">
+          <Link href="/" className="flex items-center gap-2.5 mb-8 lg:hidden">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-lg font-bold text-gray-900">Evalyn</span>
+          </Link>
+
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Create your account</h2>
+            <p className="text-sm text-gray-500 mt-1">Start hiring with AI — setup takes under a minute</p>
+          </div>
+
+          {/* Role selector */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            {[
+              { value: "candidate" as UserRole, label: "Job Seeker", icon: Users, desc: "Apply & track status" },
+              { value: "admin" as UserRole, label: "Hiring Manager", icon: Building2, desc: "Recruit candidates" },
+            ].map(r => (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => setRole(r.value)}
+                className={`flex flex-col items-start p-3 rounded-lg border text-left transition-all ${
+                  role === r.value
+                    ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900'
+                    : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+                }`}
+              >
+                <r.icon className={`w-4 h-4 mb-1 ${role === r.value ? 'text-indigo-600' : 'text-gray-400'}`} />
+                <span className="text-xs font-semibold">{r.label}</span>
+                <span className="text-[0.6875rem] text-gray-500 mt-0.5">{r.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-3 p-3.5 rounded-lg mb-5 bg-red-50 border border-red-200 text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="fullName">Full Name</label>
+              <input id="fullName" name="fullName" type="text" placeholder="John Doe"
+                value={formData.fullName} onChange={update} required disabled={isLoading}
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="email">Work Email</label>
+              <input id="email" name="email" type="email" placeholder="you@company.com"
+                value={formData.email} onChange={update} required disabled={isLoading}
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
+            </div>
+
+            {role === "admin" && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="company">Company Name</label>
+                <input id="company" name="company" type="text" placeholder="Acme Inc."
+                  value={formData.company} onChange={update} disabled={isLoading}
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="password">Password</label>
+              <div className="relative">
+                <input id="password" name="password" type={showPw ? "text" : "password"}
+                  placeholder="Min. 8 characters" value={formData.password} onChange={update}
+                  required disabled={isLoading}
+                  className="w-full h-11 pl-3.5 pr-10 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1" tabIndex={-1}>
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="confirmPassword">Confirm Password</label>
+              <div className="relative">
+                <input id="confirmPassword" name="confirmPassword" type={showCpw ? "text" : "password"}
+                  placeholder="••••••••" value={formData.confirmPassword} onChange={update}
+                  required disabled={isLoading}
+                  className="w-full h-11 pl-3.5 pr-10 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
+                <button type="button" onClick={() => setShowCpw(!showCpw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1" tabIndex={-1}>
+                  {showCpw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Terms */}
+            <div className="flex items-start gap-2.5 pt-1">
+              <input type="checkbox" id="terms" checked={acceptTerms}
+                onChange={e => setAcceptTerms(e.target.checked)}
+                disabled={isLoading}
+                className="w-4 h-4 rounded cursor-pointer accent-indigo-600 mt-0.5" />
+              <label htmlFor="terms" className="text-xs text-slate-600 cursor-pointer">
+                I agree to the{" "}
+                <Link href="/terms" className="text-indigo-600 hover:underline font-semibold">Terms of Service</Link>
+                {" "}and{" "}
+                <Link href="/privacy" className="text-indigo-600 hover:underline font-semibold">Privacy Policy</Link>
+              </label>
+            </div>
+
+            <button type="submit" disabled={isLoading}
+              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-xl text-sm transition-all shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2 mt-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {isLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</>
+                : <>Create Account <ArrowRight className="w-4 h-4 ml-1" /></>
+              }
+            </button>
+          </form>
+
+          <p className="text-center text-xs text-gray-500 mt-6">
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">Sign in</Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
