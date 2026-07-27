@@ -6,10 +6,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { onboardingApi, OnboardingResponse, getDocumentViewUrl } from "@/lib/api/onboarding";
 import { apiClient } from "@/lib/api/client";
 import { api } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import {
     AlertCircle, CheckCircle2, Search, Clock, ShieldCheck, MonitorCheck,
     MapPin, UserCheck, Briefcase, Mail, Paperclip, X as CloseIcon, Loader2,
-    Send, ThumbsUp, FileText, Plus, Trash2, User, Phone, Home, CreditCard
+    Send, ThumbsUp, FileText, Plus, Trash2, User, Phone, Home, CreditCard, ChevronDown
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -20,6 +21,8 @@ export default function AdminOnboardingDashboard() {
         queryKey: ['onboarding', 'list'],
         queryFn: () => onboardingApi.getAll(),
         staleTime: 5 * 60_000,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
     });
     const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
     const { data: detailedInfo = null, isFetching: detailLoading } = useQuery({
@@ -176,8 +179,23 @@ export default function AdminOnboardingDashboard() {
     const [emailMessage, setEmailMessage] = useState("");
     const [emailFiles, setEmailFiles] = useState<File[]>([]);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [emailFromAlias, setEmailFromAlias] = useState("");
     const attachRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<HTMLDivElement>(null);
+
+    // Cached Gmail aliases for instant rendering
+    const { data: aliasesData } = useQuery({
+        queryKey: ['gmail', 'aliases'],
+        queryFn: gmailApi.getAliases,
+        staleTime: 10 * 60 * 1000,
+    });
+    const gmailAliases = aliasesData?.aliases ?? [];
+
+    useEffect(() => {
+        if (gmailAliases.length > 0 && !emailFromAlias) {
+            setEmailFromAlias(gmailAliases[0].email);
+        }
+    }, [gmailAliases, emailFromAlias]);
 
     const DOCUMENTS_TEMPLATE = (name: string) => `<p>Dear ${name},</p>
 <p>We're introducing our official workflow for you at the office! This email is designed to guide you through the onboarding process.</p>
@@ -314,17 +332,32 @@ export default function AdminOnboardingDashboard() {
                 </div>
             )}
 
-            {isLoading ? (
-                <div className="flex items-center justify-center min-h-[300px]">
-                    <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    {filtered.length === 0 && (
+            <div className="space-y-6">
+                    {isLoading ? (
+                        Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="panel-elevated p-6 rounded-2xl border border-slate-200/80 bg-white animate-pulse space-y-5">
+                                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                                    <div className="space-y-2">
+                                        <div className="h-4 bg-slate-100 rounded w-48" />
+                                        <div className="h-3 bg-slate-100 rounded w-72" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="h-8 bg-slate-100 rounded-xl w-24" />
+                                        <div className="h-8 bg-slate-100 rounded-xl w-28" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {Array.from({ length: 4 }).map((_, j) => (
+                                        <div key={j} className="h-14 bg-slate-50 rounded-xl border border-slate-100" />
+                                    ))}
+                                </div>
+                            </div>
+                        ))
+                    ) : filtered.length === 0 ? (
                         <div className="panel-elevated p-12 text-center text-sm text-slate-500 font-medium">
                             {searchQuery ? `No results for "${searchQuery}"` : "No active onboarding records."}
                         </div>
-                    )}
+                    ) : null}
 
                     {filtered.map((o) => (
                         <div key={o.id} className="panel-elevated p-6 rounded-2xl border border-slate-200/80 shadow-sm bg-white hover:border-slate-300 transition-all space-y-5">
@@ -490,8 +523,7 @@ export default function AdminOnboardingDashboard() {
                             </div>
                         </div>
                     ))}
-                </div>
-            )}
+            </div>
 
             {/* Welcome email dialog */}
             <Dialog open={showWelcomeDialog} onOpenChange={(open) => { if (!open) { setShowWelcomeDialog(false); setWelcomeFiles([]); } }}>
@@ -547,6 +579,29 @@ export default function AdminOnboardingDashboard() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
+                        {/* From alias selector */}
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">From</label>
+                            <div className="relative">
+                                <select
+                                    value={emailFromAlias || (gmailAliases[0]?.email ?? '')}
+                                    onChange={e => setEmailFromAlias(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none pr-9 font-medium"
+                                >
+                                    {gmailAliases.length > 0 ? (
+                                        gmailAliases.map(a => (
+                                            <option key={a.email} value={a.email}>
+                                                {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option value="">Default Connected Account</option>
+                                    )}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+
                         <div>
                             <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">Subject</label>
                             <input type="text" className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />

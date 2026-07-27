@@ -369,6 +369,27 @@ async def gmail_aliases(
     return {"aliases": aliases}
 
 
+@router.post("/disconnect")
+@router.delete("/disconnect")
+@router.post("/logout")
+async def disconnect_gmail(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(UserIntegration).where(
+            UserIntegration.user_id == current_user.id,
+            UserIntegration.platform == "gmail",
+        )
+    )
+    integration = result.scalars().first()
+    if integration:
+        await db.delete(integration)
+        await db.commit()
+        return {"message": "Gmail account disconnected successfully"}
+    return {"message": "Gmail account was not connected"}
+
+
 @router.get("/auth")
 async def gmail_auth(current_user: User = Depends(get_current_user)):
     if not settings.GMAIL_CLIENT_ID or not settings.GMAIL_CLIENT_SECRET:

@@ -7,10 +7,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { onboardingApi, OnboardingResponse, getDocumentViewUrl } from "@/lib/api/onboarding";
 import { apiClient } from "@/lib/api/client";
 import { api } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import {
     ArrowLeft, AlertCircle, CheckCircle2, Clock, ShieldCheck, MonitorCheck,
     MapPin, UserCheck, Briefcase, Mail, Paperclip, Loader2, Send, ThumbsUp,
-    FileText, User, Phone, Home, CreditCard, ExternalLink, Trash2, Calendar
+    FileText, User, Phone, Home, CreditCard, ExternalLink, Trash2, Calendar, ChevronDown
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -170,7 +171,22 @@ export default function CandidateProfilePage() {
     const [emailSubject, setEmailSubject] = useState("");
     const [emailMessage, setEmailMessage] = useState("");
     const [emailFiles, setEmailFiles] = useState<File[]>([]);
+    const [emailFromAlias, setEmailFromAlias] = useState("");
     const editorRef = useRef<HTMLDivElement>(null);
+
+    // Cached Gmail aliases for instant rendering
+    const { data: aliasesData } = useQuery({
+        queryKey: ['gmail', 'aliases'],
+        queryFn: gmailApi.getAliases,
+        staleTime: 10 * 60 * 1000,
+    });
+    const gmailAliases = aliasesData?.aliases ?? [];
+
+    useEffect(() => {
+        if (gmailAliases.length > 0 && !emailFromAlias) {
+            setEmailFromAlias(gmailAliases[0].email);
+        }
+    }, [gmailAliases, emailFromAlias]);
 
     const DOCUMENTS_TEMPLATE = (name: string) => `<p>Dear ${name},</p>
 <p>We're introducing our official workflow for you at the office! This email is designed to guide you through the onboarding process.</p>
@@ -571,6 +587,27 @@ export default function CandidateProfilePage() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">From</label>
+                            <div className="relative">
+                                <select
+                                    value={emailFromAlias || (gmailAliases[0]?.email ?? '')}
+                                    onChange={e => setEmailFromAlias(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none pr-9 font-medium"
+                                >
+                                    {gmailAliases.length > 0 ? (
+                                        gmailAliases.map(a => (
+                                            <option key={a.email} value={a.email}>
+                                                {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option value="">Default Connected Account</option>
+                                    )}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
                         <div>
                             <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">Subject</label>
                             <input type="text" className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />

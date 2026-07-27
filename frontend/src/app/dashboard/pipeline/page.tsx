@@ -2,15 +2,16 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useApplications, useUpdateApplicationStatus, applicationKeys } from "@/lib/hooks/useApplications";
 import { applicationsApi } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Loader2, Send, Mail, Ban, ArrowRight, Zap, Search, Plus, MoreHorizontal, CheckCircle2
+  Loader2, Send, Mail, Ban, ArrowRight, Zap, Search, Plus, MoreHorizontal, CheckCircle2, ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -91,7 +92,16 @@ export default function PremiumKanbanPipelinePage() {
   const [emailTarget, setEmailTarget] = useState<Application | null>(null);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  const [emailFromAlias, setEmailFromAlias] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  // Gmail aliases for From selector
+  const { data: aliasesData } = useQuery({
+    queryKey: ['gmail', 'aliases'],
+    queryFn: gmailApi.getAliases,
+    staleTime: 10 * 60 * 1000,
+  });
+  const aliases = aliasesData?.aliases ?? [];
 
   // Group applications into columns
   const columnData = useMemo(() => {
@@ -181,6 +191,7 @@ export default function PremiumKanbanPipelinePage() {
       const formData = new FormData();
       formData.append("subject", emailSubject.trim());
       formData.append("message", emailBody.trim());
+      if (emailFromAlias) formData.append("from_email", emailFromAlias);
       await applicationsApi.sendEmail(emailTarget.id, formData);
       await queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
       toast.success("Email sent to candidate");
@@ -192,13 +203,19 @@ export default function PremiumKanbanPipelinePage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+  // Skeleton card shown inline per column — no full-screen spinner blocker
+  const SkeletonCard = () => (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-xs p-3 space-y-2 animate-pulse">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-lg bg-slate-100" />
+        <div className="flex-1 space-y-1">
+          <div className="h-2.5 bg-slate-100 rounded w-3/4" />
+          <div className="h-2 bg-slate-100 rounded w-1/2" />
+        </div>
       </div>
-    );
-  }
+      <div className="h-2 bg-slate-100 rounded w-full" />
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -265,7 +282,13 @@ export default function PremiumKanbanPipelinePage() {
 
               {/* Column Candidate Cards List */}
               <div className="p-3 space-y-4 flex-1 overflow-y-auto">
-                {data.apps.length === 0 ? (
+                {isLoading ? (
+                  <>
+                    <SkeletonCard />
+                    <SkeletonCard />
+                    <SkeletonCard />
+                  </>
+                ) : data.apps.length === 0 ? (
                   <div className="py-10 flex flex-col items-center justify-center text-slate-400">
                     <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-300 mb-3"></div>
                     <span className="text-xs font-medium">Drop candidates here</span>
@@ -386,11 +409,32 @@ export default function PremiumKanbanPipelinePage() {
               <Mail className="w-5 h-5 text-indigo-600" /> Send Message
             </DialogTitle>
             <DialogDescription className="text-sm text-slate-500 font-medium">
-              To: {emailTarget?.candidate?.full_name}
+              To: {emailTarget?.candidate?.full_name} &lt;{emailTarget?.candidate?.email}&gt;
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* From alias selector */}
+            {aliases.length > 0 && (
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">From</label>
+                <div className="relative">
+                  <select
+                    value={emailFromAlias}
+                    onChange={e => setEmailFromAlias(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none pr-9"
+                  >
+                    {aliases.map(a => (
+                      <option key={a.email} value={a.email}>
+                        {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Subject</label>
               <input

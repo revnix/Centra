@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useEffect, use, useRef, useCallback } from "react";
+import { useState, useEffect, use, useRef, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { gmailApi } from "@/lib/api/gmail";
 import { onboardingApi } from "@/lib/api/onboarding";
 import { screeningApi } from "@/lib/api/screening";
 import { apiClient, resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin, ChevronDown, Sparkles, Plus, Trash2 } from "lucide-react";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
@@ -47,8 +52,24 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | 'documents' | null>(null);
     const [emailSubject, setEmailSubject] = useState("");
     const [emailMessage, setEmailMessage] = useState("");
+    const [emailFromAlias, setEmailFromAlias] = useState("");
     const [isEmailSending, setIsEmailSending] = useState(false);
     const [emailFiles, setEmailFiles] = useState<File[]>([]);
+    
+    // React Query caches aliases globally with 10min staleTime so it's instant (0ms delay)
+    const { data: aliasesData } = useQuery({
+        queryKey: ['gmail', 'aliases'],
+        queryFn: gmailApi.getAliases,
+        staleTime: 10 * 60 * 1000,
+    });
+    const gmailAliases = aliasesData?.aliases ?? [];
+
+    useEffect(() => {
+        if (gmailAliases.length > 0 && !emailFromAlias) {
+            setEmailFromAlias(gmailAliases[0].email);
+        }
+    }, [gmailAliases, emailFromAlias]);
+
     const emailEditorRef = useRef<HTMLDivElement>(null);
     const attachFileRef = useRef<HTMLInputElement>(null);
     const emailDialogModeRef = useRef(emailDialogMode);
@@ -80,11 +101,54 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         setter(prev => prev.filter((_, i) => i !== index));
     }, []);
 
+    const formatWithNumbers = (questions: string[]) => {
+        return questions
+            .map((q) => q.replace(/^\s*(?:\d+[\).\-\s]+|[-*]\s+)/, "").trim())
+            .filter(Boolean)
+            .map((q, i) => `${i + 1}. ${q}`)
+            .join('\n');
+    };
+
+    const handleGenerateQuestions = async () => {
+        setIsGeneratingQuestions(true);
+        try {
+            const res = await screeningApi.generateQuestions(id, questionCountToGenerate);
+            if (res?.questions?.length) {
+                setRawQuestionsText(formatWithNumbers(res.questions));
+                toast.success(`Generated ${res.questions.length} AI questions!`);
+            }
+        } catch (err: any) {
+            toast.error(err?.message || "Failed to generate AI questions.");
+        } finally {
+            setIsGeneratingQuestions(false);
+        }
+    };
+
     const openScreeningDialog = () => {
         setIsScreeningDialogOpen(true);
         if (!rawQuestionsText) {
             handleGenerateQuestions();
         }
+    };
+
+    const questionsList = useMemo(() => {
+        return parseRawQuestions(rawQuestionsText);
+    }, [rawQuestionsText]);
+
+    const updateQuestionAtIndex = (index: number, newText: string) => {
+        const updated = [...questionsList];
+        updated[index] = newText;
+        setRawQuestionsText(formatWithNumbers(updated));
+    };
+
+    const removeQuestionAtIndex = (index: number) => {
+        const updated = questionsList.filter((_, i) => i !== index);
+        setRawQuestionsText(formatWithNumbers(updated));
+    };
+
+    const addQuestionItem = () => {
+        const updated = [...questionsList, "New Question"];
+        setRawQuestionsText(formatWithNumbers(updated));
     };
 
     const closeScreeningDialog = () => {
@@ -321,11 +385,11 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                 <div className="flex-1"></div>
 
-                <button onClick={() => openEmailDialog('reject')} disabled={app.status === 'REJECTED' || app.status === 'HIRED'} className="btn-glass border-slate-200 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 flex items-center gap-1.5 text-xs h-9 px-4">
+                <button onClick={() => openEmailDialog('reject')} disabled={isEmailSending} className="btn-glass border-slate-200 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 flex items-center gap-1.5 text-xs h-9 px-4">
                     <ThumbsDown className="w-4 h-4" /> Reject
                 </button>
 
-                <button onClick={() => openEmailDialog('onboarding')} disabled={app.status === 'REJECTED' || app.status === 'HIRED'} className="btn-dribbble text-xs h-9 px-4 flex items-center gap-1.5 shadow-md">
+                <button onClick={() => openEmailDialog('onboarding')} disabled={isEmailSending} className="btn-dribbble text-xs h-9 px-4 flex items-center gap-1.5 shadow-md">
                     <ThumbsUp className="w-4 h-4" /> Hire Candidate
                 </button>
             </div>
@@ -481,53 +545,168 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                 </div>
             </div>
 
-            {/* Dialogs */}
+            {/* Screening Test Dialog */}
             <Dialog open={isScreeningDialogOpen} onOpenChange={(open) => !open && closeScreeningDialog()}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>Send Screening Test</DialogTitle>
+                <DialogContent className="bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:max-w-xl max-h-[90vh] flex flex-col">
+                    <DialogHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-indigo-600" />
+                            <DialogTitle className="text-xl font-extrabold text-slate-900">
+                                Send Screening Test
+                            </DialogTitle>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleGenerateQuestions}
+                            disabled={isGeneratingQuestions}
+                            className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                            {isGeneratingQuestions ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                            ) : (
+                                <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
+                            )}
+                            Regenerate AI Questions
+                        </button>
                     </DialogHeader>
 
-                    <div className="space-y-4">
-                        <div className="grid gap-2 sm:max-w-[220px]">
-                            <label className="text-sm font-medium text-slate-700">Time limit (minutes)</label>
-                            <Input
-                                type="number"
-                                min={1}
-                                max={180}
-                                value={timeLimitMinutes}
-                                onChange={(event) =>
-                                    setTimeLimitMinutes(Math.min(180, Math.max(1, Number(event.target.value) || 1)))
-                                }
-                            />
+                    <div className="space-y-5 py-4 overflow-y-auto flex-1 pr-1">
+                        {/* Top Controls Card */}
+                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">
+                                    Time Limit (Minutes)
+                                </label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={180}
+                                    value={timeLimitMinutes}
+                                    onChange={(e) => setTimeLimitMinutes(Math.min(180, Math.max(1, Number(e.target.value) || 1)))}
+                                    className="w-full bg-white border border-slate-200 text-slate-900 font-bold rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-2xs"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">
+                                    AI Question Quantity
+                                </label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={50}
+                                    value={questionCountToGenerate}
+                                    onChange={(e) => setQuestionCountToGenerate(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
+                                    className="w-full bg-white border border-slate-200 text-indigo-600 font-black rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-2xs"
+                                />
+                            </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700">Questions</label>
-                            <Textarea
-                                value={rawQuestionsText}
-                                onChange={(event) => setRawQuestionsText(event.target.value)}
-                                placeholder={"Paste questions here, one per line.\nExample:\n1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
-                                className="min-h-[280px] font-mono text-sm"
-                            />
-                            <p className="text-xs text-slate-500">
-                                {parseRawQuestions(rawQuestionsText).length} question(s). LLM will generate options and correct answers before the email is sent.
-                            </p>
+                        {/* Screening Questions Section */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                                    Screening Questions ({questionsList.length})
+                                </label>
+                                <div className="flex items-center p-1 bg-slate-100/80 rounded-xl border border-slate-200/60">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditorTab('list')}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                                            editorTab === 'list'
+                                                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                                                : 'text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        Interactive List
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditorTab('bulk');
+                                            setRawQuestionsText(formatWithNumbers(questionsList));
+                                        }}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                                            editorTab === 'bulk'
+                                                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                                                : 'text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        Bulk Text
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Content tab */}
+                            {editorTab === 'list' ? (
+                                <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                                    {questionsList.map((q, idx) => (
+                                        <div key={idx} className="flex items-center gap-3">
+                                            <span className="text-xs font-extrabold text-indigo-600 w-5 text-right flex-shrink-0">
+                                                {idx + 1}.
+                                            </span>
+                                            <input
+                                                type="text"
+                                                value={q}
+                                                onChange={(e) => updateQuestionAtIndex(idx, e.target.value)}
+                                                className="flex-1 bg-white border border-slate-200 text-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-2xs font-medium"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeQuestionAtIndex(idx)}
+                                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all flex-shrink-0 cursor-pointer"
+                                                title="Delete Question"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addQuestionItem}
+                                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-xs font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                                    >
+                                        <Plus className="w-4 h-4" /> Add Question
+                                    </button>
+                                </div>
+                            ) : (
+                                <textarea
+                                    value={rawQuestionsText}
+                                    onChange={(e) => setRawQuestionsText(e.target.value)}
+                                    placeholder={"1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
+                                    rows={9}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-mono resize-none leading-relaxed shadow-2xs"
+                                />
+                            )}
                         </div>
+
+                        <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                            {questionsList.length} question(s). LLM will auto-generate options and correct answers when the email is sent to candidate.
+                        </p>
                     </div>
 
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={closeScreeningDialog}>
+                    <DialogFooter className="border-t border-slate-100 pt-4 gap-3">
+                        <button
+                            type="button"
+                            onClick={closeScreeningDialog}
+                            disabled={isSendingScreening}
+                            className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                        >
                             Cancel
-                        </Button>
-                        <Button type="button" onClick={handleSendScreeningTest} disabled={isSendingScreening}>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSendScreeningTest}
+                            disabled={isSendingScreening}
+                            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                        >
                             {isSendingScreening ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Loader2 className="h-4 w-4 animate-spin text-white" />
                             ) : (
-                                <Send className="h-4 w-4" />
+                                <Send className="h-4 w-4 text-white" />
                             )}
                             Send Screening Test
-                        </Button>
+                        </button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -546,6 +725,29 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
+                        {/* From account selector — instant & consistent */}
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">From</label>
+                            <div className="relative">
+                                <select
+                                    value={emailFromAlias || (gmailAliases[0]?.email ?? '')}
+                                    onChange={e => setEmailFromAlias(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none pr-9 font-medium"
+                                >
+                                    {gmailAliases.length > 0 ? (
+                                        gmailAliases.map(a => (
+                                            <option key={a.email} value={a.email}>
+                                                {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option value="">Default Connected Account</option>
+                                    )}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+
                         {/* Subject */}
                         <div>
                             <label className="text-xs font-bold text-slateate-600 uppercase tracking-wide block mb-1.5">Subject</label>

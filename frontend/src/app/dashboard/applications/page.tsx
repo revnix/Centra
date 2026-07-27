@@ -3,9 +3,9 @@
 import { api } from "@/lib/api";
 import { gmailApi } from "@/lib/api/gmail";
 import { useApplications, applicationKeys } from "@/lib/hooks/useApplications";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Eye, Search, Loader2, Trash2, Mail, Send, Download, Filter, ChevronRight, Zap, Users, Briefcase, UserPlus, Globe } from "lucide-react";
+import { Eye, Search, Loader2, Trash2, Mail, Send, Download, Filter, ChevronRight, Zap, Users, Briefcase, UserPlus, Globe, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -51,13 +51,26 @@ export default function ApplicationsPage() {
   const [inviteApp, setInviteApp] = useState<Application | null>(null);
   const [inviteSubject, setInviteSubject] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteFromAlias, setInviteFromAlias] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  // Cached Gmail aliases for instant rendering
+  const { data: aliasesData } = useQuery({
+    queryKey: ['gmail', 'aliases'],
+    queryFn: gmailApi.getAliases,
+    staleTime: 10 * 60 * 1000,
+  });
+  const gmailAliases = aliasesData?.aliases ?? [];
+
+  useEffect(() => {
+    if (gmailAliases.length > 0 && !inviteFromAlias) {
+      setInviteFromAlias(gmailAliases[0].email);
+    }
+  }, [gmailAliases, inviteFromAlias]);
 
   const { data: applications = [], isLoading, isError, error, refetch } = useApplications();
 
-  useEffect(() => {
-    if (applications.length > 0) setSelectedIds(new Set((applications as any[]).map((a) => a.id)));
-  }, [applications]);
+
 
   useEffect(() => {
     gmailApi.syncReplies()
@@ -228,10 +241,28 @@ export default function ApplicationsPage() {
     return next;
   });
 
-  if (isLoading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-    </div>
+
+  // Inline skeleton — no full-page spinner blocker
+  const SkeletonRow = () => (
+    <tr className="animate-pulse border-b border-slate-100">
+      <td className="pl-6 py-4"><div className="w-4 h-4 bg-slate-100 rounded" /></td>
+      <td className="py-4">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 flex-shrink-0" />
+          <div className="space-y-1.5">
+            <div className="h-3 bg-slate-100 rounded w-32" />
+            <div className="h-2.5 bg-slate-100 rounded w-24" />
+          </div>
+        </div>
+      </td>
+      <td className="py-4"><div className="h-3 bg-slate-100 rounded w-28" /></td>
+      <td className="py-4"><div className="h-6 bg-slate-100 rounded-full w-20" /></td>
+      <td className="py-4"><div className="h-3 bg-slate-100 rounded w-16" /></td>
+      <td className="py-4"><div className="h-6 bg-slate-100 rounded-full w-16" /></td>
+      <td className="py-4 text-right"><div className="h-3 bg-slate-100 rounded w-20 ml-auto" /></td>
+      <td className="py-4 text-center"><div className="h-3 bg-slate-100 rounded w-10 mx-auto" /></td>
+      <td className="py-4" />
+    </tr>
   );
 
   if (isError) return (
@@ -415,7 +446,9 @@ export default function ApplicationsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredApps.map((app) => {
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : filteredApps.map((app) => {
                 const name = app.candidate?.full_name || "Unknown Candidate";
                 const score = app.match_score ?? app.ai_score ?? 0;
                 const salary = app.expected_salary ? `PKR ${Number(app.expected_salary).toLocaleString()}` : null;
@@ -503,7 +536,7 @@ export default function ApplicationsPage() {
                 );
               })}
 
-              {filteredApps.length === 0 && (
+              {!isLoading && filteredApps.length === 0 && (
                 <tr>
                   <td colSpan={9} className="py-16 text-center text-sm font-medium text-slate-400">
                     No candidates found matching filter criteria.
@@ -528,6 +561,27 @@ export default function ApplicationsPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">From</label>
+              <div className="relative">
+                <select
+                  value={inviteFromAlias || (gmailAliases[0]?.email ?? '')}
+                  onChange={e => setInviteFromAlias(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none pr-9 font-medium"
+                >
+                  {gmailAliases.length > 0 ? (
+                    gmailAliases.map(a => (
+                      <option key={a.email} value={a.email}>
+                        {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">Default Connected Account</option>
+                  )}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
             <div>
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Subject</label>
               <input value={inviteSubject} onChange={(e) => setInviteSubject(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />

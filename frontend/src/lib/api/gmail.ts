@@ -67,6 +67,9 @@ export const gmailApi = {
     getStatus: () =>
         apiClient.get<GmailStatus>('/gmail/status'),
 
+    disconnect: () =>
+        apiClient.post<{ message: string }>('/gmail/disconnect'),
+
     getAliases: () =>
         apiClient.get<{ aliases: GmailAliasInfo[] }>('/gmail/aliases'),
 

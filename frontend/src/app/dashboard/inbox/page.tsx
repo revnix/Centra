@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import {
     Mail, RefreshCw, Reply, X, Loader2, Send, ChevronLeft,
     Paperclip, Pencil, Trash2, CheckCheck, UserPlus, Download,
-    Briefcase,
+    Briefcase, LogOut, ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { gmailApi, type EmailSummary, type EmailMessage, type EmailAttachment } from '@/lib/api/gmail';
@@ -100,6 +100,27 @@ function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, aliases 
 
             {/* Fields */}
             <div className="border-b border-slate-200 divide-y divide-slate-100 bg-slate-50/50">
+                {/* From Alias Dropdown */}
+                {aliases.length > 0 && (
+                    <div className="flex items-center px-4 py-2 gap-2">
+                        <span className="text-xs font-bold text-slate-500 w-12 shrink-0">From</span>
+                        <div className="relative flex-1">
+                            <select
+                                value={fromEmail}
+                                onChange={e => setFromEmail(e.target.value)}
+                                className="w-full bg-transparent text-xs text-slate-900 border-none outline-none font-medium appearance-none pr-6 cursor-pointer"
+                            >
+                                {aliases.map(a => (
+                                    <option key={a.email} value={a.email}>
+                                        {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex items-center px-4 py-2 gap-2">
                     <span className="text-xs font-bold text-slate-500 w-12 shrink-0">To</span>
                     <input
@@ -315,7 +336,16 @@ export default function InboxPage() {
     const { data: status, isLoading: statusLoading } = useQuery({
         queryKey: ['gmail', 'status'],
         queryFn: gmailApi.getStatus,
+        staleTime: 10 * 60 * 1000,
     });
+
+    const { data: aliasesData } = useQuery({
+        queryKey: ['gmail', 'aliases'],
+        queryFn: gmailApi.getAliases,
+        enabled: status?.connected === true,
+        staleTime: 10 * 60 * 1000,
+    });
+    const aliases = aliasesData?.aliases ?? [];
 
     const { data: inbox, isLoading: inboxLoading, isFetching: inboxFetching, isError: inboxError, refetch: refetchInbox } = useQuery({
         queryKey: ['gmail', 'inbox'],
@@ -323,8 +353,8 @@ export default function InboxPage() {
         enabled: status?.connected === true,
         retry: false,
         staleTime: 3 * 60 * 1000,
-        refetchOnWindowFocus: true,
-        refetchOnMount: true,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
 
     const { data: sent, isLoading: sentLoading, isFetching: sentFetching, isError: sentError, refetch: refetchSent } = useQuery({
@@ -333,8 +363,8 @@ export default function InboxPage() {
         enabled: status?.connected === true && activeTab === 'sent',
         retry: false,
         staleTime: 3 * 60 * 1000,
-        refetchOnWindowFocus: true,
-        refetchOnMount: true,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
 
     useEffect(() => {
@@ -386,12 +416,35 @@ export default function InboxPage() {
         onError: () => toast.error('Failed to delete emails.'),
     });
 
+    const [disconnecting, setDisconnecting] = useState(false);
+    const [connecting, setConnecting] = useState(false);
+
     const handleConnect = async () => {
+        setConnecting(true);
         try {
             const data = await gmailApi.getAuthUrl();
             window.location.href = data.authorization_url;
         } catch {
             toast.error('Failed to initiate Gmail connection.');
+            setConnecting(false);
+        }
+    };
+
+    const handleDisconnect = async () => {
+        if (!confirm('Are you sure you want to log out of your Gmail account?')) return;
+        setDisconnecting(true);
+        try {
+            await gmailApi.disconnect();
+            toast.success('Gmail account logged out successfully');
+            setSelectedThreadId(null);
+            setSelectedIds(new Set());
+            setInboxEmails([]);
+            setSentEmails([]);
+            queryClient.invalidateQueries({ queryKey: ['gmail'] });
+        } catch {
+            toast.error('Failed to log out of Gmail account.');
+        } finally {
+            setDisconnecting(false);
         }
     };
 
@@ -548,8 +601,9 @@ export default function InboxPage() {
                 <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">
                     Sync emails with candidate applications, send interview invites, and track replies seamlessly.
                 </p>
-                <button onClick={handleConnect} className="btn-dribbble h-11 px-8 text-sm font-semibold">
-                    <Mail className="w-4 h-4" /> Connect Gmail Account
+                <button onClick={handleConnect} disabled={connecting} className="btn-dribbble h-11 px-8 text-sm font-semibold">
+                    {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                    {connecting ? 'Connecting...' : 'Connect Gmail Account'}
                 </button>
             </div>
         );
@@ -570,6 +624,15 @@ export default function InboxPage() {
                         <p className="text-xs font-semibold text-slate-500">
                             Connected as <strong className="text-slate-800">{status.email || 'Gmail user'}</strong>
                         </p>
+                        <button
+                            onClick={handleDisconnect}
+                            disabled={disconnecting}
+                            className="ml-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200/80 transition-colors font-bold"
+                            title="Disconnect / Logout Gmail Account"
+                        >
+                            {disconnecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <LogOut className="w-3 h-3" />}
+                            Logout
+                        </button>
                     </div>
                 </div>
 
@@ -582,6 +645,15 @@ export default function InboxPage() {
                     )}
                     <button onClick={() => { setReplyTarget(null); setShowCompose(true); }} className="btn-dribbble text-xs py-2 px-4 flex items-center gap-1.5">
                         <Pencil className="w-3.5 h-3.5" /> Compose
+                    </button>
+                    <button
+                        onClick={handleDisconnect}
+                        disabled={disconnecting}
+                        className="btn-glass text-xs py-2 px-3 flex items-center gap-1.5 font-bold text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                        title="Disconnect / Logout Gmail Account"
+                    >
+                        {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5 text-rose-600" />}
+                        Logout Gmail
                     </button>
                     <button onClick={handleRefresh} disabled={isListFetching} className="btn-glass p-2">
                         <RefreshCw className={`w-4 h-4 text-slate-600 ${isListFetching ? 'animate-spin' : ''}`} />
@@ -768,7 +840,7 @@ export default function InboxPage() {
                     defaultTo={replyTarget?.from_ ?? ''}
                     defaultSubject={replyTarget ? (replyTarget.subject.startsWith('Re:') ? replyTarget.subject : `Re: ${replyTarget.subject}`) : ''}
                     threadId={replyTarget ? selectedThreadId ?? undefined : undefined}
-                    aliases={status?.aliases}
+                    aliases={aliases}
                     onClose={() => { setShowCompose(false); setReplyTarget(null); }}
                     onSent={handleSent}
                 />
