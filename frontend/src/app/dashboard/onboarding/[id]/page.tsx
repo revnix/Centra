@@ -345,12 +345,8 @@ export default function CandidateProfilePage() {
                             <ShieldCheck className="w-4 h-4" /> Approve Documents
                         </button>
                     )}
-                    <button onClick={() => openEmailDialog('documents')} className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-2 border border-white/15 cursor-pointer">
-                        <Paperclip className="w-3.5 h-3.5" /> Send Docs Email
-                    </button>
-                    <button onClick={() => openEmailDialog('onboard')} className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-500 hover:bg-indigo-400 text-white transition-all flex items-center gap-2 shadow-sm cursor-pointer">
-                        <Mail className="w-3.5 h-3.5" /> Onboarding Email
-                    </button>
+
+
                 </div>
             </div>
 

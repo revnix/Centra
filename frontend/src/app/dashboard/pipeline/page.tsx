@@ -30,22 +30,23 @@ type ColumnDef = {
   key: string;
   title: string;
   headerClass: string;
+  textClass: string;
   stages: string[];
   icon: any;
 };
 
 const KANBAN_COLUMNS: ColumnDef[] = [
-  { key: "applied", title: "Applied", headerClass: "bg-slate-100 border-slate-300", stages: ["APPLIED"], icon: Search },
-  { key: "screening", title: "Screening", headerClass: "bg-blue-50 border-blue-200", stages: ["SCREENING"], icon: Zap },
-  { key: "shortlisted", title: "Shortlisted", headerClass: "bg-blue-100 border-blue-300", stages: ["SHORTLISTED"], icon: Zap },
-  { key: "screening_test", title: "Screening Test", headerClass: "bg-sky-50 border-sky-200", stages: ["SCREENING_TEST"], icon: Zap },
-  { key: "interview_scheduled", title: "Interview Scheduled", headerClass: "bg-sky-100 border-sky-300", stages: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "SENT", "RESPONDED"], icon: Mail },
-  { key: "interview_completed", title: "Interview Completed", headerClass: "bg-blue-100 border-blue-400", stages: ["INTERVIEW_COMPLETED"], icon: CheckCircle2 },
-  { key: "rejected", title: "Rejected", headerClass: "bg-slate-200 border-slate-400", stages: ["REJECTED"], icon: Ban },
-  { key: "reference_check", title: "Reference Check", headerClass: "bg-blue-50 border-blue-200", stages: ["REFERENCE_CHECK"], icon: Search },
-  { key: "offer_extended", title: "Offer Extended", headerClass: "bg-blue-100 border-blue-300", stages: ["OFFER_EXTENDED"], icon: Send },
-  { key: "offer_accepted", title: "Offer Accepted", headerClass: "bg-blue-200 border-blue-400", stages: ["OFFER_ACCEPTED"], icon: CheckCircle2 },
-  { key: "hired", title: "Hired", headerClass: "bg-blue-600 border-blue-700 text-white", stages: ["HIRED"], icon: CheckCircle2 },
+  { key: "applied",              title: "Applied",              headerClass: "bg-yellow-50  border-yellow-300",                   textClass: "text-yellow-800",    stages: ["APPLIED"],                                                icon: Search },
+  { key: "screening",            title: "Screening",            headerClass: "bg-yellow-100 border-yellow-400",                   textClass: "text-yellow-900",    stages: ["SCREENING"],                                              icon: Zap },
+  { key: "shortlisted",          title: "Shortlisted",          headerClass: "bg-yellow-200 border-yellow-500",                   textClass: "text-yellow-900",    stages: ["SHORTLISTED"],                                            icon: Zap },
+  { key: "screening_test",       title: "Screening Test",       headerClass: "bg-orange-100 border-orange-300",                   textClass: "text-orange-900",    stages: ["SCREENING_TEST"],                                         icon: Zap },
+  { key: "interview_scheduled",  title: "Interview Scheduled",  headerClass: "bg-sky-100    border-sky-300",                      textClass: "text-sky-900",       stages: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "SENT", "RESPONDED"], icon: Mail },
+  { key: "interview_completed",  title: "Interview Completed",  headerClass: "bg-sky-200    border-sky-400",                      textClass: "text-sky-900",       stages: ["INTERVIEW_COMPLETED"],                                    icon: CheckCircle2 },
+  { key: "rejected",             title: "Rejected",             headerClass: "bg-red-500    border-red-600    text-white",        textClass: "text-white",         stages: ["REJECTED"],                                               icon: Ban },
+  { key: "reference_check",      title: "Reference Check",      headerClass: "bg-blue-50    border-blue-200",                     textClass: "text-blue-900",      stages: ["REFERENCE_CHECK"],                                        icon: Search },
+  { key: "offer_extended",       title: "Offer Extended",       headerClass: "bg-stone-200   border-stone-400",                   textClass: "text-stone-800",     stages: ["OFFER_EXTENDED"],                                         icon: Send },
+  { key: "offer_accepted",       title: "Offer Accepted",       headerClass: "bg-stone-500   border-stone-700  text-white",       textClass: "text-white",         stages: ["OFFER_ACCEPTED"],                                         icon: CheckCircle2 },
+  { key: "hired",                title: "Hired",                headerClass: "bg-green-800  border-green-900  text-white",        textClass: "text-white",         stages: ["HIRED"],                                                  icon: CheckCircle2 },
 ];
 
 const NEXT_STAGE: Record<string, string> = {
@@ -260,22 +261,22 @@ export default function PremiumKanbanPipelinePage() {
               <div className={`p-4 rounded-t-2xl border-t-[6px] ${col.headerClass}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <col.icon className="w-5 h-5 text-slate-700" />
-                    <h2 className="text-sm font-black text-slate-800 uppercase tracking-wide">{col.title}</h2>
+                    <col.icon className={`w-5 h-5 ${col.textClass}`} />
+                    <h2 className={`text-sm font-black uppercase tracking-wide ${col.textClass}`}>{col.title}</h2>
                   </div>
-                  <div className="bg-white px-2 py-0.5 rounded-md shadow-sm border border-slate-200 text-xs font-bold text-slate-700">
+                  <div className="bg-white/80 px-2 py-0.5 rounded-md shadow-sm border border-white/40 text-xs font-bold text-slate-700">
                     {data.count}
                   </div>
                 </div>
                 
                 {/* Stage Stats */}
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/50">
-                  <span className="text-xs text-slate-500 font-medium">Avg Score</span>
+                <div className={`flex items-center justify-between mt-2 pt-2 border-t border-current/20`}>
+                  <span className={`text-xs font-medium opacity-70 ${col.textClass}`}>Avg Score</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-600 rounded-full" style={{ width: `${data.avgScore}%` }}></div>
+                    <div className="w-16 h-1.5 bg-black/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-current rounded-full opacity-60" style={{ width: `${data.avgScore}%` }}></div>
                     </div>
-                    <span className="text-xs font-bold text-slate-700">{data.avgScore}%</span>
+                    <span className={`text-xs font-bold ${col.textClass}`}>{data.avgScore}%</span>
                   </div>
                 </div>
               </div>
