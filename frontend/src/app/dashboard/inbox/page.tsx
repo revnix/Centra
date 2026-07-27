@@ -41,11 +41,13 @@ interface ComposeProps {
     defaultTo?: string;
     defaultSubject?: string;
     threadId?: string;
+    aliases?: GmailAliasInfo[];
     onClose: () => void;
     onSent: () => void;
 }
 
-function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, onClose, onSent }: ComposeProps) {
+function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, aliases = [], onClose, onSent }: ComposeProps) {
+    const [fromEmail, setFromEmail] = useState(aliases[0]?.email || '');
     const [to, setTo] = useState(defaultTo);
     const [cc, setCc] = useState('');
     const [bcc, setBcc] = useState('');
@@ -68,6 +70,7 @@ function ComposeDialog({ defaultTo = '', defaultSubject = '', threadId, onClose,
                 to: to.trim(),
                 subject: subject.trim() || '(no subject)',
                 body: body.trim(),
+                from_email: fromEmail || undefined,
                 thread_id: threadId,
                 cc: cc.trim() || undefined,
                 bcc: bcc.trim() || undefined,
@@ -765,6 +768,7 @@ export default function InboxPage() {
                     defaultTo={replyTarget?.from_ ?? ''}
                     defaultSubject={replyTarget ? (replyTarget.subject.startsWith('Re:') ? replyTarget.subject : `Re: ${replyTarget.subject}`) : ''}
                     threadId={replyTarget ? selectedThreadId ?? undefined : undefined}
+                    aliases={status?.aliases}
                     onClose={() => { setShowCompose(false); setReplyTarget(null); }}
                     onSent={handleSent}
                 />

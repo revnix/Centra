@@ -130,16 +130,13 @@ class LinkedInService:
 
         author = f"urn:li:person:{integration.platform_user_id}"
 
-        # Convert localhost / 127.0.0.1 to lvh.me so LinkedIn makes it clickable and matches valid public TLDs
-        text = text.replace("localhost", "lvh.me").replace("127.0.0.1", "lvh.me")
-
         # LinkedIn shareCommentary.text has a hard 3000-character limit.
         # Truncate gracefully so the API doesn't reject with 422.
         MAX_LEN = 2900
         if len(text) > MAX_LEN:
             text = text[:MAX_LEN].rsplit(" ", 1)[0] + "..."
 
-        # Prepare share content
+        # Prepare share content — default to text-only
         share_content = {
             "shareCommentary": {
                 "text": text
@@ -147,13 +144,14 @@ class LinkedInService:
             "shareMediaCategory": "NONE"
         }
 
-        # If an article URL is provided, create a rich share card (ARTICLE)
-        if article_url:
-            if not article_url.startswith('http'):
-                article_url = f"https://{article_url}"
+        # Only attach an ARTICLE card if the URL is a real, publicly reachable URL.
+        # Localhost / 127.0.0.1 / lvh.me / 192.168.x URLs cause LinkedIn to return 422.
+        LOCAL_HOSTS = ("localhost", "127.0.0.1", "lvh.me", "192.168.")
+        is_local_url = article_url and any(h in article_url for h in LOCAL_HOSTS)
 
-            # Convert localhost / 127.0.0.1 to lvh.me so LinkedIn accepts the domain in the media card
-            article_url = article_url.replace("localhost", "lvh.me").replace("127.0.0.1", "lvh.me")
+        if article_url and not is_local_url:
+            if not article_url.startswith("http"):
+                article_url = f"https://{article_url}"
 
             share_content["shareMediaCategory"] = "ARTICLE"
             share_content["media"] = [
@@ -168,7 +166,7 @@ class LinkedInService:
                     }
                 }
             ]
-        
+
         payload = {
             "author": author,
             "lifecycleState": "PUBLISHED",
@@ -180,8 +178,17 @@ class LinkedInService:
             }
         }
 
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.debug("LinkedIn UGC payload: %s", payload)
+
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=payload)
+            if not response.is_success:
+                _logger.error(
+                    "LinkedIn API %s error: %s",
+                    response.status_code,
+                    response.text,
+                )
             response.raise_for_status()
             return response.json()
-

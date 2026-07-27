@@ -24,6 +24,12 @@ export type ScreeningResult = {
 };
 
 export const screeningApi = {
+    /** HR: generate ~20 raw screening questions via LLM for an application */
+    generateQuestions: (applicationId: number | string, count: number = 20) =>
+        apiClient.post<{ questions: string[] }>(
+            `/screening/generate-questions/${applicationId}?count=${count}`
+        ),
+
     /** HR: create a screening test for an application. Returns {token, test_url, id} */
     create: (
         applicationId: number | string,

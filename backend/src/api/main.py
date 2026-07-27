@@ -30,6 +30,10 @@ from src.api.routes import (
     onboarding,
     screening,
     uploads,
+    langgraph,
+    applications,
+    interviews,
+    inbox,
 )
 from src.api.routes.admin import (
     users as admin_users,
@@ -222,6 +226,9 @@ app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboardi
 app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
 app.include_router(screening.router, prefix=f"{settings.API_V1_PREFIX}/screening", tags=["screening"])
 app.include_router(langgraph.router, tags=["langgraph"])
+
+# Smart HR Inbox
+app.include_router(inbox.router, prefix=f"{settings.API_V1_PREFIX}/inbox", tags=["inbox"])
 
 
 

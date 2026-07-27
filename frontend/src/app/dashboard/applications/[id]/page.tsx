@@ -6,8 +6,15 @@ import { onboardingApi } from "@/lib/api/onboarding";
 import { screeningApi } from "@/lib/api/screening";
 import { apiClient, resolveUrl } from "@/lib/api/client";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, Loader2, Monitor, RotateCcw, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin, Zap, FileText, Paperclip, X as XIcon } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Mail, Eye, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2, Code2, User as UserIcon, Bot as BotIcon, Zap, Monitor, DollarSign, RotateCcw, Paperclip, X as XIcon, FileText, Send, Phone, MapPin, GraduationCap, Briefcase, Linkedin } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -31,8 +38,11 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const [isSendingScreening, setIsSendingScreening] = useState(false);
     const [screening, setScreening] = useState<any>(null);
     const [isScreeningDialogOpen, setIsScreeningDialogOpen] = useState(false);
+    const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
     const [rawQuestionsText, setRawQuestionsText] = useState("");
-    const [timeLimitMinutes, setTimeLimitMinutes] = useState(10);
+    const [timeLimitMinutes, setTimeLimitMinutes] = useState(20);
+    const [questionCountToGenerate, setQuestionCountToGenerate] = useState(20);
+    const [editorTab, setEditorTab] = useState<'list' | 'bulk'>('list');
 
     const [emailDialogMode, setEmailDialogMode] = useState<'onboarding' | 'reject' | 'documents' | null>(null);
     const [emailSubject, setEmailSubject] = useState("");
@@ -44,24 +54,41 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
     const emailDialogModeRef = useRef(emailDialogMode);
     useEffect(() => { emailDialogModeRef.current = emailDialogMode; }, [emailDialogMode]);
 
-    const handleAddFiles = (incoming: FileList | null) => {
+    // Seed the contentEditable's DOM content the instant its real DOM node is created.
+    // Radix's Dialog portal mounts one render late (it renders null until an internal
+    // layout effect flips `mounted`), so a useEffect keyed on emailDialogMode fires too
+    // early and finds the ref still null. A ref *callback* sidesteps that race — React
+    // invokes it exactly when the node is attached, however many commits that takes.
+    // We deliberately do NOT bind content via dangerouslySetInnerHTML in the JSX below —
+    // that would make React re-apply `emailMessage` to the live DOM on every unrelated
+    // re-render of this page (background poll, Fast Refresh, any sibling state change),
+    // wiping out whatever the user is mid-way through typing or cutting.
+    const seedDocumentsEditor = useCallback((node: HTMLDivElement | null) => {
+        emailEditorRef.current = node;
+        if (node) {
+            node.innerHTML = emailMessage;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [emailMessage]);
+
+    const addFiles = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, incoming: FileList | null) => {
         if (!incoming) return;
-        setEmailFiles(prev => [...prev, ...Array.from(incoming)]);
-    };
-    const handleRemoveFile = (index: number) => {
-        setEmailFiles(prev => prev.filter((_, i) => i !== index));
-    };
+        setter(prev => [...prev, ...Array.from(incoming)]);
+    }, []);
+
+    const removeFile = useCallback((setter: React.Dispatch<React.SetStateAction<File[]>>, index: number) => {
+        setter(prev => prev.filter((_, i) => i !== index));
+    }, []);
 
     const openScreeningDialog = () => {
-        setRawQuestionsText("");
-        setTimeLimitMinutes(10);
         setIsScreeningDialogOpen(true);
+        if (!rawQuestionsText) {
+            handleGenerateQuestions();
+        }
     };
 
     const closeScreeningDialog = () => {
         setIsScreeningDialogOpen(false);
-        setRawQuestionsText("");
-        setTimeLimitMinutes(10);
     };
 
     const handleSendScreeningTest = async () => {
@@ -456,37 +483,51 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
             {/* Dialogs */}
             <Dialog open={isScreeningDialogOpen} onOpenChange={(open) => !open && closeScreeningDialog()}>
-                <DialogContent className="bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-w-lg">
+                <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-slate-900">Send Screening Test</DialogTitle>
-                        <DialogDescription className="text-sm text-slate-500">Configure questions and time limit for the candidate.</DialogDescription>
+                        <DialogTitle>Send Screening Test</DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Time Limit (Minutes)</label>
-                            <input
-                                type="number" min={1} max={180} value={timeLimitMinutes}
-                                onChange={(e) => setTimeLimitMinutes(Math.min(180, Math.max(1, Number(e.target.value) || 1)))}
-                                className="w-full sm:w-32 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    <div className="space-y-4">
+                        <div className="grid gap-2 sm:max-w-[220px]">
+                            <label className="text-sm font-medium text-slate-700">Time limit (minutes)</label>
+                            <Input
+                                type="number"
+                                min={1}
+                                max={180}
+                                value={timeLimitMinutes}
+                                onChange={(event) =>
+                                    setTimeLimitMinutes(Math.min(180, Math.max(1, Number(event.target.value) || 1)))
+                                }
                             />
                         </div>
 
-                        <div>
-                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Questions (One per line)</label>
-                            <textarea
-                                value={rawQuestionsText} onChange={(e) => setRawQuestionsText(e.target.value)}
-                                placeholder="1. What is React?\n2. Explain REST API." rows={8}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none"
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Questions</label>
+                            <Textarea
+                                value={rawQuestionsText}
+                                onChange={(event) => setRawQuestionsText(event.target.value)}
+                                placeholder={"Paste questions here, one per line.\nExample:\n1. What is React?\n2. Explain REST API.\n3. What is database indexing?"}
+                                className="min-h-[280px] font-mono text-sm"
                             />
+                            <p className="text-xs text-slate-500">
+                                {parseRawQuestions(rawQuestionsText).length} question(s). LLM will generate options and correct answers before the email is sent.
+                            </p>
                         </div>
                     </div>
 
-                    <DialogFooter className="gap-3">
-                        <button className="btn-glass text-sm" onClick={closeScreeningDialog}>Cancel</button>
-                        <button onClick={handleSendScreeningTest} disabled={isSendingScreening} className="btn-dribbble text-sm">
-                            {isSendingScreening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send Test
-                        </button>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={closeScreeningDialog}>
+                            Cancel
+                        </Button>
+                        <Button type="button" onClick={handleSendScreeningTest} disabled={isSendingScreening}>
+                            {isSendingScreening ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Send className="h-4 w-4" />
+                            )}
+                            Send Screening Test
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

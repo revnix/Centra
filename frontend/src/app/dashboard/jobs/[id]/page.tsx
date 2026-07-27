@@ -652,7 +652,10 @@ export default function DashboardJobDetailsPage({ params }: { params: Promise<{ 
                                     onClick={async () => {
                                         setIsPublishing(true);
                                         try {
-                                            const jobUrl = `${window.location.origin}/jobs/${job.id}/apply`;
+                                            // Use NEXT_PUBLIC_APP_URL (public domain) when set so LinkedIn makes it clickable.
+                                            // Falls back to window.location.origin for local dev.
+                                            const appBase = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+                                            const jobUrl = `${appBase}/jobs/${job.id}/apply`;
                                             const publishPromises = selectedAccounts.map(async (accId) => {
                                                 const account = connectedAccounts.find(a => a.id === accId);
                                                 if (account?.platform === 'linkedin') {
