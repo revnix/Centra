@@ -24,6 +24,13 @@ export interface EmailSummary {
     unread: boolean;
 }
 
+export interface EmailAttachment {
+    filename: string;
+    attachment_id: string;
+    mime_type: string;
+    size: number;
+}
+
 export interface EmailMessage {
     id: string;
     thread_id: string;
@@ -33,6 +40,7 @@ export interface EmailMessage {
     body: string;
     body_html?: string;
     date: string;
+    attachments?: EmailAttachment[];
 }
 
 export interface EmailThread {
@@ -59,6 +67,9 @@ export const gmailApi = {
     getStatus: () =>
         apiClient.get<GmailStatus>('/gmail/status'),
 
+    disconnect: () =>
+        apiClient.post<{ message: string }>('/gmail/disconnect'),
+
     getAliases: () =>
         apiClient.get<{ aliases: GmailAliasInfo[] }>('/gmail/aliases'),
 
@@ -77,6 +88,21 @@ export const gmailApi = {
 
     getThread: (threadId: string) =>
         apiClient.get<EmailThread>(`/gmail/thread/${threadId}`),
+
+    downloadAttachment: async (messageId: string, attachmentId: string, filename: string): Promise<void> => {
+        const blob = await apiClient.get<Blob>(
+            `/gmail/attachment/${messageId}/${attachmentId}`,
+            { params: { filename }, responseType: 'blob' }
+        );
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    },
 
     sendEmail: (payload: SendEmailPayload & { attachments?: File[] }) => {
         const form = new FormData();
@@ -118,4 +144,19 @@ export const gmailApi = {
                 reason?: string;
             }>;
         }>(`/gmail/sync-applications?days=${days}`, {}),
+
+    importSingleApplication: (messageId: string, jobId?: number) => {
+        const params = new URLSearchParams({ message_id: messageId });
+        if (jobId !== undefined) params.set('job_id', String(jobId));
+        return apiClient.post<{
+            success: boolean;
+            application_id: number;
+            candidate_name: string;
+            candidate_email: string;
+            job_title: string;
+            job_id: number;
+            resume_uploaded: boolean;
+            message: string;
+        }>(`/gmail/import-single-application?${params.toString()}`, {});
+    },
 };

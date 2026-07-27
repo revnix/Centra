@@ -1435,7 +1435,7 @@ ${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\
                                                         ) : (
                                                             <>
                                                                 <Check className="mr-2 h-5 w-5" />
-                                                                Save to DB
+                                                                Save Job
                                                             </>
                                                         )}
                                                     </Button>

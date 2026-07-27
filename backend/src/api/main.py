@@ -158,25 +158,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error("Error while terminating background process: %s", e)
 
-
-
-    # Clean up subprocess on application shutdown
-    if proc is not None:
-        logger.info("Stopping background reply polling service subprocess...")
-        try:
-            proc.terminate()
-            proc.wait(timeout=3)
-            logger.info("Background reply polling service subprocess terminated successfully.")
-        except subprocess.TimeoutExpired:
-            logger.warning("Subprocess did not terminate; killing it...")
-            proc.kill()
-            proc.wait()
-        except Exception as e:
-            logger.error("Error while terminating background process: %s", e)
-
-
-
-
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",

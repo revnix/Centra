@@ -353,19 +353,22 @@ class OnboardingService:
             if file_obj:
                 try:
                     url = await FileService.save_onboarding_document(file_obj, application_id, doc_type, candidate_name)
-                    setattr(onboarding, field_name, url)
-                    
-                    # Save metadata to onboarding_documents table
-                    file_ext = file_obj.filename.split('.')[-1].lower() if file_obj.filename else "file"
-                    # Extract the renamed filename from the URL for display
-                    renamed_filename = url.split('/')[-1] if url else file_obj.filename
-                    doc_meta = OnboardingDocument(
-                        application_id=application_id,
-                        file_name=renamed_filename,
-                        file_url=url,
-                        file_type=file_ext
-                    )
-                    self.db.add(doc_meta)
+                    if url:
+                        setattr(onboarding, field_name, url)
+                        
+                        # Save metadata to onboarding_documents table
+                        file_ext = file_obj.filename.split('.')[-1].lower() if file_obj.filename else "file"
+                        # Extract the renamed filename from the URL for display
+                        renamed_filename = url.split('/')[-1]
+                        doc_meta = OnboardingDocument(
+                            application_id=application_id,
+                            file_name=renamed_filename,
+                            file_url=url,
+                            file_type=file_ext
+                        )
+                        self.db.add(doc_meta)
+                    else:
+                        logger.warning(f"Skipping {doc_type} document metadata — upload returned no URL (Cloudinary may be unavailable)")
                 except ValueError as e:
                     raise HTTPException(status_code=400, detail=str(e))
 
@@ -559,3 +562,19 @@ class OnboardingService:
         await self.db.commit()
         await self.db.refresh(onboarding)
         return onboarding
+
+    async def delete_onboarding(self, application_id: int) -> bool:
+        onboarding = await self.get_by_application(application_id)
+        if not onboarding:
+            raise HTTPException(status_code=404, detail="Onboarding record not found")
+            
+        await self.db.delete(onboarding)
+        
+        app_result = await self.db.execute(select(Application).where(Application.id == application_id))
+        app = app_result.scalars().first()
+        if app and app.status == ApplicationStatus.HIRED:
+            app.status = ApplicationStatus.APPLIED
+            
+        await self.db.commit()
+        return True
+

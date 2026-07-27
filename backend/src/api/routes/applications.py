@@ -433,6 +433,90 @@ async def send_interview_invite(
     }
 
 
+@router.post("/{application_id}/send-email")
+async def send_candidate_email(
+    application_id: int,
+    subject: str = Form(...),
+    message: str = Form(...),
+    cc: str = Form(default=""),
+    bcc: str = Form(default=""),
+    attachments: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """HR sends a free-form email to the candidate from the pipeline board (e.g. Offer
+    Extended / Offer Accepted). Purely a communication tool — it never changes the
+    application's pipeline stage, unlike /invite."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate))
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    candidate = application.candidate
+    if not candidate or not candidate.email:
+        raise HTTPException(status_code=404, detail="Candidate has no email on file")
+
+    if not subject.strip():
+        raise HTTPException(status_code=400, detail="Subject is required")
+    if not message.strip():
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    def parse_recipients(raw: str) -> list[str]:
+        return [addr.strip() for addr in raw.replace(";", ",").split(",") if addr.strip()]
+
+    cc_list = parse_recipients(cc)
+    bcc_list = parse_recipients(bcc)
+
+    email_attachments = []
+    for f in (attachments or []):
+        if f.filename:
+            content = await f.read()
+            email_attachments.append({"filename": f.filename, "content": list(content)})
+
+    import html as html_lib
+    escaped_body = html_lib.escape(message).replace("\n", "<br/>")
+    html_body = f"""
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px;
+                margin: auto; padding: 30px; border: 1px solid #e2e8f0;
+                border-radius: 12px; color: #2d3748; line-height: 1.7;">
+        {escaped_body}
+    </div>
+    """
+
+    sent = await send_email(
+        candidate.email,
+        subject,
+        html_body,
+        attachments=email_attachments if email_attachments else None,
+        cc=cc_list or None,
+        bcc=bcc_list or None,
+    )
+
+    if sent:
+        application.email_delivery_status = "SENT"
+        attach_note = f" | {len(email_attachments)} attachment(s)" if email_attachments else ""
+        cc_note = f" | cc: {', '.join(cc_list)}" if cc_list else ""
+        application.email_logs = f"Custom email sent by HR. Subject: {subject}{attach_note}{cc_note}"
+    else:
+        application.email_delivery_status = "FAILED"
+        application.email_logs = f"Custom email failed. Subject: {subject}"
+
+    db.add(application)
+    await db.commit()
+
+    if not sent:
+        raise HTTPException(status_code=500, detail="Email delivery failed. Please try again.")
+
+    return {"success": True, "message": f"Email sent to {candidate.email}"}
+
+
 class UpdateStatusRequest(BaseModel):
     status: str
 

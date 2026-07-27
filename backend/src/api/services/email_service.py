@@ -18,6 +18,8 @@ async def send_email(
     subject: str,
     html_content: str,
     attachments: list | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
 ) -> str | None:
     """
     Centralized email sending function using Resend API.
@@ -35,6 +37,8 @@ async def send_email(
     effective_to = settings.EMAIL_TEST_OVERRIDE or to_email
     if settings.EMAIL_TEST_OVERRIDE and settings.EMAIL_TEST_OVERRIDE != to_email:
         subject = f"[TEST → {to_email}] {subject}"
+        # Never leak real cc/bcc recipients while a test override is active.
+        cc, bcc = None, None
 
     try:
         params = {
@@ -45,6 +49,10 @@ async def send_email(
         }
         if attachments:
             params["attachments"] = attachments
+        if cc:
+            params["cc"] = cc
+        if bcc:
+            params["bcc"] = bcc
 
         # Route replies to the actual HR inbox — the FROM domain (Resend sender)
         # has no MX records, so replies would bounce without this.

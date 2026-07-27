@@ -85,6 +85,11 @@ class Application(Base):
     # Email Delivery Status
     email_delivery_status = Column(String(50), default="PENDING", index=True, comment="Email status: PENDING, SENT, FAILED, SKIPPED")
     email_logs = Column(JSON, nullable=True, comment="Failure reasons or SMTP logs")
+
+    # Gmail import tracking — set when this application was created by the
+    # /gmail/sync-applications importer, so the same email is never re-imported
+    # as a duplicate if a later sync matches it to a different job.
+    gmail_message_id = Column(String(255), nullable=True, unique=True, index=True, comment="Gmail message ID this application was imported from, if any")
     
     # Interview Tracking
     interview_invitation_status = Column(String(50), default="NOT_SENT", index=True, comment="Status of interview invite: NOT_SENT, SENT, DELIVERED, OPENED, RESPONDED, NOT_RESPONDED, DECLINED")
