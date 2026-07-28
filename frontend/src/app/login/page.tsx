@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Sparkles, Loader2, Eye, EyeOff, AlertCircle, ArrowRight } from "lucide-react";
+import { Sparkles, Loader2, Eye, EyeOff, AlertCircle, ArrowRight, Zap } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 
 export default function LoginPage() {
@@ -47,8 +47,8 @@ export default function LoginPage() {
         <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-violet-500/10 blur-3xl pointer-events-none" />
 
         <Link href="/" className="flex items-center gap-2.5 relative z-10">
-          <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center">
-            <Sparkles className="w-4.5 h-4.5 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
+            <Zap className="w-5 h-5 text-white fill-white" />
           </div>
           <span className="text-xl font-bold tracking-tight text-white">Evalyn</span>
         </Link>
@@ -83,8 +83,8 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Logo mobile */}
           <Link href="/" className="flex items-center gap-2.5 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white fill-white" />
             </div>
             <span className="text-lg font-bold text-gray-900">Evalyn</span>
           </Link>

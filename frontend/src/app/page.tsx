@@ -138,6 +138,15 @@ export default function LandingPage() {
     return () => clearInterval(timer);
   }, []);
 
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Scroll listener for sticky navbar effect
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
@@ -152,20 +161,45 @@ export default function LandingPage() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-gradient-to-tr from-blue-200/40 via-sky-100/40 to-transparent blur-[140px] pointer-events-none -z-10" />
       <div className="absolute top-[800px] right-0 w-[600px] h-[600px] bg-blue-100/40 blur-[160px] pointer-events-none -z-10" />
 
-      {/* Header Navigation */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5 text-white" />
+      {/* Header Navigation — Scroll-aware floating navbar */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${
+          isScrolled
+            ? "py-2 px-4"
+            : "py-0 px-0"
+        }`}
+      >
+        <div
+          className={`mx-auto transition-all duration-300 ease-in-out ${
+            isScrolled
+              ? "max-w-5xl rounded-2xl bg-white/95 backdrop-blur-2xl shadow-xl shadow-slate-900/10 border border-slate-200/80 px-5 h-13"
+              : "max-w-7xl bg-white/90 backdrop-blur-xl border-b border-slate-200 px-6 h-16"
+          } flex items-center justify-between`}
+        >
+          <a
+            href="#hero"
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="flex items-center gap-3 group cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+              <Zap className="w-5 h-5 text-white fill-white" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-black text-slate-900 tracking-tight leading-none">Evalyn<span className="text-blue-600">.ai</span></span>
-              <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase mt-0.5">Recruitment OS</span>
+              <span className="text-xl font-black text-slate-900 tracking-tight leading-none group-hover:text-blue-600 transition-colors">Evalyn<span className="text-blue-600">.ai</span></span>
+              <span
+                className={`text-[10px] font-bold text-slate-500 tracking-widest uppercase mt-0.5 transition-all duration-300 ${
+                  isScrolled ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
+                }`}
+              >
+                Recruitment OS
+              </span>
             </div>
-          </Link>
+          </a>
 
-          <nav className="hidden md:flex items-center gap-8 text-xs font-bold text-slate-600 uppercase tracking-wider">
+          <nav className="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600 uppercase tracking-wider">
             <a href="#pipeline-demo" className="hover:text-blue-600 transition-colors">The Pipeline</a>
             <a href="#agents-flow" className="hover:text-blue-600 transition-colors">AI Journey</a>
             <a href="#ai-drive-move" className="hover:text-blue-600 transition-colors">AI Next Move</a>
@@ -175,22 +209,22 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
-              <button 
-                onClick={() => router.push("/dashboard")} 
+              <button
+                onClick={() => router.push("/dashboard")}
                 className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
               >
                 Go to Dashboard <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
               <>
-                <button 
-                  onClick={() => router.push("/login")} 
+                <button
+                  onClick={() => router.push("/login")}
                   className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-transparent transition-all"
                 >
                   Sign In
                 </button>
-                <button 
-                  onClick={() => router.push("/signup")} 
+                <button
+                  onClick={() => router.push("/signup")}
                   className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
                 >
                   Get Started <ArrowRight className="w-3.5 h-3.5" />
@@ -201,45 +235,166 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* HERO SECTION */}
-      <section className="pt-24 pb-20 px-6 text-center">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold bg-blue-50 border border-blue-200 text-blue-700 shadow-sm">
-            <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
-            <span>AI-Driven Candidate Evaluation & HR Automation</span>
-          </div>
+      {/* HERO SECTION — Writesonic-style, single viewport */}
+      <section id="hero" className="relative pt-20 pb-6 px-6 text-center overflow-hidden min-h-screen flex flex-col justify-center">
 
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 leading-[1.1]">
-            Hire Top 1% Talent <br />
-            <span className="bg-gradient-to-r from-blue-600 via-blue-700 to-slate-900 bg-clip-text text-transparent">
-              10× Faster With AI Intelligence
+        {/* Diagonal line pattern background */}
+        <div className="absolute inset-0 pointer-events-none -z-10 opacity-25"
+          style={{
+            backgroundImage: `repeating-linear-gradient(
+              -45deg,
+              transparent,
+              transparent 28px,
+              rgba(37,99,235,0.07) 28px,
+              rgba(37,99,235,0.07) 29px
+            )`
+          }}
+        />
+
+        {/* Announcement bar */}
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold bg-white border border-blue-200 text-slate-700 shadow-sm">
+            <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black tracking-wide">NEW</span>
+            <span>AI Recruitment OS — Gmail &amp; LangGraph agents</span>
+            <ChevronRight className="w-3 h-3 text-blue-600" />
+          </div>
+        </div>
+
+        {/* Main heading */}
+        <h1 className="text-3xl sm:text-4xl lg:text-[3.5rem] font-bold tracking-tight text-slate-900 leading-[1.15] mb-3 font-[family-name:var(--font-geist-sans)]">
+          Hire top talent from{" "}
+          <span className="inline-flex items-center gap-2 align-middle mx-1">
+            <span className="inline-flex w-9 h-9 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-xl bg-blue-600 items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </span>
-          </h1>
+          </span>{" "}
+          AI recruitment.
+        </h1>
 
-          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto font-medium leading-relaxed">
-            Automate resume screening, calculate precise match scores, dispatch technical screening invitations, and manage candidate onboarding in one unified platform.
-          </p>
+        {/* Subtitle */}
+        <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto font-medium leading-relaxed mb-5">
+          See where manual hiring slows you down. Fix it with AI screening, smart pipelines, and automated onboarding.
+          Prove the lift in <span className="text-slate-800 font-semibold">quality</span>,{" "}
+          <span className="text-slate-800 font-semibold">pipeline speed</span>, and{" "}
+          <span className="text-slate-800 font-semibold">retention</span>.
+        </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <button 
-              onClick={() => router.push(isLoggedIn ? "/dashboard" : "/signup")} 
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl shadow-blue-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
-            >
-              {isLoggedIn ? "Open Dashboard" : "Start Hiring Free"} 
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => router.push("/login")} 
-              className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white border border-slate-300 text-slate-700 hover:text-slate-900 hover:border-slate-400 font-bold text-sm shadow-sm transition-all"
-            >
-              Existing Account Sign In
-            </button>
-          </div>
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+          <button
+            onClick={() => router.push(isLoggedIn ? "/dashboard" : "/signup")}
+            className="w-full sm:w-auto px-7 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-lg shadow-blue-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            {isLoggedIn ? "Open Dashboard" : "Book a Demo"}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => router.push(isLoggedIn ? "/dashboard" : "/signup")}
+            className="w-full sm:w-auto px-7 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:text-slate-900 hover:border-slate-400 font-bold text-sm shadow-sm hover:shadow-md transition-all"
+          >
+            {isLoggedIn ? "Go to Dashboard" : "Start Hiring Free"}
+          </button>
+        </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-slate-600 font-semibold pt-4">
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-600" /> Automated CV Parsing</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-600" /> GPT-4 Candidate Match Scoring</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-600" /> Zero Setup Required</span>
+        {/* Before / After Comparison Panel — compact */}
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            {/* BEFORE card */}
+            <div className="relative p-5 rounded-2xl bg-white border border-slate-200 shadow-lg text-left overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-transparent pointer-events-none rounded-2xl" />
+              <div className="relative space-y-3.5">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Before</span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    −38% fill rate
+                  </span>
+                </div>
+                {/* Rows */}
+                <div className="space-y-2">
+                  {[
+                    { name: "Sana Mirza", role: "Product Manager", status: "Pending Review", days: "9d" },
+                    { name: "Bilal Raza", role: "Backend Engineer", status: "Pending Review", days: "14d" },
+                    { name: "Hira Noor", role: "UX Designer", status: "On Hold", days: "21d" },
+                  ].map((c) => (
+                    <div key={c.name} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 flex-shrink-0">
+                          {c.name.split(" ").map((n: string) => n[0]).join("")}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                          <p className="text-[10px] text-slate-400">{c.role}</p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">{c.status}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{c.days} idle</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Footer note */}
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                  <p className="text-[11px] text-red-700 font-medium">47 CV backlog · avg <span className="font-black">34 day</span> hire time</p>
+                </div>
+              </div>
+            </div>
+
+            {/* AFTER card */}
+            <div className="relative p-5 rounded-2xl bg-white border border-blue-200 shadow-lg text-left overflow-hidden ring-2 ring-blue-500/15">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent pointer-events-none rounded-2xl" />
+              <div className="relative space-y-3.5">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black text-slate-600 uppercase tracking-widest">After</span>
+                    <span className="text-[10px] font-black text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md">✦ Evalyn</span>
+                  </div>
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    +71% fill rate
+                  </span>
+                </div>
+                {/* Rows */}
+                <div className="space-y-2">
+                  {[
+                    { name: "Abdullah Khan", role: "Senior GenAI Engineer", score: 96, skills: ["LangChain", "FastAPI"], status: "Auto-Shortlisted", avatar: "AK", bg: "from-blue-600 to-blue-800" },
+                    { name: "Muhammad Abriq", role: "AI Developer", score: 91, skills: ["PyTorch", "Docker"], status: "Interview Sent", avatar: "MA", bg: "from-sky-600 to-blue-700" },
+                    { name: "Umer Javed", role: "AI/ML Developer", score: 88, skills: ["FastAPI", "REST APIs"], status: "Screening", avatar: "UJ", bg: "from-blue-700 to-slate-800" },
+                  ].map((c) => (
+                    <div key={c.name} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${c.bg} flex items-center justify-center text-[10px] font-black text-white flex-shrink-0`}>
+                          {c.avatar}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {c.skills.map((s: string) => (
+                              <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 font-bold">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-black text-blue-600">⚡{c.score}%</p>
+                        <p className="text-[9px] font-bold text-emerald-600 mt-0.5">{c.status}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Footer note */}
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                  <CheckCircle className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                  <p className="text-[11px] text-blue-800 font-medium">47 CVs scored in <span className="font-black">4 min</span> · avg <span className="font-black">6 day</span> hire time</p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -1215,7 +1370,9 @@ export default function LandingPage() {
       <footer className="py-8 bg-white border-t border-slate-200 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">E</div>
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
+              <Zap className="w-4 h-4 text-white fill-white" />
+            </div>
             <span className="font-bold text-slate-900">Evalyn AI Recruitment OS</span>
           </div>
           <p>© 2026 Evalyn HR Systems. All rights reserved.</p>

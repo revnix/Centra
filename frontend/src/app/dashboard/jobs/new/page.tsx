@@ -746,7 +746,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                             <FormItem>
                                                 <FormLabel>Type</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                                    <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
                                                     <SelectContent>
                                                         <SelectItem value="full-time">Full-time</SelectItem>
                                                         <SelectItem value="part-time">Part-time</SelectItem>
@@ -755,6 +755,27 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                         <SelectItem value="freelance">Freelance</SelectItem>
                                                         <SelectItem value="temporary">Temporary</SelectItem>
                                                         <SelectItem value="volunteer">Volunteer</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form1.control}
+                                        name="experienceLevel"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Experience Required</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="junior">Junior</SelectItem>
+                                                        <SelectItem value="mid">Mid-Level</SelectItem>
+                                                        <SelectItem value="senior">Senior</SelectItem>
+                                                        <SelectItem value="lead">Lead / Principal</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />
@@ -773,26 +794,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                         )}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form1.control}
-                                        name="experienceLevel"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Experience Required</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="junior">Junior</SelectItem>
-                                                        <SelectItem value="mid">Mid-Level</SelectItem>
-                                                        <SelectItem value="senior">Senior</SelectItem>
-                                                        <SelectItem value="lead">Lead / Principal</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                <div>
                                     <FormField
                                         control={form1.control}
                                         name="requiredSkills"

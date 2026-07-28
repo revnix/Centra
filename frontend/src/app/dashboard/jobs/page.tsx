@@ -94,18 +94,6 @@ export default function JobsPage() {
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Job Postings</h1>
           <p className="text-sm text-slate-500 mt-1">Manage {jobs.length} positions across your organization.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/generated-jobs">
-            <button className="btn-glass flex items-center gap-2 text-sm">
-              <Sparkles className="w-4 h-4 text-indigo-500" /> AI Generator
-            </button>
-          </Link>
-          <Link href="/dashboard/jobs/new">
-            <button className="btn-dribbble text-sm">
-              <Plus className="w-4 h-4" /> New Posting
-            </button>
-          </Link>
-        </div>
       </div>
 
       {/* Metric Cards */}

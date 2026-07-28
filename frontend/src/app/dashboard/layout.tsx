@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Layers, Briefcase, Users, UserCheck, Inbox,
-  Share2, Shield, LogOut, ChevronLeft, ChevronRight, Search, Command, Bell, Zap, ChevronDown
+  Share2, Shield, LogOut, ChevronLeft, ChevronRight, Search, Command, Bell, Zap, ChevronDown, Sparkles, Plus
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -25,7 +25,15 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',             label: 'Overview',     icon: LayoutDashboard },
   { href: '/dashboard/pipeline',    label: 'Pipeline',     icon: Layers },
-  { href: '/dashboard/jobs',        label: 'Jobs',         icon: Briefcase },
+  {
+    label: 'Jobs',
+    icon: Briefcase,
+    children: [
+      { href: '/dashboard/jobs/new',       label: 'Create New Job',     icon: Plus },
+      { href: '/dashboard/jobs',           label: 'All Jobs',           icon: Briefcase },
+      { href: '/dashboard/generated-jobs', label: 'AI Generated Jobs', icon: Sparkles },
+    ],
+  },
   {
     label: 'Applications',
     icon: Users,
@@ -257,12 +265,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-2 border-white"></span>
               </button>
-              
-              <Link href="/dashboard/jobs/new">
-                <button className="btn-dribbble text-sm">
-                  New Posting
-                </button>
-              </Link>
             </div>
           </header>
         </div>

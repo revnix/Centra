@@ -37,6 +37,78 @@ export default function DashboardHome() {
     return list.slice(0, 5);
   }, [applications, filterStage]);
 
+  const formatTimeAgo = (dateInput?: string | Date): string => {
+    if (!dateInput) return 'Recently';
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return 'Recently';
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffInSeconds < 60) return 'Just now';
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const activityLogs = useMemo(() => {
+    const logs: Array<{ id: string; title: string; time: string; icon: any; date: Date }> = [];
+
+    // Process Applications into Activity items
+    applications.forEach((app: Application) => {
+      const candName = app.candidate?.full_name || 'Candidate';
+      const jobTitle = app.job?.title || 'Position';
+      const dateStr = app.created_at || app.applied_at;
+      const dateObj = dateStr ? new Date(dateStr) : new Date(0);
+
+      const statusUpper = (app.status || '').toUpperCase();
+      if (statusUpper === 'HIRED') {
+        logs.push({
+          id: `app-hired-${app.id}`,
+          title: `${candName} hired for ${jobTitle}`,
+          time: formatTimeAgo(dateStr),
+          icon: CheckCircle2,
+          date: dateObj,
+        });
+      } else if (statusUpper.includes('INTERVIEW')) {
+        logs.push({
+          id: `app-interview-${app.id}`,
+          title: `Interview scheduled with ${candName}`,
+          time: formatTimeAgo(dateStr),
+          icon: Users,
+          date: dateObj,
+        });
+      } else {
+        logs.push({
+          id: `app-screened-${app.id}`,
+          title: `AI Screened ${candName}`,
+          time: formatTimeAgo(dateStr),
+          icon: Zap,
+          date: dateObj,
+        });
+      }
+    });
+
+    // Process Jobs into Activity items
+    jobs.forEach((job: Job) => {
+      const dateStr = job.created_at;
+      const dateObj = dateStr ? new Date(dateStr) : new Date(0);
+      logs.push({
+        id: `job-created-${job.id}`,
+        title: `Job Posting: ${job.title}`,
+        time: formatTimeAgo(dateStr),
+        icon: Briefcase,
+        date: dateObj,
+      });
+    });
+
+    // Sort descending by date
+    logs.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return logs.slice(0, 5);
+  }, [applications, jobs]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -209,17 +281,17 @@ export default function DashboardHome() {
           <div className="panel-elevated p-6 bg-slate-900 text-white border-none shadow-[0_10px_40px_-10px_rgba(37,99,235,0.4)]">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
+                <Zap className="w-5 h-5 text-white fill-white" />
               </div>
               <div>
                 <h3 className="font-bold text-lg text-white">AI Copilot Active</h3>
-                <p className="text-xs text-blue-200">Evaluating 12 new resumes</p>
+                <p className="text-xs text-blue-200">Evaluating {metrics.totalApps} applications</p>
               </div>
             </div>
             <div className="w-full bg-white/10 rounded-full h-1.5 mb-2">
-              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '65%' }}></div>
+              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${metrics.avgScore > 0 ? metrics.avgScore : 100}%` }}></div>
             </div>
-            <p className="text-xs text-blue-200/70 text-right">65% Processed</p>
+            <p className="text-xs text-blue-200/70 text-right">{metrics.avgScore > 0 ? `${metrics.avgScore}% Evaluated` : '100% Active'}</p>
           </div>
 
           <div className="panel-elevated p-6">
@@ -228,25 +300,25 @@ export default function DashboardHome() {
               <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-5 h-5" /></button>
             </div>
             
-            <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-              {[
-                { icon: Zap, title: "AI Screened John Doe", time: "10 min ago", color: "bg-blue-50 text-blue-600" },
-                { icon: Briefcase, title: "New Job: Senior Dev", time: "2 hrs ago", color: "bg-blue-50 text-blue-600" },
-                { icon: CheckCircle2, title: "Sarah accepted offer", time: "5 hrs ago", color: "bg-blue-50 text-blue-600" },
-              ].map((item, i) => (
-                <div key={i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-white ${item.color} shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10`}>
-                    <item.icon className="w-4 h-4" />
+            {activityLogs.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-4">No recent activity logged.</p>
+            ) : (
+              <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                {activityLogs.map((item, i) => (
+                  <div key={item.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-50 text-blue-600 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                      <item.icon className="w-4 h-4" />
+                    </div>
+                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-900 truncate" title={item.title}>{item.title}</h4>
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-1">
+                        <Clock className="w-3 h-3" /> {item.time}
+                      </span>
+                    </div>
                   </div>
-                  <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-sm">
-                    <h4 className="text-sm font-bold text-slate-900">{item.title}</h4>
-                    <span className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3" /> {item.time}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
