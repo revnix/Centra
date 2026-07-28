@@ -110,3 +110,5 @@ class Application(Base):
     candidate = relationship("User", backref="applications")
     interview_session = relationship("InterviewSession", back_populates="application", uselist=False, cascade="all, delete-orphan")
     screening_test = relationship("ScreeningTest", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    interview_schedule = relationship("InterviewSchedule", back_populates="application", uselist=False, cascade="all, delete-orphan")
+

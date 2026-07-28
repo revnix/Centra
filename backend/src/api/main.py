@@ -25,6 +25,7 @@ from src.api.routes import (
     gmail,
     integrations,
     interviews,
+    interview_schedules,
     jobs,
     langgraph,
     onboarding,
@@ -229,6 +230,10 @@ app.include_router(langgraph.router, tags=["langgraph"])
 
 # Smart HR Inbox
 app.include_router(inbox.router, prefix=f"{settings.API_V1_PREFIX}/inbox", tags=["inbox"])
+
+# Interview Scheduling & Feedback Panel
+app.include_router(interview_schedules.router, prefix=f"{settings.API_V1_PREFIX}", tags=["interview-schedules"])
+
 
 
 
