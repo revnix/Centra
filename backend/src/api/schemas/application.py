@@ -57,6 +57,7 @@ class GuestApplicationCreate(BaseModel):
 from src.api.schemas.user import UserResponse
 from src.api.schemas.job import JobResponse
 from src.api.schemas.interview import InterviewSessionResponse
+from src.api.schemas.interview_schedule import InterviewScheduleSummary
 
 class ScreeningTestSummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -91,6 +92,7 @@ class ApplicationResponse(ApplicationBase):
     job: Optional[JobResponse] = None
     interview_session: Optional[InterviewSessionResponse] = None
     screening_test: Optional[ScreeningTestSummaryResponse] = None
+    interview_schedule: Optional[InterviewScheduleSummary] = None
 
     @field_validator('email_logs', mode='before')
     @classmethod
