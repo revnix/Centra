@@ -283,7 +283,7 @@ export default function PremiumKanbanPipelinePage() {
 
               {/* Column Candidate Cards List */}
               <div className="p-3 space-y-4 flex-1 overflow-y-auto">
-                {isLoading ? (
+                {(isLoading && (!applications || applications.length === 0)) ? (
                   <>
                     <SkeletonCard />
                     <SkeletonCard />

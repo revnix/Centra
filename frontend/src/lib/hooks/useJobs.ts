@@ -25,7 +25,10 @@ export function useJobs(params?: {
     return useQuery({
         queryKey: jobKeys.list(params || {}),
         queryFn: () => jobsApi.getAll(params),
-        staleTime: 30_000,
+        staleTime: 5 * 60_000,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        placeholderData: (prev) => prev,
     });
 }
 

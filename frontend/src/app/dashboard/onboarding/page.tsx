@@ -23,6 +23,7 @@ export default function AdminOnboardingDashboard() {
         staleTime: 5 * 60_000,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
+        placeholderData: (prev: any) => prev,
     });
     const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
     const { data: detailedInfo = null, isFetching: detailLoading } = useQuery({
@@ -333,7 +334,7 @@ export default function AdminOnboardingDashboard() {
             )}
 
             <div className="space-y-6">
-                    {isLoading ? (
+                    {(isLoading && (!onboardings || onboardings.length === 0)) ? (
                         Array.from({ length: 4 }).map((_, i) => (
                             <div key={i} className="panel-elevated p-6 rounded-2xl border border-slate-200/80 bg-white animate-pulse space-y-5">
                                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">

@@ -23,6 +23,7 @@ export function useApplications() { // ✨ NEW - OPTIMIZATION
         refetchInterval: 20_000, // Poll to auto-update candidate statuses
         refetchOnMount: false,
         refetchOnWindowFocus: false,
+        placeholderData: (prev) => prev,
     });
 }
 
