@@ -156,25 +156,23 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden">
-      
+
       {/* Soft Blue Ambient Glows */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-gradient-to-tr from-blue-200/40 via-sky-100/40 to-transparent blur-[140px] pointer-events-none -z-10" />
       <div className="absolute top-[800px] right-0 w-[600px] h-[600px] bg-blue-100/40 blur-[160px] pointer-events-none -z-10" />
 
       {/* Header Navigation — Scroll-aware floating navbar */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${
-          isScrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${isScrolled
             ? "py-2 px-4"
             : "py-0 px-0"
-        }`}
+          }`}
       >
         <div
-          className={`mx-auto transition-all duration-300 ease-in-out ${
-            isScrolled
+          className={`mx-auto transition-all duration-300 ease-in-out ${isScrolled
               ? "max-w-5xl rounded-2xl bg-white/95 backdrop-blur-2xl shadow-xl shadow-slate-900/10 border border-slate-200/80 px-5 h-13"
               : "max-w-7xl bg-white/90 backdrop-blur-xl border-b border-slate-200 px-6 h-16"
-          } flex items-center justify-between`}
+            } flex items-center justify-between`}
         >
           <a
             href="#hero"
@@ -190,9 +188,8 @@ export default function LandingPage() {
             <div className="flex flex-col">
               <span className="text-xl font-black text-slate-900 tracking-tight leading-none group-hover:text-blue-600 transition-colors">Evalyn<span className="text-blue-600">.ai</span></span>
               <span
-                className={`text-[10px] font-bold text-slate-500 tracking-widest uppercase mt-0.5 transition-all duration-300 ${
-                  isScrolled ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
-                }`}
+                className={`text-[10px] font-bold text-slate-500 tracking-widest uppercase mt-0.5 transition-all duration-300 ${isScrolled ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
+                  }`}
               >
                 Recruitment OS
               </span>
@@ -209,12 +206,20 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
-              >
-                Go to Dashboard <ArrowRight className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-transparent transition-all"
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => router.push("/signup")}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                >
+                  Create Account <ArrowRight className="w-4 h-4" />
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -227,7 +232,7 @@ export default function LandingPage() {
                   onClick={() => router.push("/signup")}
                   className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
                 >
-                  Get Started <ArrowRight className="w-3.5 h-3.5" />
+                  Create Account <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </>
             )}
@@ -289,10 +294,10 @@ export default function LandingPage() {
             <ArrowRight className="w-4 h-4" />
           </button>
           <button
-            onClick={() => router.push(isLoggedIn ? "/dashboard" : "/signup")}
+            onClick={() => router.push("/signup")}
             className="w-full sm:w-auto px-7 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:text-slate-900 hover:border-slate-400 font-bold text-sm shadow-sm hover:shadow-md transition-all"
           >
-            {isLoggedIn ? "Go to Dashboard" : "Start Hiring Free"}
+            Create a new account
           </button>
         </div>
 
@@ -362,15 +367,17 @@ export default function LandingPage() {
                 {/* Rows */}
                 <div className="space-y-2">
                   {[
-                    { name: "Abdullah Khan", role: "Senior GenAI Engineer", score: 96, skills: ["LangChain", "FastAPI"], status: "Auto-Shortlisted", avatar: "AK", bg: "from-blue-600 to-blue-800" },
-                    { name: "Muhammad Abriq", role: "AI Developer", score: 91, skills: ["PyTorch", "Docker"], status: "Interview Sent", avatar: "MA", bg: "from-sky-600 to-blue-700" },
-                    { name: "Umer Javed", role: "AI/ML Developer", score: 88, skills: ["FastAPI", "REST APIs"], status: "Screening", avatar: "UJ", bg: "from-blue-700 to-slate-800" },
+                    { name: "Abdullah Khan", role: "Senior GenAI Engineer", score: 96, skills: ["LangChain", "FastAPI"], status: "Auto-Shortlisted", photo: "/candidates/ak.jpg" },
+                    { name: "Muhammad Abriq", role: "AI Developer", score: 91, skills: ["PyTorch", "Docker"], status: "Interview Sent", photo: "/candidates/ma.jpg" },
+                    { name: "Umer Javed", role: "AI/ML Developer", score: 88, skills: ["FastAPI", "REST APIs"], status: "Screening", photo: "/candidates/uj.jpg" },
                   ].map((c) => (
                     <div key={c.name} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${c.bg} flex items-center justify-center text-[10px] font-black text-white flex-shrink-0`}>
-                          {c.avatar}
-                        </div>
+                        <img
+                          src={c.photo}
+                          alt={c.name}
+                          className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-slate-200 shadow-sm"
+                        />
                         <div>
                           <p className="text-xs font-bold text-slate-800">{c.name}</p>
                           <div className="flex items-center gap-1 mt-0.5">
@@ -432,7 +439,7 @@ export default function LandingPage() {
 
             <div className="relative pt-16 pb-8 px-2 select-none">
               <div className="absolute top-1/2 left-6 right-6 h-1.5 bg-slate-200 -translate-y-1/2 rounded-full" />
-              <div 
+              <div
                 className="absolute top-1/2 left-6 h-1.5 bg-gradient-to-r from-blue-600 via-sky-500 to-blue-800 -translate-y-1/2 rounded-full transition-all duration-700 shadow-md"
                 style={{ width: `calc(${((activeStep - 1) / 7) * 100}% - 1.5rem)` }}
               />
@@ -443,15 +450,14 @@ export default function LandingPage() {
                   const isPassed = activeStep > step.id;
 
                   return (
-                    <div 
-                      key={step.id} 
+                    <div
+                      key={step.id}
                       onClick={() => setActiveStep(step.id)}
                       className="flex flex-col items-center group cursor-pointer relative"
                     >
                       {step.candidate && (
-                        <div className={`absolute -top-16 transition-all duration-500 transform ${
-                          isActive ? "scale-105 -translate-y-1" : "scale-90 opacity-70"
-                        }`}>
+                        <div className={`absolute -top-16 transition-all duration-500 transform ${isActive ? "scale-105 -translate-y-1" : "scale-90 opacity-70"
+                          }`}>
                           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-slate-200 shadow-lg text-[11px] font-bold text-slate-800 whitespace-nowrap">
                             <div className={`w-4.5 h-4.5 rounded-full bg-gradient-to-tr ${step.candidate.bg} flex items-center justify-center text-[8px] font-black text-white`}>
                               {step.candidate.avatar}
@@ -464,19 +470,17 @@ export default function LandingPage() {
                         </div>
                       )}
 
-                      <span className={`text-[11px] font-mono font-bold mb-3 transition-colors ${
-                        isActive ? "text-blue-600 scale-110" : isPassed ? "text-slate-700" : "text-slate-400"
-                      }`}>
+                      <span className={`text-[11px] font-mono font-bold mb-3 transition-colors ${isActive ? "text-blue-600 scale-110" : isPassed ? "text-slate-700" : "text-slate-400"
+                        }`}>
                         {step.number}
                       </span>
 
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ${
-                        isActive
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ${isActive
                           ? "bg-blue-600 text-white ring-4 ring-blue-500/20 scale-125 shadow-lg shadow-blue-500/30"
                           : isPassed
-                          ? "bg-blue-50 text-blue-700 border border-blue-300"
-                          : "bg-white border border-slate-300 text-slate-400 group-hover:border-slate-400"
-                      }`}>
+                            ? "bg-blue-50 text-blue-700 border border-blue-300"
+                            : "bg-white border border-slate-300 text-slate-400 group-hover:border-slate-400"
+                        }`}>
                         {isPassed ? (
                           <Check className="w-4 h-4 text-blue-600" />
                         ) : (
@@ -485,19 +489,17 @@ export default function LandingPage() {
                       </div>
 
                       <div className="text-center mt-4 space-y-0.5">
-                        <p className={`text-xs font-bold transition-colors ${
-                          isActive ? "text-slate-900 font-extrabold" : "text-slate-600"
-                        }`}>
+                        <p className={`text-xs font-bold transition-colors ${isActive ? "text-slate-900 font-extrabold" : "text-slate-600"
+                          }`}>
                           {step.label}
                         </p>
                         <p className="text-[10px] text-slate-500 font-medium hidden sm:block">{step.sub}</p>
-                        
+
                         {step.humanGate && (
-                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider block mt-1 whitespace-nowrap ${
-                            isActive 
-                              ? "bg-blue-100 border border-blue-300 text-blue-800 animate-pulse" 
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider block mt-1 whitespace-nowrap ${isActive
+                              ? "bg-blue-100 border border-blue-300 text-blue-800 animate-pulse"
                               : "bg-slate-100 border border-slate-200 text-slate-600"
-                          }`}>
+                            }`}>
                             {step.humanGate}
                           </span>
                         )}
@@ -514,12 +516,12 @@ export default function LandingPage() {
       {/* 3-STEP REAL HIRING JOURNEY WITH CURVED ARROWS */}
       <section id="agents-flow" className="py-24 px-6 bg-slate-50 border-b border-slate-200">
         <div className="max-w-6xl mx-auto space-y-16">
-          
+
           <div className="text-center max-w-2xl mx-auto space-y-4">
             <h2 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight">
               <span className="relative inline-block px-4 py-1 rounded-2xl bg-blue-100 border border-blue-300 text-blue-800 rotate-[-2deg] mr-2">
                 AI Hiring
-              </span> 
+              </span>
               on autopilot
             </h2>
             <p className="text-base text-slate-600 font-medium">Watch how Evalyn AI autonomously processes applications from submission to onboarding.</p>
@@ -527,10 +529,10 @@ export default function LandingPage() {
 
           {/* STAGGERED LAYOUT WITH CURVED CONNECTING ARROWS */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative items-start pt-6">
-            
+
             {/* LEFT / MIDDLE COLUMN (Steps 1 & 2) */}
             <div className="lg:col-span-7 space-y-12 relative">
-              
+
               {/* STEP 1 (Top Left): Candidate Applies */}
               <div className="space-y-4 max-w-lg">
                 <div className="flex items-center gap-3">
@@ -635,7 +637,7 @@ export default function LandingPage() {
 
               {/* Step 3 Card */}
               <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xl space-y-5 relative">
-                
+
                 {/* Header Badge */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 text-xs">
                   <div className="flex items-center gap-2">
@@ -652,7 +654,7 @@ export default function LandingPage() {
 
                 {/* Automated Actions List */}
                 <div className="space-y-3 text-xs">
-                  
+
                   <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
                     <div className="flex items-center justify-between text-blue-700 font-bold text-[11px]">
                       <span className="flex items-center gap-1.5"><Code className="w-3.5 h-3.5 text-blue-600" /> Technical Test Dispatched</span>
@@ -690,7 +692,7 @@ export default function LandingPage() {
       {/* ODOO-STYLE SECTION: "LET AI DRIVE THE NEXT MOVE" */}
       <section id="ai-drive-move" className="py-24 px-6 bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto space-y-16">
-          
+
           <div className="text-center max-w-2xl mx-auto space-y-4">
             <h2 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight">
               Let AI drive the <span className="relative inline-block px-4 py-1 rounded-2xl bg-blue-100 border border-blue-300 text-blue-800 rotate-[-1deg]">
@@ -704,10 +706,10 @@ export default function LandingPage() {
 
           {/* ODOO STYLE USE CASE FLOW GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative pt-4">
-            
+
             {/* LEFT COLUMN: Use Case & Application Input Card */}
             <div className="lg:col-span-5 space-y-6 relative z-10">
-              
+
               {/* Heading matching Candidate Applies style */}
               <div className="space-y-1">
                 <h3 className="text-xl font-serif italic text-slate-900">Use case</h3>
@@ -718,13 +720,13 @@ export default function LandingPage() {
 
               {/* Application Form Card with extra top padding & curved arrow */}
               <div className="relative pt-12">
-                
+
                 {/* Curved Arrow & New Application Badge */}
                 <div className="absolute top-0 left-6 flex items-center gap-2 text-xs text-blue-700 font-bold">
                   <span className="px-3 py-1 rounded-full border border-blue-300 bg-blue-50 text-blue-800 shadow-sm font-extrabold">
                     New Application
                   </span>
-                  
+
                   {/* Swirly Curved SVG Arrow pointing to card */}
                   <svg className="w-12 h-10 text-blue-600 -ml-1 -mb-2" viewBox="0 0 60 50" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M 5 10 Q 45 5, 35 40" stroke="currentColor" strokeWidth="2.5" strokeDasharray="3 3" fill="none" strokeLinecap="round" />
@@ -763,7 +765,7 @@ export default function LandingPage() {
 
             {/* CENTER: AI Node with Light Blue Soft Circle */}
             <div className="lg:col-span-2 flex flex-col items-center justify-center relative py-8 lg:py-0">
-              
+
               {/* Soft Light Blue Circle */}
               <div className="w-36 h-36 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center shadow-lg shadow-blue-500/10 relative">
                 <div className="w-20 h-20 rounded-2xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-500/30 group hover:scale-110 transition-transform">
@@ -792,7 +794,7 @@ export default function LandingPage() {
 
             {/* RIGHT COLUMN: 3 AI Action Result Cards */}
             <div className="lg:col-span-5 space-y-4 relative z-10">
-              
+
               {/* Result Card 1: Assignee update */}
               <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-md space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -860,7 +862,7 @@ export default function LandingPage() {
       {/* INTERACTIVE SECTION 1: AI CANDIDATE SCREENING SIMULATOR */}
       <section id="screening-simulator" className="py-24 px-6">
         <div className="max-w-6xl mx-auto space-y-12">
-          
+
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="text-xs font-bold text-blue-600 uppercase tracking-widest flex items-center justify-center gap-1.5">
               <Brain className="w-4 h-4 text-blue-600" /> Multi-Modal AI Evaluation Engine
@@ -870,7 +872,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* Candidate Selector List Left Column */}
             <div className="lg:col-span-5 space-y-3">
               <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider px-1">Select Candidate Profile</h4>
@@ -880,17 +882,15 @@ export default function LandingPage() {
                   <div
                     key={cand.id}
                     onClick={() => setSelectedDemoCandidate(cand)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                      isSelected
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${isSelected
                         ? "bg-white border-blue-600 shadow-lg shadow-blue-500/10 ring-2 ring-blue-500/20"
                         : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white ${
-                          isSelected ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-200 text-slate-700"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white ${isSelected ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-200 text-slate-700"
+                          }`}>
                           {cand.name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -909,7 +909,7 @@ export default function LandingPage() {
 
             {/* AI Evaluation Report Inspector Right Column */}
             <div className="lg:col-span-7 p-6 rounded-3xl bg-white border border-slate-200 space-y-6 shadow-xl">
-              
+
               <div className="flex items-center justify-between pb-4 border-b border-slate-200">
                 <div>
                   <span className="text-[10px] font-mono font-bold text-blue-600 uppercase tracking-widest">AI Inspection Report</span>
@@ -924,7 +924,7 @@ export default function LandingPage() {
               {/* Match Score Breakdown Progress Bars */}
               <div className="space-y-3">
                 <p className="text-xs font-bold text-slate-700">Skill Breakdown Metrics</p>
-                
+
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-slate-600">Technical Skills Match</span>
@@ -978,7 +978,7 @@ export default function LandingPage() {
       {/* INTERACTIVE SECTION 2: AUTOMATION & INTEGRATIONS HUB */}
       <section id="automation-hub" className="py-24 px-6 bg-slate-100/70 border-y border-slate-200">
         <div className="max-w-6xl mx-auto space-y-12">
-          
+
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="text-xs font-bold text-blue-600 uppercase tracking-widest flex items-center justify-center gap-1.5">
               <Layers2 className="w-4 h-4 text-blue-600" /> Real-Time HR Orchestration Hub
@@ -989,7 +989,7 @@ export default function LandingPage() {
 
           {/* MAIN INTERACTIVE MAC-STYLE COMMAND WINDOW */}
           <div className="p-2 rounded-[32px] bg-white border border-slate-200 shadow-2xl space-y-0 overflow-hidden">
-            
+
             {/* WINDOW TOP BAR & TABS */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
@@ -1003,33 +1003,30 @@ export default function LandingPage() {
               <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-2xl">
                 <button
                   onClick={() => setActiveHubTab("gmail")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                    activeHubTab === "gmail"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeHubTab === "gmail"
                       ? "bg-white text-blue-600 shadow-md shadow-blue-500/10"
                       : "text-slate-600 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <Mail className="w-3.5 h-3.5" /> Gmail Sync
                 </button>
 
                 <button
                   onClick={() => setActiveHubTab("test")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                    activeHubTab === "test"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeHubTab === "test"
                       ? "bg-white text-blue-600 shadow-md shadow-blue-500/10"
                       : "text-slate-600 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <Code className="w-3.5 h-3.5" /> Test Dispatch
                 </button>
 
                 <button
                   onClick={() => setActiveHubTab("onboarding")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                    activeHubTab === "onboarding"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeHubTab === "onboarding"
                       ? "bg-white text-blue-600 shadow-md shadow-blue-500/10"
                       : "text-slate-600 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <UserCheck className="w-3.5 h-3.5" /> Onboarding Hub
                 </button>
@@ -1038,7 +1035,7 @@ export default function LandingPage() {
 
             {/* TAB CONTENT LIVE DEMO DISPLAY */}
             <div className="p-8 bg-white min-h-[340px] flex items-center justify-center">
-              
+
               {/* TAB 1: GMAIL INBOX LIVE SYNC */}
               {activeHubTab === "gmail" && (
                 <div className="w-full max-w-3xl space-y-4 animate-in fade-in duration-300">
@@ -1172,15 +1169,14 @@ export default function LandingPage() {
 
           {/* 3 SUMMARY CARDS BELOW MAIN DEMO THAT CONTROL TABS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
+
             {/* CARD 1 */}
-            <div 
+            <div
               onClick={() => setActiveHubTab("gmail")}
-              className={`p-6 rounded-3xl transition-all cursor-pointer space-y-3 ${
-                activeHubTab === "gmail" 
-                  ? "bg-white border-2 border-blue-600 shadow-xl ring-2 ring-blue-500/10" 
+              className={`p-6 rounded-3xl transition-all cursor-pointer space-y-3 ${activeHubTab === "gmail"
+                  ? "bg-white border-2 border-blue-600 shadow-xl ring-2 ring-blue-500/10"
                   : "bg-white border border-slate-200 hover:border-blue-300"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <Mail className="w-5 h-5 text-blue-600" />
@@ -1191,13 +1187,12 @@ export default function LandingPage() {
             </div>
 
             {/* CARD 2 */}
-            <div 
+            <div
               onClick={() => setActiveHubTab("test")}
-              className={`p-6 rounded-3xl transition-all cursor-pointer space-y-3 ${
-                activeHubTab === "test" 
-                  ? "bg-white border-2 border-blue-600 shadow-xl ring-2 ring-blue-500/10" 
+              className={`p-6 rounded-3xl transition-all cursor-pointer space-y-3 ${activeHubTab === "test"
+                  ? "bg-white border-2 border-blue-600 shadow-xl ring-2 ring-blue-500/10"
                   : "bg-white border border-slate-200 hover:border-blue-300"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <Code className="w-5 h-5 text-blue-600" />
@@ -1208,13 +1203,12 @@ export default function LandingPage() {
             </div>
 
             {/* CARD 3 */}
-            <div 
+            <div
               onClick={() => setActiveHubTab("onboarding")}
-              className={`p-6 rounded-3xl transition-all cursor-pointer space-y-3 ${
-                activeHubTab === "onboarding" 
-                  ? "bg-white border-2 border-blue-600 shadow-xl ring-2 ring-blue-500/10" 
+              className={`p-6 rounded-3xl transition-all cursor-pointer space-y-3 ${activeHubTab === "onboarding"
+                  ? "bg-white border-2 border-blue-600 shadow-xl ring-2 ring-blue-500/10"
                   : "bg-white border border-slate-200 hover:border-blue-300"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <UserCheck className="w-5 h-5 text-blue-600" />
@@ -1288,14 +1282,13 @@ export default function LandingPage() {
               const isActive = activeFeatureIndex === idx;
 
               return (
-                <div 
-                  key={f.title} 
+                <div
+                  key={f.title}
                   onClick={() => setActiveFeatureIndex(idx)}
-                  className={`p-7 rounded-3xl transition-all duration-500 cursor-pointer space-y-4 relative overflow-hidden ${
-                    isActive
+                  className={`p-7 rounded-3xl transition-all duration-500 cursor-pointer space-y-4 relative overflow-hidden ${isActive
                       ? "bg-white border-2 border-blue-600 shadow-xl shadow-blue-500/10 scale-[1.02] ring-4 ring-blue-500/10"
                       : "bg-white border border-slate-200 hover:border-blue-300 hover:shadow-lg hover:scale-[1.01]"
-                  }`}
+                    }`}
                 >
                   {/* Top Progress Line for Active Card */}
                   {isActive && (
@@ -1305,39 +1298,35 @@ export default function LandingPage() {
                   )}
 
                   <div className="flex items-center justify-between">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                      isActive ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 scale-110" : "bg-blue-50 border border-blue-200 text-blue-600"
-                    }`}>
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-300 ${isActive ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 scale-110" : "bg-blue-50 border border-blue-200 text-blue-600"
+                      }`}>
                       <f.icon className="w-5.5 h-5.5" />
                     </div>
-                    
+
                     <div className="flex items-center gap-1.5">
                       {isActive && (
                         <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
                       )}
-                      <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border transition-colors ${
-                        isActive 
-                          ? "bg-blue-100 border-blue-300 text-blue-800" 
+                      <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border transition-colors ${isActive
+                          ? "bg-blue-100 border-blue-300 text-blue-800"
                           : "bg-slate-100 border-slate-200 text-slate-600"
-                      }`}>
+                        }`}>
                         {f.badge}
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <h3 className={`text-base font-extrabold transition-colors mb-2 ${
-                      isActive ? "text-blue-600" : "text-slate-900"
-                    }`}>
+                    <h3 className={`text-base font-extrabold transition-colors mb-2 ${isActive ? "text-blue-600" : "text-slate-900"
+                      }`}>
                       {f.title}
                     </h3>
                     <p className="text-xs text-slate-600 font-medium leading-relaxed">{f.desc}</p>
                   </div>
 
                   {/* Micro Live Simulation Pill */}
-                  <div className={`pt-2 border-t text-[11px] font-bold flex items-center justify-between transition-colors ${
-                    isActive ? "border-blue-100 text-blue-700" : "border-slate-100 text-slate-500"
-                  }`}>
+                  <div className={`pt-2 border-t text-[11px] font-bold flex items-center justify-between transition-colors ${isActive ? "border-blue-100 text-blue-700" : "border-slate-100 text-slate-500"
+                    }`}>
                     <span>{f.preview}</span>
                     <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isActive ? "translate-x-1 text-blue-600" : "opacity-0"}`} />
                   </div>
@@ -1356,7 +1345,7 @@ export default function LandingPage() {
             Join modern HR teams using Evalyn AI to screen candidates, automate invitations, and streamline candidate onboarding.
           </p>
           <div className="pt-2">
-            <button 
+            <button
               onClick={() => router.push(isLoggedIn ? "/dashboard" : "/signup")}
               className="px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all inline-flex items-center gap-2"
             >
