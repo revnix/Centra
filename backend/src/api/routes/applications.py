@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile,
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload, noload
+from sqlalchemy.orm import joinedload, noload, selectinload
 from sqlalchemy.sql import func
 
 from src.api.core.dependencies import get_current_user
@@ -294,6 +294,7 @@ async def list_applications_by_job(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from src.api.models.interview_schedule import InterviewSchedule
     result = await db.execute(
         select(Application)
         .where(Application.job_id == job_id)
@@ -301,7 +302,8 @@ async def list_applications_by_job(
             joinedload(Application.candidate),
             joinedload(Application.job),
             joinedload(Application.screening_test),
-            joinedload(Application.interview_schedule),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
             noload(Application.interview_session),
         )
         .order_by(Application.match_score.desc().nullslast())
@@ -599,13 +601,16 @@ async def update_application_status(
     except ValueError:
         raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}")
 
+    from src.api.models.interview_schedule import InterviewSchedule
     result = await db.execute(
         select(Application)
         .options(
             joinedload(Application.candidate),
             joinedload(Application.job),
             joinedload(Application.screening_test),
-            joinedload(Application.interview_session)
+            joinedload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
         )
         .where(Application.id == application_id)
     )
@@ -625,7 +630,7 @@ async def update_application_status(
             _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
             _job_folder = f"{_job.title} - {_jdate}"
         background_tasks.add_task(run_resume_promotion, int(application.candidate_id), _job_folder)
-    
+
     # Sync with interview tracking status
     if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:
         if application.interview_invitation_status not in ["ACCEPTED", "DECLINED"]:
@@ -659,8 +664,22 @@ async def update_application_status(
 
     db.add(application)
     await db.commit()
-    await db.refresh(application)
-    return application
+
+    # Re-fetch with all relations eagerly loaded so the response serializer
+    # doesn't trigger lazy-loads outside an async greenlet context.
+    fresh = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            joinedload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+        )
+        .where(Application.id == application_id)
+    )
+    return fresh.scalars().first()
 
 
 @router.post("/{application_id}/reset-email-status", response_model=ApplicationResponse)
@@ -670,6 +689,7 @@ async def reset_email_status(
     db: AsyncSession = Depends(get_db),
 ):
     """Reset email tracking so HR can resend any email for this application."""
+    from src.api.models.interview_schedule import InterviewSchedule
     result = await db.execute(
         select(Application)
         .options(
@@ -677,6 +697,8 @@ async def reset_email_status(
             joinedload(Application.job),
             joinedload(Application.screening_test),
             noload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
         )
         .where(Application.id == application_id)
     )
@@ -698,8 +720,21 @@ async def reset_email_status(
 
     db.add(application)
     await db.commit()
-    await db.refresh(application)
-    return application
+
+    # Re-fetch with all relations to avoid MissingGreenlet on lazy interview_schedule access
+    fresh = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            noload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+        )
+        .where(Application.id == application_id)
+    )
+    return fresh.scalars().first()
 
 
 @router.post("/{application_id}/send-documents")

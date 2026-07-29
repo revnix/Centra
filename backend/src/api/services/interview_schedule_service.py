@@ -588,16 +588,22 @@ class InterviewScheduleService:
         user = user_res.scalars().first()
 
         if not user:
-            # Create a reviewer user record for the department lead
+            # Create a guest reviewer record for the department lead.
+            # username must be unique and non-null; use email as a safe default.
+            # hashed_password is non-null; set a sentinel value (not usable for login).
             name = reviewer_name.strip() if reviewer_name else clean_email.split("@")[0].title()
             user = User(
                 email=clean_email,
+                username=clean_email,
                 full_name=name,
+                hashed_password="GUEST_LEAD_NO_LOGIN",
                 role=UserRole.REVIEWER,
+                is_active=False,
             )
             self.db.add(user)
             await self.db.flush()
-        elif reviewer_name and (not user.full_name or user.full_name == user.email):
+        elif reviewer_name and reviewer_name.strip():
+            # Always honour the name the lead typed — overwrite whatever was stored before
             user.full_name = reviewer_name.strip()
             self.db.add(user)
 

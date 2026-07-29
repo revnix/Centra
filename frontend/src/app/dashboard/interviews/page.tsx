@@ -49,7 +49,27 @@ export default function InterviewSchedulesPage() {
   const [meetingLink, setMeetingLink] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [selectedLeadEmails, setSelectedLeadEmails] = useState<string[]>([]);
+  const [customLeadInput, setCustomLeadInput] = useState<string>("");
   const [submittingSchedule, setSubmittingSchedule] = useState(false);
+
+  const handleAddCustomLead = () => {
+    const email = customLeadInput.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      toast.error("Please enter a valid lead email address");
+      return;
+    }
+    if (selectedLeadEmails.includes(email)) {
+      toast.info("This email is already selected");
+      setCustomLeadInput("");
+      return;
+    }
+    setSelectedLeadEmails((prev) => [...prev, email]);
+    if (!teamMembers.some((m) => m.email.toLowerCase() === email)) {
+      setTeamMembers((prev) => [...prev, { label: "Custom Lead", email: email }]);
+    }
+    setCustomLeadInput("");
+    toast.success(`Added ${email} to department leads notification list`);
+  };
 
   // Form states - Feedback
   const [overallRating, setOverallRating] = useState<number>(4);
@@ -552,6 +572,30 @@ export default function InterviewSchedulesPage() {
                       );
                     })
                   )}
+                </div>
+
+                {/* Add Custom Lead Email */}
+                <div className="mt-2.5 flex items-center gap-2">
+                  <input
+                    type="email"
+                    placeholder="Enter custom lead email address..."
+                    value={customLeadInput}
+                    onChange={(e) => setCustomLeadInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomLead();
+                      }
+                    }}
+                    className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/40 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomLead}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0"
+                  >
+                    + Add Lead
+                  </button>
                 </div>
               </div>
 

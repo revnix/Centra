@@ -98,6 +98,7 @@ class ApplicationService:
 
     async def get_application_by_id(self, application_id: int) -> Application | None:
         """Get application by ID with related data loaded."""
+        from src.api.models.interview_schedule import InterviewSchedule, InterviewPanelist, InterviewFeedback
         result = await self.db.execute(
             select(Application)
             .options(
@@ -105,7 +106,8 @@ class ApplicationService:
                 joinedload(Application.job),
                 joinedload(Application.interview_session),
                 joinedload(Application.screening_test),
-                joinedload(Application.interview_schedule),
+                selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+                selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
             )
             .where(Application.id == application_id)
         )
@@ -113,13 +115,15 @@ class ApplicationService:
 
     async def list_applications(self, skip: int = 0, limit: int = 100) -> list[Application]:
         """List all applications with related data."""
+        from src.api.models.interview_schedule import InterviewSchedule, InterviewPanelist, InterviewFeedback
         result = await self.db.execute(
             select(Application)
             .options(
                 joinedload(Application.candidate).joinedload(User.candidate_profile),
                 joinedload(Application.job),
                 joinedload(Application.screening_test),
-                joinedload(Application.interview_schedule),
+                selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+                selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
                 noload(Application.interview_session),
             )
             .offset(skip)
