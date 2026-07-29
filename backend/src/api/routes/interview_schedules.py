@@ -29,6 +29,9 @@ from src.api.schemas.interview_schedule import (
     FeedbackCreate,
     FeedbackResponse,
     InterviewScheduleResponse,
+    NotifyLeadsRequest,
+    PublicFeedbackCreate,
+    PublicInterviewScheduleResponse,
     ScheduleInterviewRequest,
     UpdateScheduleRequest,
 )
@@ -265,3 +268,82 @@ async def get_schedule_by_id(
             detail=f"Interview schedule {schedule_id} not found",
         )
     return result
+
+
+@router.post(
+    "/applications/{application_id}/notify-leads",
+    status_code=status.HTTP_200_OK,
+    summary="Send interview notification emails to assigned department leads",
+)
+async def notify_department_leads(
+    application_id: int,
+    body: NotifyLeadsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Dispatches interview details & feedback dashboard link to selected department leads.
+    """
+    _require_hr(current_user)
+    from src.api.services.email_service import send_email
+
+    sent_count = 0
+    html_message = body.message.replace("\n", "<br/>")
+    html_content = f"""
+    <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;color:#334155;line-height:1.6;">
+        <h2 style="color:#4f46e5;margin-top:0;">Interview Panel Assignment</h2>
+        {html_message}
+    </div>
+    """
+
+    for email in body.lead_emails:
+        if email and email.strip():
+            res = await send_email(to_email=email.strip(), subject=body.subject, html_content=html_content)
+            if res:
+                sent_count += 1
+
+    return {"message": f"Successfully notified {sent_count} lead(s)", "sent_count": sent_count}
+
+
+@router.get(
+    "/interview-schedules/public/{application_id}",
+    response_model=PublicInterviewScheduleResponse,
+    summary="Public endpoint: Get interview schedule details for panelist feedback page",
+)
+async def get_public_schedule(
+    application_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public (unauthenticated) route used by department leads to fetch interview & candidate info.
+    """
+    service = InterviewScheduleService(db)
+    try:
+        return await service.get_public_schedule_info(application_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post(
+    "/interview-schedules/public/{application_id}/feedback",
+    response_model=FeedbackResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Public endpoint: Department lead submits post-interview feedback",
+)
+async def submit_public_feedback(
+    application_id: int,
+    body: PublicFeedbackCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public (unauthenticated) route allowing department leads to submit feedback via their email.
+    """
+    service = InterviewScheduleService(db)
+    try:
+        return await service.submit_public_feedback(
+            application_id, body.lead_email, body.reviewer_name, body
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+

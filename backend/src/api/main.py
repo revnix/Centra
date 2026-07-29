@@ -85,6 +85,19 @@ async def lifespan(app: FastAPI):
 
     await _migrate_enum_values()
 
+    async def _create_missing_tables():
+        try:
+            from src.api.db.base import Base
+            # Import models to ensure metadata registration
+            from src.api.models.interview_schedule import InterviewSchedule, InterviewPanelist, InterviewFeedback  # noqa
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database schema verification/creation complete")
+        except Exception as e:
+            logger.warning("Table auto-creation check failed: %s", e)
+
+    await _create_missing_tables()
+
     async def _warmup_db():
         from src.api.db.session import _update_last_ping
         try:

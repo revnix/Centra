@@ -129,6 +129,14 @@ class ScheduleInterviewRequest(BaseModel):
         return v
 
 
+class NotifyLeadsRequest(BaseModel):
+    """Body for POST /applications/{id}/notify-leads."""
+    lead_emails: List[str] = Field(..., min_length=1)
+    subject: str = Field(...)
+    message: str = Field(...)
+
+
+
 class UpdateScheduleRequest(BaseModel):
     """Body for PATCH /applications/{id}/schedule — partial update."""
 
@@ -199,4 +207,33 @@ class InterviewScheduleSummary(BaseModel):
             panelist_count=len(obj.panelists) if obj.panelists is not None else 0,
             feedback_submitted_count=len(obj.feedback_entries) if obj.feedback_entries is not None else 0,
         )
+
+
+class PublicInterviewScheduleResponse(BaseModel):
+    """Response schema for public feedback page."""
+    application_id: int
+    candidate_name: str
+    candidate_email: str
+    job_title: str
+    scheduled_at: datetime
+    duration_minutes: int
+    location: Optional[str] = None
+    meeting_link: Optional[str] = None
+    notes: Optional[str] = None
+    status: ScheduleStatus
+
+
+class PublicFeedbackCreate(BaseModel):
+    """Body sent by department lead on the unauthenticated public feedback page."""
+    lead_email: str = Field(..., description="Email address of reviewing department lead")
+    reviewer_name: Optional[str] = None
+    overall_rating: int = Field(..., ge=1, le=5)
+    technical_rating: Optional[int] = Field(None, ge=1, le=5)
+    communication_rating: Optional[int] = Field(None, ge=1, le=5)
+    culture_fit_rating: Optional[int] = Field(None, ge=1, le=5)
+    recommendation: HireRecommendation
+    strengths: Optional[str] = Field(None, max_length=2000)
+    concerns: Optional[str] = Field(None, max_length=2000)
+    notes: Optional[str] = Field(None, max_length=2000)
+
 

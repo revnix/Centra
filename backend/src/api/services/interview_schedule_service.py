@@ -185,8 +185,10 @@ class InterviewScheduleService:
         self.db.add(schedule)
         await self.db.flush()  # get schedule.id without committing
 
-        # Add panelists
-        for uid in data.panelist_user_ids:
+        # Add panelists (always include creator hr_user_id so they can view and manage their scheduled interview)
+        panelist_ids = set(data.panelist_user_ids or [])
+        panelist_ids.add(hr_user_id)
+        for uid in panelist_ids:
             self.db.add(InterviewPanelist(schedule_id=schedule.id, user_id=uid))
 
         # Update application pipeline status
@@ -538,3 +540,107 @@ class InterviewScheduleService:
                 application.id,
                 exc,
             )
+
+    async def get_public_schedule_info(self, application_id: int) -> dict:
+        """Fetch candidate & interview details for unauthenticated panelist feedback page."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                selectinload(Application.candidate),
+                selectinload(Application.job),
+                selectinload(Application.interview_schedule),
+            )
+            .where(Application.id == application_id)
+        )
+        app = result.scalars().first()
+        if not app or not app.interview_schedule:
+            raise ValueError(f"No active interview schedule found for application #{application_id}")
+
+        cand = app.candidate
+        job = app.job
+        sch = app.interview_schedule
+
+        return {
+            "application_id": app.id,
+            "candidate_name": cand.full_name if cand else "Candidate",
+            "candidate_email": cand.email if cand else "",
+            "job_title": job.title if job else "Position",
+            "scheduled_at": sch.scheduled_at,
+            "duration_minutes": sch.duration_minutes,
+            "location": sch.location,
+            "meeting_link": sch.meeting_link,
+            "notes": sch.notes,
+            "status": sch.status,
+        }
+
+    async def submit_public_feedback(
+        self, application_id: int, lead_email: str, reviewer_name: str | None, data
+    ) -> FeedbackResponse:
+        """Submit feedback from a department lead using their email without login."""
+        schedule = await self._get_schedule_for_application_orm(application_id)
+        if not schedule:
+            raise ValueError(f"No interview schedule found for application {application_id}")
+
+        clean_email = lead_email.strip().lower()
+
+        # Find or create User record for the lead so FK panelist_id works correctly
+        user_res = await self.db.execute(select(User).where(User.email == clean_email))
+        user = user_res.scalars().first()
+
+        if not user:
+            # Create a reviewer user record for the department lead
+            name = reviewer_name.strip() if reviewer_name else clean_email.split("@")[0].title()
+            user = User(
+                email=clean_email,
+                full_name=name,
+                role=UserRole.REVIEWER,
+            )
+            self.db.add(user)
+            await self.db.flush()
+        elif reviewer_name and (not user.full_name or user.full_name == user.email):
+            user.full_name = reviewer_name.strip()
+            self.db.add(user)
+
+        # Ensure panelist entry exists
+        panelist_entry = next((p for p in schedule.panelists if p.user_id == user.id), None)
+        if not panelist_entry:
+            self.db.add(InterviewPanelist(schedule_id=schedule.id, user_id=user.id))
+            await self.db.flush()
+
+        # Check existing feedback
+        existing_fb = next((f for f in schedule.feedback_entries if f.panelist_id == user.id), None)
+        if existing_fb:
+            existing_fb.overall_rating = data.overall_rating
+            existing_fb.technical_rating = data.technical_rating
+            existing_fb.communication_rating = data.communication_rating
+            existing_fb.culture_fit_rating = data.culture_fit_rating
+            existing_fb.recommendation = data.recommendation
+            existing_fb.strengths = data.strengths
+            existing_fb.concerns = data.concerns
+            existing_fb.notes = data.notes
+            feedback = existing_fb
+        else:
+            feedback = InterviewFeedback(
+                schedule_id=schedule.id,
+                panelist_id=user.id,
+                overall_rating=data.overall_rating,
+                technical_rating=data.technical_rating,
+                communication_rating=data.communication_rating,
+                culture_fit_rating=data.culture_fit_rating,
+                recommendation=data.recommendation,
+                strengths=data.strengths,
+                concerns=data.concerns,
+                notes=data.notes,
+            )
+            self.db.add(feedback)
+
+        await self.db.commit()
+
+        fb_result = await self.db.execute(
+            select(InterviewFeedback)
+            .options(selectinload(InterviewFeedback.panelist))
+            .where(InterviewFeedback.id == feedback.id)
+        )
+        feedback = fb_result.scalars().first()
+        return FeedbackResponse.from_orm_with_panelist(feedback)
+

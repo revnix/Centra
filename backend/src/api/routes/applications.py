@@ -219,6 +219,66 @@ async def apply(
     return await app_service.get_application_by_id(application.id) or application
 
 
+class PoolShortlistRequest(BaseModel):
+    candidate_user_id: int
+    job_id: int
+
+
+@router.post("/pool-shortlist", response_model=dict)
+async def pool_shortlist_candidate(
+    body: PoolShortlistRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Shortlist a candidate discovered via Resume Pooling for a specific job.
+    Finds the existing application (or creates one) and sets status to SHORTLISTED.
+    """
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Try to find existing application for this candidate + job
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            noload(Application.interview_session),
+            noload(Application.interview_schedule),
+        )
+        .where(
+            Application.candidate_id == body.candidate_user_id,
+            Application.job_id == body.job_id,
+        )
+        .order_by(Application.created_at.desc())
+        .limit(1)
+    )
+    application = result.scalars().first()
+
+    if not application:
+        # Candidate never applied for this exact job — create a bridge application
+        application = Application(
+            candidate_id=body.candidate_user_id,
+            job_id=body.job_id,
+            status=ApplicationStatus.APPLIED,
+            source="resume_pool",
+        )
+        db.add(application)
+        await db.flush()  # get id without committing
+
+    application.status = ApplicationStatus.SHORTLISTED
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+
+    return {
+        "success": True,
+        "application_id": application.id,
+        "status": application.status.value if hasattr(application.status, "value") else application.status,
+        "message": "Candidate shortlisted successfully.",
+    }
+
+
 @router.get("/me", response_model=List[ApplicationResponse])
 async def list_my_applications(
     current_user: User = Depends(get_current_user),
@@ -241,7 +301,8 @@ async def list_applications_by_job(
             joinedload(Application.candidate),
             joinedload(Application.job),
             joinedload(Application.screening_test),
-            noload(Application.interview_session),  # avoids MissingGreenlet on serialization
+            joinedload(Application.interview_schedule),
+            noload(Application.interview_session),
         )
         .order_by(Application.match_score.desc().nullslast())
     )

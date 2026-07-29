@@ -299,7 +299,7 @@ export default function PremiumKanbanPipelinePage() {
                     const name = app.candidate?.full_name || "Unknown Candidate";
                     const role = app.job?.title || "Unassigned Position";
                     const score = app.match_score ?? app.ai_score ?? 0;
-                    const salary = app.expected_salary ? `$${Number(app.expected_salary).toLocaleString()}` : null;
+                    const salary = app.expected_salary ? `PKR ${Number(app.expected_salary).toLocaleString()}` : null;
                     const isMoving = movingIds.has(app.id);
                     
                     const statusClass = app.status === 'HIRED' ? 'border-status-hired' : 

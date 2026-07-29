@@ -11,6 +11,23 @@ import type {
 } from '@/lib/types';
 
 /**
+ * Shape returned by the resume-pooling endpoint for each matched candidate
+ */
+export interface PooledCandidate {
+    user_id: number;
+    full_name: string;
+    email: string;
+    phone_number?: string;
+    city?: string;
+    qualification?: string;
+    skills: string[];
+    experience_years?: number;
+    bio?: string;
+    resume_url?: string;
+    match_score?: number;
+}
+
+/**
  * Candidate API endpoints
  */
 
@@ -100,5 +117,44 @@ export const candidatesApi = {
             `/candidates/${candidateId}/request_info`,
             { reason }
         );
+    },
+
+    /**
+     * Resume Pooling — AI-powered candidate rediscovery from the database
+     * POST /candidates/resume-pooling
+     */
+    resumePooling: async (params: {
+        job_title?: string;
+        skills?: string[];
+        description?: string;
+        education?: string;
+        experience_years?: number;
+        area_of_living?: string;
+        applied_within_days?: number;
+        min_score?: number;
+        limit?: number;
+    }): Promise<{
+        total_found: number;
+        returned_count: number;
+        query_summary: string;
+        candidates: PooledCandidate[];
+    }> => {
+        return apiClient.post('/candidates/resume-pooling', params);
+    },
+
+    /**
+     * Shortlist a candidate from the Resume Pool for a specific job.
+     * POST /applications/pool-shortlist
+     */
+    poolShortlist: async (candidateUserId: number, jobId: number): Promise<{
+        success: boolean;
+        application_id: number;
+        status: string;
+        message: string;
+    }> => {
+        return apiClient.post('/applications/pool-shortlist', {
+            candidate_user_id: candidateUserId,
+            job_id: jobId,
+        });
     },
 };

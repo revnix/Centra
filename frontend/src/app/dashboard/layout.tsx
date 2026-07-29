@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Layers, Briefcase, Users, UserCheck, Inbox,
-  Share2, Shield, LogOut, ChevronLeft, ChevronRight, Search, Command, Bell, Zap, ChevronDown, Sparkles, Plus
+  Share2, Shield, LogOut, ChevronLeft, ChevronRight, Search, Command, Bell, Zap, ChevronDown, Sparkles, Plus, DatabaseZap, Calendar
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -40,9 +40,11 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { href: '/dashboard/applications', label: 'All Applications', icon: Users },
       { href: '/dashboard/inbox',        label: 'Inbox Sync',       icon: Inbox },
+      { href: '/dashboard/candidates/pool', label: 'Resume Pooling', icon: DatabaseZap },
     ],
   },
   { href: '/dashboard/onboarding',  label: 'Onboarding',   icon: UserCheck },
+  { href: '/dashboard/interviews',  label: 'Interviews',   icon: Calendar },
   { href: '/dashboard/integrations',label: 'Integrations', icon: Share2 },
   { href: '/dashboard/admin',       label: 'Settings',     icon: Shield },
 ];
