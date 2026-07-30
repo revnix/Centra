@@ -207,9 +207,9 @@ export default function AdminOnboardingDashboard() {
 <p>Feel free to update your passwords and enhance security by enabling the Passkey and Security Keys feature and 2FA using Google Authenticator on your accounts.</p>
 <p>Please review the following documents to gain a better understanding of the culture at Revnix.</p>
 <ul>
-  <li>Resource Central - Everyone (Employee Self-Service)<ul><li>Complete Your HR Profile (#1 Priority)</li><li>Daily Sync - Everyone (EoD Update)</li></ul></li>
-  <li>Applications Workflow Guide<ul><li>GDrive LinkDeck - Everyone (Important Links)</li><li>GDrive Walker - Technical</li></ul></li>
-  <li>Intern Handbook</li>
+  <li><a href="https://docs.google.com/document/d/15q_tC1AiWCWhKWt57RJM4jALle07UXH1HZiJ4qf9aU0/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">Resource Central - Everyone</a> (Employee Self-Service)<ul><li>Complete Your HR Profile (#1 Priority)</li><li><a href="https://docs.google.com/document/d/1Kw7l0xU2B387d0V8NlIlOAzIxs83PMp3TTUaSF9KjY0/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">Daily Sync - Everyone</a> (EoD Update)</li></ul></li>
+  <li><a href="https://docs.google.com/document/d/1zux5VdQpEmPDVhSzhhG5wkjbL-10h5dL2tSDyMHZ_Bk/edit?tab=t.0#heading=h.uumvefgpfyt4" target="_blank" style="color: #1155cc; text-decoration: underline;">Applications Workflow Guide</a><ul><li><a href="https://docs.google.com/document/d/1SJY3XGF6_fJ_8n1PpPkq4BWBDBYA3PVm-Mbo6sosF80/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">GDrive LinkDeck - Everyone</a> (Important Links)</li><li><a href="https://docs.google.com/document/d/1OIe4WWJa06oYpsFoQNSqM2z6cEaysj-vwOJuc_phprk/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">GDrive Walker - Technical</a></li></ul></li>
+  <li><a href="https://docs.google.com/document/d/1sJrAhsgFAAtMqSWERWu9abLrDBLCfKdD95z70x0N6KM/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">Intern Handbook</a></li>
 </ul>
 <p>Please acknowledge by replying to this email once you set up your profiles and the handbook is reviewed.</p>
 <p>Respectfully,<br><strong>People Operations</strong></p>`;

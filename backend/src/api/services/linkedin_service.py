@@ -190,5 +190,16 @@ class LinkedInService:
                     response.status_code,
                     response.text,
                 )
+                if response.status_code == 422:
+                    try:
+                        error_body = response.json()
+                    except ValueError:
+                        error_body = {}
+                    input_errors = error_body.get("errorDetails", {}).get("inputErrors", [])
+                    if any(err.get("code") == "DUPLICATE_POST" for err in input_errors):
+                        raise ValueError(
+                            "This exact post already exists on LinkedIn. "
+                            "Please tweak the text (e.g. add a sentence or timestamp) before publishing again."
+                        )
             response.raise_for_status()
             return response.json()
