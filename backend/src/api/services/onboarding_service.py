@@ -490,6 +490,7 @@ class OnboardingService:
         attachments: list | None = None,
         custom_subject: str | None = None,
         custom_message: str | None = None,
+        include_onboarding_button: bool = True,
     ) -> bool:
         """
         Sends an onboarding welcome email to the candidate.
@@ -515,14 +516,20 @@ class OnboardingService:
         onboarding_link = f"{settings.FRONTEND_URL}/portal/onboarding/{application_id}{token_param}"
 
         if custom_subject and custom_message:
-            # HR-customized email: include their message + onboarding portal button at the bottom
-            html = f"""
-            <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:auto;padding:30px;border:1px solid #e2e8f0;border-radius:12px;color:#2d3748;line-height:1.7;">
-                <div style="white-space:pre-wrap;margin-bottom:24px;">{custom_message}</div>
+            # HR-customized email: include their message, and the onboarding portal
+            # button only when this send is actually meant to kick off onboarding
+            # (not for a plain "you're hired" offer email sent from Applications).
+            button_html = f"""
                 <div style="text-align:center;margin:30px 0;">
                     <a href="{onboarding_link}" style="background-color:#3182ce;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Complete Your Onboarding</a>
                 </div>
                 <p style="font-size:12px;color:#a0aec0;text-align:center;margin-top:24px;">This link is unique to you. Please do not share it.</p>
+            """ if include_onboarding_button else ""
+
+            html = f"""
+            <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:auto;padding:30px;border:1px solid #e2e8f0;border-radius:12px;color:#2d3748;line-height:1.7;">
+                <div style="white-space:pre-wrap;margin-bottom:24px;">{custom_message}</div>
+                {button_html}
             </div>
             """
             from src.api.services.email_service import send_email

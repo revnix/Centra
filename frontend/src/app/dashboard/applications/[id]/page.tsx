@@ -279,7 +279,10 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
         try {
             if (currentMode === 'onboarding') {
                 await Promise.all([
-                    onboardingApi.sendWelcomeEmail(Number(id), files, subject, message),
+                    // This is the initial "you're hired" offer email — the onboarding
+                    // portal button belongs on the actual Onboarding page's welcome email,
+                    // not here.
+                    onboardingApi.sendWelcomeEmail(Number(id), files, subject, message, false),
                     api.applications.updateStatus(id, 'HIRED')
                 ]);
             } else if (currentMode === 'documents') {

@@ -238,6 +238,7 @@ async def send_welcome_email(
     files: List[UploadFile] = File(default=[]),
     custom_subject: str = Form(default=""),
     custom_message: str = Form(default=""),
+    include_onboarding_button: bool = Form(default=True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_or_reviewer),
 ):
@@ -263,6 +264,7 @@ async def send_welcome_email(
         attachments=attachments or None,
         custom_subject=custom_subject or None,
         custom_message=custom_message or None,
+        include_onboarding_button=include_onboarding_button,
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send email")
