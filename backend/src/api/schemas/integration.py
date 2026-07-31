@@ -11,6 +11,7 @@ class IntegrationBase(BaseModel):
 class IntegrationResponse(IntegrationBase):
     id: int
     platform_user_id: Optional[str] = None
+    platform_display_name: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None

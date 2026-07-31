@@ -147,7 +147,9 @@ class IndeedService:
         
         # Indeed employer ID
         platform_user_id = profile_data.get("id") or profile_data.get("employer_id")
-        
+        # Human-readable employer/company name for the UI, instead of the raw ID
+        platform_display_name = profile_data.get("name")
+
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in) if expires_in else None
 
         # Check for existing integration
@@ -165,12 +167,14 @@ class IndeedService:
             integration.refresh_token = refresh_token
             integration.expires_at = expires_at
             integration.platform_user_id = platform_user_id
+            integration.platform_display_name = platform_display_name
         else:
             # Create new integration
             integration = UserIntegration(
                 user_id=user_id,
                 platform="indeed",
                 platform_user_id=platform_user_id,
+                platform_display_name=platform_display_name,
                 access_token=access_token,
                 refresh_token=refresh_token,
                 expires_at=expires_at
