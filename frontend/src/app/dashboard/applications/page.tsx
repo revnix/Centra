@@ -492,9 +492,16 @@ export default function ApplicationsPage() {
 
                     <td className="py-4 text-right">
                       {salary ? (
-                        <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shadow-sm text-sm">
-                          {salary}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shadow-sm text-sm">
+                            {salary}
+                          </span>
+                          {app.salary_filter_status === "above_budget" && (
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md uppercase tracking-wide">
+                              Out of Range
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
