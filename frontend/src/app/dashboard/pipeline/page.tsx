@@ -11,7 +11,8 @@ import {
   DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Loader2, Send, Mail, Ban, ArrowRight, Zap, Search, Plus, MoreHorizontal, CheckCircle2, ChevronDown
+  Loader2, Send, Mail, Ban, ArrowRight, Zap, Search, Plus, MoreHorizontal, CheckCircle2, ChevronDown,
+  MailX, Hourglass, Wallet, PauseCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -39,27 +40,37 @@ const KANBAN_COLUMNS: ColumnDef[] = [
   { key: "applied",              title: "Applied",              headerClass: "bg-yellow-50  border-yellow-300",                   textClass: "text-yellow-800",    stages: ["APPLIED"],                                                icon: Search },
   { key: "screening",            title: "Screening",            headerClass: "bg-yellow-100 border-yellow-400",                   textClass: "text-yellow-900",    stages: ["SCREENING"],                                              icon: Zap },
   { key: "shortlisted",          title: "Shortlisted",          headerClass: "bg-yellow-200 border-yellow-500",                   textClass: "text-yellow-900",    stages: ["SHORTLISTED"],                                            icon: Zap },
+  { key: "no_response",          title: "No Response",          headerClass: "bg-slate-100  border-slate-300",                    textClass: "text-slate-700",     stages: ["NO_RESPONSE"],                                            icon: MailX },
   { key: "screening_test",       title: "Screening Test",       headerClass: "bg-orange-100 border-orange-300",                   textClass: "text-orange-900",    stages: ["SCREENING_TEST"],                                         icon: Zap },
   { key: "interview_scheduled",  title: "Interview Scheduled",  headerClass: "bg-sky-100    border-sky-300",                      textClass: "text-sky-900",       stages: ["INTERVIEW_SCHEDULED", "INTERVIEW_INVITED", "SENT", "RESPONDED"], icon: Mail },
   { key: "interview_completed",  title: "Interview Completed",  headerClass: "bg-sky-200    border-sky-400",                      textClass: "text-sky-900",       stages: ["INTERVIEW_COMPLETED"],                                    icon: CheckCircle2 },
-  { key: "rejected",             title: "Rejected",             headerClass: "bg-red-500    border-red-600    text-white",        textClass: "text-white",         stages: ["REJECTED"],                                               icon: Ban },
-  { key: "reference_check",      title: "Reference Check",      headerClass: "bg-blue-50    border-blue-200",                     textClass: "text-blue-900",      stages: ["REFERENCE_CHECK"],                                        icon: Search },
+  { key: "pending_review",       title: "Pending Review",       headerClass: "bg-purple-100 border-purple-300",                   textClass: "text-purple-900",    stages: ["PENDING_REVIEW"],                                         icon: Hourglass },
   { key: "offer_extended",       title: "Offer Extended",       headerClass: "bg-stone-200   border-stone-400",                   textClass: "text-stone-800",     stages: ["OFFER_EXTENDED"],                                         icon: Send },
   { key: "offer_accepted",       title: "Offer Accepted",       headerClass: "bg-stone-500   border-stone-700  text-white",       textClass: "text-white",         stages: ["OFFER_ACCEPTED"],                                         icon: CheckCircle2 },
+  { key: "declined",             title: "Declined",             headerClass: "bg-rose-400   border-rose-600   text-white",        textClass: "text-white",         stages: ["DECLINED"],                                               icon: Ban },
+  { key: "unaffordable",         title: "Unaffordable",         headerClass: "bg-amber-200  border-amber-400",                    textClass: "text-amber-900",     stages: ["UNAFFORDABLE"],                                           icon: Wallet },
+  { key: "reference_check",      title: "Reference Check",      headerClass: "bg-blue-50    border-blue-200",                     textClass: "text-blue-900",      stages: ["REFERENCE_CHECK"],                                        icon: Search },
+  { key: "rejected",             title: "Rejected",             headerClass: "bg-red-500    border-red-600    text-white",        textClass: "text-white",         stages: ["REJECTED"],                                               icon: Ban },
   { key: "hired",                title: "Hired",                headerClass: "bg-green-800  border-green-900  text-white",        textClass: "text-white",         stages: ["HIRED"],                                                  icon: CheckCircle2 },
+  { key: "on_hold",              title: "On Hold",              headerClass: "bg-violet-200 border-violet-400",                   textClass: "text-violet-900",    stages: ["ON_HOLD"],                                                icon: PauseCircle },
 ];
 
 const NEXT_STAGE: Record<string, string> = {
   APPLIED: "SCREENING",
   SCREENING: "SHORTLISTED",
-  SHORTLISTED: "SCREENING_TEST",
+  SHORTLISTED: "NO_RESPONSE",
+  NO_RESPONSE: "INTERVIEW_SCHEDULED",
   SCREENING_TEST: "INTERVIEW_SCHEDULED",
   INTERVIEW_INVITED: "INTERVIEW_SCHEDULED",
   INTERVIEW_SCHEDULED: "INTERVIEW_COMPLETED",
   INTERVIEW_COMPLETED: "REFERENCE_CHECK",
-  REFERENCE_CHECK: "OFFER_EXTENDED",
+  PENDING_REVIEW: "OFFER_EXTENDED",
   OFFER_EXTENDED: "OFFER_ACCEPTED",
-  OFFER_ACCEPTED: "HIRED",
+  OFFER_ACCEPTED: "DECLINED",
+  DECLINED: "UNAFFORDABLE",
+  UNAFFORDABLE: "REFERENCE_CHECK",
+  REFERENCE_CHECK: "REJECTED",
+  REJECTED: "HIRED",
   SENT: "INTERVIEW_SCHEDULED",
   RESPONDED: "INTERVIEW_COMPLETED",
 };
@@ -67,17 +78,21 @@ const NEXT_STAGE: Record<string, string> = {
 const PREV_STAGE: Record<string, string> = {
   SCREENING: "APPLIED",
   SHORTLISTED: "SCREENING",
+  NO_RESPONSE: "SHORTLISTED",
   SCREENING_TEST: "SHORTLISTED",
   INTERVIEW_INVITED: "SCREENING_TEST",
-  INTERVIEW_SCHEDULED: "SCREENING_TEST",
+  INTERVIEW_SCHEDULED: "NO_RESPONSE",
   INTERVIEW_COMPLETED: "INTERVIEW_SCHEDULED",
-  REFERENCE_CHECK: "INTERVIEW_COMPLETED",
-  OFFER_EXTENDED: "REFERENCE_CHECK",
-  OFFER_ACCEPTED: "OFFER_EXTENDED",
-  HIRED: "OFFER_ACCEPTED",
-  REJECTED: "APPLIED",
   SENT: "SCREENING_TEST",
   RESPONDED: "SCREENING_TEST",
+  PENDING_REVIEW: "INTERVIEW_COMPLETED",
+  OFFER_EXTENDED: "PENDING_REVIEW",
+  OFFER_ACCEPTED: "OFFER_EXTENDED",
+  DECLINED: "OFFER_ACCEPTED",
+  UNAFFORDABLE: "DECLINED",
+  REFERENCE_CHECK: "UNAFFORDABLE",
+  REJECTED: "REFERENCE_CHECK",
+  HIRED: "REJECTED",
 };
 
 export default function PremiumKanbanPipelinePage() {

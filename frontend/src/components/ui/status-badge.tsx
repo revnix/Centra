@@ -12,20 +12,30 @@ import {
     UserX,
     Briefcase,
     GraduationCap,
+    MailX,
+    Hourglass,
+    Wallet,
+    PauseCircle,
+    Ban,
 } from "lucide-react";
 
 export type ApplicationStatus =
     | "applied"
     | "screening"
     | "shortlisted"
+    | "no_response"
     | "interview_invited"
     | "interviewing"
     | "interview_pending"
     | "interview_in_progress"
     | "interview_completed"
+    | "pending_review"
+    | "unaffordable"
     | "offer"
+    | "declined"
     | "onboarding"
     | "hired"
+    | "on_hold"
     | "rejected"
     | "withdrawn";
 
@@ -53,6 +63,11 @@ export function StatusBadge({ status, className, showIcon = true }: StatusBadgeP
             label: "Shortlisted",
             color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border-teal-200 dark:border-teal-800",
             icon: Star,
+        },
+        no_response: {
+            label: "No Response",
+            color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700",
+            icon: MailX,
         },
         sent: {
             label: "Invite Sent",
@@ -89,10 +104,25 @@ export function StatusBadge({ status, className, showIcon = true }: StatusBadgeP
             color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
             icon: CheckCircle2,
         },
+        pending_review: {
+            label: "Pending Review",
+            color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+            icon: Hourglass,
+        },
+        unaffordable: {
+            label: "Unaffordable",
+            color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+            icon: Wallet,
+        },
         offer: {
             label: "Offer Sent",
             color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
             icon: Briefcase,
+        },
+        declined: {
+            label: "Declined",
+            color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-800",
+            icon: Ban,
         },
         onboarding: {
             label: "Onboarding",
@@ -103,6 +133,11 @@ export function StatusBadge({ status, className, showIcon = true }: StatusBadgeP
             label: "Hired",
             color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
             icon: UserCheck,
+        },
+        on_hold: {
+            label: "On Hold",
+            color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 border-violet-200 dark:border-violet-800",
+            icon: PauseCircle,
         },
         rejected: {
             label: "Rejected",

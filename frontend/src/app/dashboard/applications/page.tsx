@@ -402,9 +402,16 @@ export default function ApplicationsPage() {
             <option value="all">⚡ All Stages</option>
             <option value="APPLIED">Applied</option>
             <option value="SHORTLISTED">Shortlisted</option>
+            <option value="NO_RESPONSE">No Response</option>
             <option value="INTERVIEW_SCHEDULED">Interview Scheduled</option>
-            <option value="HIRED">Hired</option>
+            <option value="PENDING_REVIEW">Pending Review</option>
+            <option value="OFFER_EXTENDED">Offer - Extended</option>
+            <option value="OFFER_ACCEPTED">Offer - Accepted</option>
+            <option value="DECLINED">Declined</option>
+            <option value="UNAFFORDABLE">Unaffordable</option>
             <option value="REJECTED">Rejected</option>
+            <option value="HIRED">Hired</option>
+            <option value="ON_HOLD">On Hold</option>
           </select>
 
           <button
