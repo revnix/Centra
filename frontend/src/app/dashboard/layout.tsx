@@ -24,7 +24,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',             label: 'Overview',     icon: LayoutDashboard },
-  { href: '/dashboard/pipeline',    label: 'Pipeline',     icon: Layers },
   {
     label: 'Jobs',
     icon: Briefcase,
@@ -43,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
       { href: '/dashboard/candidates/pool', label: 'Resume Pooling', icon: DatabaseZap },
     ],
   },
+  { href: '/dashboard/pipeline',    label: 'Pipeline',     icon: Layers },
   { href: '/dashboard/onboarding',  label: 'Onboarding',   icon: UserCheck },
   { href: '/dashboard/interviews',  label: 'Interviews',   icon: Calendar },
   { href: '/dashboard/integrations',label: 'Integrations', icon: Share2 },

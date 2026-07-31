@@ -175,7 +175,7 @@ function JobApplicationInner({ id }: { id: string }) {
     const now = new Date();
     const deadline = job.expires_at ? new Date(job.expires_at) : null;
     const isDeadlineExpired = deadline ? now > deadline : false;
-    const isClosed = job.effective_status === "CLOSED" || isDeadlineExpired;
+    const isClosed = job.effective_status !== "PUBLISHED" || isDeadlineExpired;
 
     if (isClosed) {
         return (

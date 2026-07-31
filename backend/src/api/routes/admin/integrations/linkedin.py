@@ -138,6 +138,8 @@ async def linkedin_publish(
             raise HTTPException(status_code=403, detail="LinkedIn access token is invalid or expired. Please reconnect your LinkedIn account from the Integrations page.")
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
+        if "duplicate" in str(e).lower():
+            raise HTTPException(status_code=409, detail=str(e))
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         logger.error("LinkedIn publish error (%s): %s", type(e).__name__, e)

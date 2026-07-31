@@ -233,19 +233,19 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 <p>Feel free to update your passwords and enhance security by enabling the Passkey and Security Keys feature and 2FA using Google Authenticator on your accounts.</p>
 <p>Please review the following documents to gain a better understanding of the culture at Revnix.</p>
 <ul>
-  <li>Resource Central - Everyone (Employee Self-Service)
+  <li><a href="https://docs.google.com/document/d/15q_tC1AiWCWhKWt57RJM4jALle07UXH1HZiJ4qf9aU0/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">Resource Central - Everyone</a> (Employee Self-Service)
     <ul>
       <li>Complete Your HR Profile (#1 Priority)</li>
-      <li>Daily Sync - Everyone (EoD Update)</li>
+      <li><a href="https://docs.google.com/document/d/1Kw7l0xU2B387d0V8NlIlOAzIxs83PMp3TTUaSF9KjY0/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">Daily Sync - Everyone</a> (EoD Update)</li>
     </ul>
   </li>
-  <li>Applications Workflow Guide
+  <li><a href="https://docs.google.com/document/d/1zux5VdQpEmPDVhSzhhG5wkjbL-10h5dL2tSDyMHZ_Bk/edit?tab=t.0#heading=h.uumvefgpfyt4" target="_blank" style="color: #1155cc; text-decoration: underline;">Applications Workflow Guide</a>
     <ul>
-      <li>GDrive LinkDeck - Everyone (Important Links)</li>
-      <li>GDrive Walker - Technical</li>
+      <li><a href="https://docs.google.com/document/d/1SJY3XGF6_fJ_8n1PpPkq4BWBDBYA3PVm-Mbo6sosF80/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">GDrive LinkDeck - Everyone</a> (Important Links)</li>
+      <li><a href="https://docs.google.com/document/d/1OIe4WWJa06oYpsFoQNSqM2z6cEaysj-vwOJuc_phprk/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">GDrive Walker - Technical</a></li>
     </ul>
   </li>
-  <li>Intern Handbook</li>
+  <li><a href="https://docs.google.com/document/d/1sJrAhsgFAAtMqSWERWu9abLrDBLCfKdD95z70x0N6KM/edit?tab=t.0" target="_blank" style="color: #1155cc; text-decoration: underline;">Intern Handbook</a></li>
 </ul>
 <p>Please acknowledge by replying to this email once you set up your profiles and the handbook is reviewed. Also, do not hesitate to reach out if you have any suggestions.</p>
 <p>Respectfully,<br><strong>People Operations</strong></p>`);
@@ -540,9 +540,14 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                     {/* Salary Panel */}
                     {app.expected_salary && (
-                        <div className="panel-elevated p-6 space-y-2 bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg shadow-emerald-500/20">
-                            <span className="text-xs font-bold text-emerald-100 uppercase tracking-widest block">Expected Salary</span>
+                        <div className={`panel-elevated p-6 space-y-2 text-white border-0 shadow-lg ${app.salary_filter_status === 'above_budget' ? 'bg-gradient-to-br from-rose-500 to-red-600 shadow-rose-500/20' : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20'}`}>
+                            <span className="text-xs font-bold text-white/80 uppercase tracking-widest block">Expected Salary</span>
                             <div className="text-3xl font-black tracking-tight">{Number(app.expected_salary).toLocaleString()} PKR</div>
+                            {app.salary_filter_status === 'above_budget' && (
+                                <p className="text-[11px] font-semibold bg-white/15 px-2 py-1.5 rounded border border-white/20">
+                                    Candidate is above job budget (out of range)
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
