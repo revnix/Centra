@@ -540,9 +540,14 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
                     {/* Salary Panel */}
                     {app.expected_salary && (
-                        <div className="panel-elevated p-6 space-y-2 bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg shadow-emerald-500/20">
-                            <span className="text-xs font-bold text-emerald-100 uppercase tracking-widest block">Expected Salary</span>
+                        <div className={`panel-elevated p-6 space-y-2 text-white border-0 shadow-lg ${app.salary_filter_status === 'above_budget' ? 'bg-gradient-to-br from-rose-500 to-red-600 shadow-rose-500/20' : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20'}`}>
+                            <span className="text-xs font-bold text-white/80 uppercase tracking-widest block">Expected Salary</span>
                             <div className="text-3xl font-black tracking-tight">{Number(app.expected_salary).toLocaleString()} PKR</div>
+                            {app.salary_filter_status === 'above_budget' && (
+                                <p className="text-[11px] font-semibold bg-white/15 px-2 py-1.5 rounded border border-white/20">
+                                    Candidate is above job budget (out of range)
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>

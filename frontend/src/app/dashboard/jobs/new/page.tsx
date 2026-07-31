@@ -187,7 +187,7 @@ export default function CreateJobPage() {
                             id: int.id.toString(),
                             platform: 'linkedin' as const,
                             name: 'LinkedIn Account',
-                            handle: int.platform_user_id || 'Connected',
+                            handle: int.platform_display_name || int.platform_user_id || 'Connected',
                             icon: Linkedin,
                             color: 'bg-blue-600',
                         };
@@ -196,7 +196,7 @@ export default function CreateJobPage() {
                             id: int.id.toString(),
                             platform: 'indeed' as const,
                             name: 'Indeed Account',
-                            handle: int.platform_user_id || 'Connected',
+                            handle: int.platform_display_name || int.platform_user_id || 'Connected',
                             icon: Briefcase,
                             color: 'bg-blue-600',
                         };

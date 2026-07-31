@@ -63,8 +63,11 @@ class LinkedInService:
         refresh_token = token_data.get("refresh_token")
         
         # LinkedIn URN is usually in 'sub' for OpenID Connect
-        platform_user_id = profile_data.get("sub") 
-        
+        platform_user_id = profile_data.get("sub")
+        # OpenID userinfo also returns the member's real name — show that in the UI
+        # instead of the opaque URN.
+        platform_display_name = profile_data.get("name")
+
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in) if expires_in else None
 
         # Check for existing integration
@@ -81,11 +84,13 @@ class LinkedInService:
             integration.refresh_token = refresh_token
             integration.expires_at = expires_at
             integration.platform_user_id = platform_user_id
+            integration.platform_display_name = platform_display_name
         else:
             integration = UserIntegration(
                 user_id=user_id,
                 platform="linkedin",
                 platform_user_id=platform_user_id,
+                platform_display_name=platform_display_name,
                 access_token=access_token,
                 refresh_token=refresh_token,
                 expires_at=expires_at

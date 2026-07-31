@@ -189,27 +189,32 @@ export default function IntegrationsPage() {
     const fetchStatus = async () => {
         setIsLoadingStatus(true);
         try {
-            const [linkedin, indeed, whatsapp] = await Promise.all([
-                integrationsApi.linkedin.getStatus().catch(() => ({ connected: false })),
-                integrationsApi.indeed.getStatus().catch(() => ({ connected: false })),
-                integrationsApi.whatsapp.getStatus().catch(() => ({ connected: false }))
-            ]);
+            // Single source of truth: the same /integrations list every other page
+            // uses. Previously this fired 3 independent status calls (one per
+            // platform), each defaulting to "not connected" on any failure —
+            // if just one of the three had a transient hiccup, that account would
+            // flip to "Not connected" even though it was genuinely connected,
+            // which is exactly what caused the inconsistent connected/disconnected
+            // display. One request means one point of failure instead of three.
+            const integrations = await integrationsApi.list();
+            const byPlatform = new Map(integrations.map(i => [i.platform, i]));
 
-            setLinkedInStatus(linkedin as any);
-            setWhatsappStatus(whatsapp as any);
+            const linkedin = byPlatform.get('linkedin');
+            const indeed = byPlatform.get('indeed');
+            const whatsapp = byPlatform.get('whatsapp');
+
+            setLinkedInStatus({ connected: !!linkedin, platform_user_id: linkedin?.platform_user_id });
+            setWhatsappStatus({ connected: !!whatsapp, phone_number_id: whatsapp?.platform_user_id });
 
             setAccounts(prev => prev.map(acc => {
                 if (acc.platform === 'linkedin') {
-                    const status = linkedin as any;
-                    return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
+                    return { ...acc, connected: !!linkedin, handle: linkedin?.platform_display_name || linkedin?.platform_user_id || 'Not connected' };
                 }
                 if (acc.platform === 'indeed') {
-                    const status = indeed as any;
-                    return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
+                    return { ...acc, connected: !!indeed, handle: indeed?.platform_display_name || indeed?.platform_user_id || 'Not connected' };
                 }
                 if (acc.platform === 'whatsapp') {
-                    const status = whatsapp as any;
-                    return { ...acc, connected: status.connected, handle: status.phone_number_id ? 'Connected' : 'Not connected' };
+                    return { ...acc, connected: !!whatsapp, handle: whatsapp ? 'Connected' : 'Not connected' };
                 }
                 return acc;
             }));
