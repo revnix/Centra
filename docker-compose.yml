@@ -1,46 +1,152 @@
 services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────────
+
   db:
-    image: postgres:15
+    image: pgvector/pgvector:pg16
     container_name: evalyn-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: evalyn
-      POSTGRES_PASSWORD: evalyn123
-      POSTGRES_DB: evalyn_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER:     ${POSTGRES_USER:-evalyn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evalyn123}
+      POSTGRES_DB:       ${POSTGRES_DB:-evalyn_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evalyn} -d ${POSTGRES_DB:-evalyn_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - evalyn_net
+
+  # LangGraph's runtime queue / checkpoint cache. Required by the
+  # langchain/langgraph-api base image the backend is built from.
+  redis:
+    image: redis:7-alpine
+    container_name: evalyn-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - evalyn_net
+
+  # ── Backend (LangGraph + FastAPI, src.api.main:app) ───────────────────────────
 
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
-    platform: linux/amd64
+      # Must be ./backend — the Dockerfile does `ADD . /deps/backend`, and
+      # backend/.dockerignore only applies with this context. Building from the
+      # repo root copies frontend/node_modules into the image (and matches
+      # render.yaml's dockerContext).
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-evalyn-backend:latest}
     container_name: evalyn-backend
+    platform: linux/amd64
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      # The langgraph-api base image serves on 8000.
+      - "${BACKEND_HOST_PORT:-8000}:8000"
     env_file:
-      - ./backend/.env
+      # format: raw — backend/.env holds raw JSON (GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO)
+      # that Compose's default dotenv parser rejects. `raw` splits on the first
+      # `=` and does no quote handling or interpolation.
+      - path: ./backend/.env
+        format: raw
+    environment:
+      # App DB (SQLAlchemy). Overrides DATABASE_URL from backend/.env so the
+      # stack is self-contained; export DATABASE_URL to point somewhere else.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://evalyn:evalyn123@db:5432/evalyn_db}
+      # LangGraph runtime storage — separate from the app's SQLAlchemy engine.
+      DATABASE_URI: ${LANGGRAPH_DATABASE_URI:-postgresql://evalyn:evalyn123@db:5432/evalyn_db}
+      REDIS_URI: redis://redis:6379
+      # Licensing for the self-hosted langgraph-api image.
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      # Resume/file uploads written by the app (UPLOAD_DIR=uploads).
+      - backend_uploads:/deps/backend/uploads
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # The wolfi-based image has no curl; use the interpreter that's there.
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ok', timeout=5).status == 200 else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - evalyn_net
+
+  # ── Frontend (Next.js standalone) ─────────────────────────────────────────────
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
-        - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-        - NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:8000
+        # NEXT_PUBLIC_* are baked in at build time, so these must be the URLs
+        # the browser reaches — not in-network service names.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000}
+        NEXT_PUBLIC_LANGGRAPH_API_URL: ${NEXT_PUBLIC_LANGGRAPH_API_URL:-http://localhost:8000}
+    image: ${FRONTEND_IMAGE:-evalyn-frontend:latest}
     container_name: evalyn-frontend
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
-      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-      - NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:8000
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000}
+      NEXT_PUBLIC_LANGGRAPH_API_URL: ${NEXT_PUBLIC_LANGGRAPH_API_URL:-http://localhost:8000}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "require('http').get('http://localhost:3000',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - evalyn_net
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+
+networks:
+  evalyn_net:
+    driver: bridge
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
 
 volumes:
   postgres_data:
+  redis_data:
+  backend_uploads:
