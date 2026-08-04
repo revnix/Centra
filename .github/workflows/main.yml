@@ -55,6 +55,12 @@ jobs:
         env:
           DATABASE_URL: sqlite+aiosqlite:///./ci.db
           ENVIRONMENT: ci
+          # src/flow/interview/nodes.py calls get_llm() at import time, which
+          # raises if the key is absent. Any non-empty string satisfies it —
+          # no network call is made during import.
+          GROQ_API_KEY: gsk_ci_placeholder_not_a_real_key
+          OPENAI_API_KEY: sk-ci-placeholder-not-a-real-key
+          SECRET_KEY: ci-placeholder
         run: |
           pip install -r requirements.txt
           python -m compileall -q src
