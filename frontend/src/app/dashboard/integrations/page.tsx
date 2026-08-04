@@ -1,11 +1,7 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogContent,
@@ -31,7 +27,6 @@ import {
     X,
     Loader2,
     CheckCircle2,
-    Lock,
     MessageSquare
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -45,11 +40,6 @@ declare global {
         __fbInitialized: boolean;
     }
 }
-
-/**
- * Integrations Page
- * Manage connected social media accounts for job posting
- */
 
 interface SocialAccount {
     id: string;
@@ -70,7 +60,6 @@ interface JobPlatform {
     requiresCredentials: boolean;
 }
 
-// Mock connected accounts
 const initialAccounts: SocialAccount[] = [
     {
         id: '1',
@@ -99,33 +88,23 @@ const initialAccounts: SocialAccount[] = [
         connected: false,
         autoPublish: false,
     },
-    {
-        id: '2',
-        platform: 'twitter',
-        name: 'TechCorp Careers',
-        handle: '@TechCorpJobs',
-        avatar: 'TC',
-        connected: true,
-        autoPublish: false,
-    },
 ];
 
-// Popular job posting platforms
 const jobPlatforms: JobPlatform[] = [
     {
         id: 'linkedin',
         name: 'LinkedIn',
         description: 'Connect your professional profile to post job openings',
         icon: Linkedin,
-        color: 'bg-[#0077b5]',
+        color: '#0077b5',
         requiresCredentials: false,
     },
     {
         id: 'indeed',
         name: 'Indeed',
-        description: 'World\'s #1 job site with millions of job listings',
+        description: "World's #1 job site with millions of job listings",
         icon: Briefcase,
-        color: 'bg-blue-600',
+        color: '#2563eb',
         requiresCredentials: false,
     },
     {
@@ -133,7 +112,7 @@ const jobPlatforms: JobPlatform[] = [
         name: 'WhatsApp',
         description: 'Send candidate notifications and job alerts via WhatsApp',
         icon: MessageSquare,
-        color: 'bg-[#25D366]',
+        color: '#25D366',
         requiresCredentials: false,
     },
     {
@@ -141,7 +120,7 @@ const jobPlatforms: JobPlatform[] = [
         name: 'Glassdoor',
         description: 'Job listings with company reviews and salary insights',
         icon: Building2,
-        color: 'bg-green-600',
+        color: '#16a34a',
         requiresCredentials: true,
     },
     {
@@ -149,7 +128,7 @@ const jobPlatforms: JobPlatform[] = [
         name: 'ZipRecruiter',
         description: 'AI-powered job matching platform',
         icon: Search,
-        color: 'bg-emerald-500',
+        color: '#10b981',
         requiresCredentials: true,
     },
     {
@@ -157,7 +136,7 @@ const jobPlatforms: JobPlatform[] = [
         name: 'Monster',
         description: 'Global employment website for job seekers',
         icon: FileText,
-        color: 'bg-purple-600',
+        color: '#9333ea',
         requiresCredentials: true,
     },
     {
@@ -165,18 +144,18 @@ const jobPlatforms: JobPlatform[] = [
         name: 'Instagram',
         description: 'Share job postings with visual content on Instagram',
         icon: Instagram,
-        color: 'bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400',
+        color: '#e1306c',
         requiresCredentials: true,
     },
 ];
 
-const platformConfig: Record<string, { icon: any, color: string, name: string }> = {
-    linkedin: { icon: Linkedin, color: 'bg-blue-600', name: 'LinkedIn' },
-    indeed: { icon: Briefcase, color: 'bg-blue-600', name: 'Indeed' },
-    whatsapp: { icon: MessageSquare, color: 'bg-[#25D366]', name: 'WhatsApp' },
-    twitter: { icon: Twitter, color: 'bg-sky-500', name: 'Twitter/X' },
-    facebook: { icon: Facebook, color: 'bg-blue-700', name: 'Facebook' },
-    instagram: { icon: Instagram, color: 'bg-gradient-to-br from-purple-600 to-pink-500', name: 'Instagram' },
+const platformConfig: Record<string, { icon: any; color: string; name: string }> = {
+    linkedin: { icon: Linkedin, color: '#0077b5', name: 'LinkedIn' },
+    indeed: { icon: Briefcase, color: '#2563eb', name: 'Indeed' },
+    whatsapp: { icon: MessageSquare, color: '#25D366', name: 'WhatsApp' },
+    twitter: { icon: Twitter, color: '#38bdf8', name: 'Twitter/X' },
+    facebook: { icon: Facebook, color: '#1d4ed8', name: 'Facebook' },
+    instagram: { icon: Instagram, color: '#e1306c', name: 'Instagram' },
 };
 
 export default function IntegrationsPage() {
@@ -210,27 +189,32 @@ export default function IntegrationsPage() {
     const fetchStatus = async () => {
         setIsLoadingStatus(true);
         try {
-            const [linkedin, indeed, whatsapp] = await Promise.all([
-                integrationsApi.linkedin.getStatus().catch(() => ({ connected: false })),
-                integrationsApi.indeed.getStatus().catch(() => ({ connected: false })),
-                integrationsApi.whatsapp.getStatus().catch(() => ({ connected: false }))
-            ]);
+            // Single source of truth: the same /integrations list every other page
+            // uses. Previously this fired 3 independent status calls (one per
+            // platform), each defaulting to "not connected" on any failure —
+            // if just one of the three had a transient hiccup, that account would
+            // flip to "Not connected" even though it was genuinely connected,
+            // which is exactly what caused the inconsistent connected/disconnected
+            // display. One request means one point of failure instead of three.
+            const integrations = await integrationsApi.list();
+            const byPlatform = new Map(integrations.map(i => [i.platform, i]));
 
-            setLinkedInStatus(linkedin as any);
-            setWhatsappStatus(whatsapp as any);
+            const linkedin = byPlatform.get('linkedin');
+            const indeed = byPlatform.get('indeed');
+            const whatsapp = byPlatform.get('whatsapp');
+
+            setLinkedInStatus({ connected: !!linkedin, platform_user_id: linkedin?.platform_user_id });
+            setWhatsappStatus({ connected: !!whatsapp, phone_number_id: whatsapp?.platform_user_id });
 
             setAccounts(prev => prev.map(acc => {
                 if (acc.platform === 'linkedin') {
-                    const status = linkedin as any;
-                    return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
+                    return { ...acc, connected: !!linkedin, handle: linkedin?.platform_display_name || linkedin?.platform_user_id || 'Not connected' };
                 }
                 if (acc.platform === 'indeed') {
-                    const status = indeed as any;
-                    return { ...acc, connected: status.connected, handle: status.platform_user_id || 'Not connected' };
+                    return { ...acc, connected: !!indeed, handle: indeed?.platform_display_name || indeed?.platform_user_id || 'Not connected' };
                 }
                 if (acc.platform === 'whatsapp') {
-                    const status = whatsapp as any;
-                    return { ...acc, connected: status.connected, handle: status.phone_number_id ? 'Connected' : 'Not connected' };
+                    return { ...acc, connected: !!whatsapp, handle: whatsapp ? 'Connected' : 'Not connected' };
                 }
                 return acc;
             }));
@@ -275,13 +259,9 @@ export default function IntegrationsPage() {
         }
 
         setIsConnecting(true);
-        // IMPORTANT: FB.login rejects async callbacks. Use a sync wrapper with an async IIFE.
         window.FB.login(function(response: any) {
             if (response.authResponse) {
                 const authCode = response.authResponse.code || response.authResponse.accessToken;
-                console.log('Facebook login response:', JSON.stringify(response.authResponse));
-                
-                // Fire async work inside a sync callback
                 (async () => {
                     try {
                         await integrationsApi.whatsapp.connectWithFacebook(authCode);
@@ -296,7 +276,6 @@ export default function IntegrationsPage() {
                     }
                 })();
             } else {
-                console.log('User cancelled login or did not fully authorize.');
                 setIsConnecting(false);
             }
         }, {
@@ -341,7 +320,6 @@ export default function IntegrationsPage() {
                     }
                 }
             } else {
-                // Open WhatsApp credentials form
                 setShowWhatsappCredentialsModal(true);
             }
             return;
@@ -360,7 +338,6 @@ export default function IntegrationsPage() {
                     }
                 }
             } else {
-                // Trigger OAuth flow
                 try {
                     setIsConnecting(true);
                     const { authorization_url } = await api.getLoginUrl();
@@ -374,7 +351,6 @@ export default function IntegrationsPage() {
             return;
         }
 
-        // For other platforms, keep dummy toggle
         setAccounts(prev =>
             prev.map(acc =>
                 acc.id === id ? { ...acc, connected: !acc.connected } : acc
@@ -396,7 +372,7 @@ export default function IntegrationsPage() {
             setShowPlatformsModal(false);
             await fetchStatus();
             if (!whatsappStatus.connected) {
-                alert('Please configure WhatsApp credentials in the backend environment variables');
+                alert('Please configure WhatsApp credentials');
             }
             return;
         }
@@ -409,12 +385,11 @@ export default function IntegrationsPage() {
                 setIsConnecting(true);
                 const api = platform.id === 'linkedin' ? integrationsApi.linkedin : integrationsApi.indeed;
                 const { authorization_url } = await api.getLoginUrl();
-                // Redirect to OAuth
                 window.location.href = authorization_url;
             } catch (error) {
                 console.error(`Failed to get ${platform.name} login URL:`, error);
                 setIsConnecting(false);
-                alert(`Failed to start ${platform.name} integration. Please try again.`);
+                alert(`Failed to start ${platform.name} integration.`);
             }
             return;
         }
@@ -427,23 +402,14 @@ export default function IntegrationsPage() {
 
     const handleConnect = async () => {
         if (!credentials.username || !credentials.password) return;
-
         setIsConnecting(true);
-
-        // Simulate API call for other platforms
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
+        await new Promise(resolve => setTimeout(resolve, 1500));
         setIsConnecting(false);
         setShowCredentialsModal(false);
         setSuccessPlatformName(selectedPlatform?.name || '');
         setShowSuccessMessage(true);
 
-        // Hide success message after 4 seconds
-        setTimeout(() => {
-            setShowSuccessMessage(false);
-        }, 4000);
-
-        // Reset credentials
+        setTimeout(() => setShowSuccessMessage(false), 4000);
         setCredentials({ username: '', password: '' });
         setSelectedPlatform(null);
     };
@@ -451,8 +417,7 @@ export default function IntegrationsPage() {
     const connectedCount = accounts.filter(a => a.connected).length;
 
     return (
-        <div className="space-y-6 max-w-4xl relative">
-            {/* Facebook JS SDK — next/script onReady fires on every mount (first load + SPA re-nav) */}
+        <div className="max-w-5xl mx-auto space-y-6">
             <Script
                 id="facebook-jssdk"
                 src="https://connect.facebook.net/en_US/sdk.js"
@@ -460,93 +425,77 @@ export default function IntegrationsPage() {
                 onReady={() => {
                     if (!window.__fbInitialized) {
                         window.FB.init({
-                            appId            : process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
-                            autoLogAppEvents : false,
-                            xfbml            : true,
-                            version          : 'v25.0'
+                            appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
+                            autoLogAppEvents: false,
+                            xfbml: true,
+                            version: 'v25.0'
                         });
                         window.__fbInitialized = true;
                     }
                     setIsFacebookSdkReady(true);
                 }}
             />
-            {/* Success Notification */}
+
             {showSuccessMessage && (
-                <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
-                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
-                        <div className="bg-white/20 p-2 rounded-full">
-                            <CheckCircle2 className="h-6 w-6" />
+                <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-3 duration-300">
+                    <div className="bg-white border border-emerald-200 shadow-xl rounded-2xl p-4 flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="font-semibold">Connection Successful!</p>
-                            <p className="text-sm text-green-100">{successPlatformName} has been connected to your account</p>
+                            <p className="text-xs font-bold text-slate-900">Connection Successful</p>
+                            <p className="text-xs text-slate-500">{successPlatformName} has been linked</p>
                         </div>
-                        <button
-                            onClick={() => setShowSuccessMessage(false)}
-                            className="ml-4 hover:bg-white/20 p-1 rounded-full transition-colors"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
                     </div>
                 </div>
             )}
 
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-slate-900">Integrations</h1>
-                <p className="text-slate-500 mt-1">Connect your social media accounts to publish job postings automatically</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+                <div>
+                    <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Integrations & Accounts</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">Connect recruitment channels and social platforms to distribute job posts</p>
+                </div>
+                <button onClick={() => setShowPlatformsModal(true)} className="btn-dribbble h-9 px-4 text-xs font-semibold gap-1.5 flex items-center shadow-md">
+                    <Plus className="w-4 h-4" /> Add Integration
+                </button>
             </div>
 
-            {/* Stats */}
+            {/* Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-600">Connected Accounts</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{connectedCount}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-600">Auto-Publish Enabled</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">
-                            {accounts.filter(a => a.autoPublish).length}
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-600">Posts This Month</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-slate-900">12</div>
-                    </CardContent>
-                </Card>
+                <div className="panel-elevated p-5 rounded-2xl border border-slate-200/80 shadow-sm bg-white flex items-center justify-between">
+                    <div>
+                        <p className="text-2xl font-black text-slate-900 tracking-tight">{connectedCount}</p>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">Connected Channels</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                </div>
+                <div className="panel-elevated p-5 rounded-2xl border border-slate-200/80 shadow-sm bg-white flex items-center justify-between">
+                    <div>
+                        <p className="text-2xl font-black text-slate-900 tracking-tight">{accounts.filter(a => a.autoPublish).length}</p>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">Auto-Publish Enabled</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center">
+                        <Settings className="w-5 h-5" />
+                    </div>
+                </div>
+                <div className="panel-elevated p-5 rounded-2xl border border-slate-200/80 shadow-sm bg-white flex items-center justify-between">
+                    <div>
+                        <p className="text-2xl font-black text-slate-900 tracking-tight">12</p>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">Posts This Month</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 flex items-center justify-center">
+                        <FileText className="w-5 h-5" />
+                    </div>
+                </div>
             </div>
 
-            {/* Connected Accounts */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle>Social Media Accounts</CardTitle>
-                            <CardDescription>Manage your connected platforms for job distribution</CardDescription>
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowPlatformsModal(true)}
-                            className="group hover:bg-blue-50 hover:border-blue-300 transition-all duration-200"
-                        >
-                            <Plus className="h-4 w-4 mr-2 group-hover:text-blue-600 transition-colors" />
-                            <span className="group-hover:text-blue-600 transition-colors">Add Account</span>
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            {/* Account list */}
+            <div className="panel-elevated p-6 rounded-2xl border border-slate-200/80 shadow-sm bg-white space-y-4">
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">Active Social Channels</h3>
+                <div className="space-y-3">
                     {accounts.map((account) => {
                         const config = platformConfig[account.platform];
                         const Icon = config.icon;
@@ -554,410 +503,86 @@ export default function IntegrationsPage() {
                         return (
                             <div
                                 key={account.id}
-                                className={`flex items-center justify-between p-4 rounded-lg border transition-all duration-200 ${account.connected ? 'bg-white border-slate-200 hover:shadow-md' : 'bg-slate-50 border-dashed border-slate-300 hover:border-slate-400'
-                                    }`}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-200/70 bg-slate-50/60 hover:bg-white hover:border-slate-300 transition-all shadow-xs"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-lg ${config.color} text-white`}>
-                                        <Icon className="h-5 w-5" />
+                                <div className="flex items-center gap-3.5">
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm flex-shrink-0" style={{ background: config.color }}>
+                                        <Icon className="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <h4 className="font-semibold text-slate-900">{account.name}</h4>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h4 className="text-sm font-bold text-slate-900">{account.name}</h4>
                                             {account.connected && (
-                                                <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
-                                                    <Check className="h-3 w-3 mr-1" />
-                                                    Connected
-                                                </Badge>
+                                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                                    <Check className="w-3 h-3" /> Connected
+                                                </span>
                                             )}
                                         </div>
-                                        <p className="text-sm text-slate-500">{account.handle}</p>
+                                        <p className="text-xs font-medium text-slate-500 mt-0.5">{account.handle}</p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-3 self-end sm:self-center">
                                     {account.connected && account.platform !== 'whatsapp' && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-slate-600">Auto-publish</span>
-                                            <Switch
-                                                checked={account.autoPublish}
-                                                onCheckedChange={() => toggleAutoPublish(account.id)}
-                                            />
+                                        <div className="flex items-center gap-2 mr-2">
+                                            <span className="text-xs font-semibold text-slate-600">Auto-publish</span>
+                                            <Switch checked={account.autoPublish} onCheckedChange={() => toggleAutoPublish(account.id)} />
                                         </div>
                                     )}
 
-                                    <div className="flex items-center gap-2">
-                                        {account.connected ? (
-                                            <>
-                                                {account.platform === 'whatsapp' && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setShowWhatsappTestModal(true)}
-                                                    >
-                                                        Send Test Message
-                                                    </Button>
-                                                )}
-                                                <Button variant="ghost" size="icon">
-                                                    <Settings className="h-4 w-4 text-slate-500" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => toggleConnection(account.id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => toggleConnection(account.id)}
-                                            >
-                                                <ExternalLink className="h-4 w-4 mr-2" />
-                                                Connect
-                                            </Button>
-                                        )}
-                                    </div>
+                                    {account.connected ? (
+                                        <div className="flex items-center gap-2">
+                                            {account.platform === 'whatsapp' && (
+                                                <button onClick={() => setShowWhatsappTestModal(true)} className="btn-glass border-slate-200 hover:border-indigo-300 hover:text-indigo-600 h-9 px-3 text-xs font-semibold">
+                                                    Test Message
+                                                </button>
+                                            )}
+                                            <button onClick={() => toggleConnection(account.id)} className="btn-glass border-slate-200 hover:border-rose-300 hover:text-rose-600 h-9 px-2.5 text-xs text-rose-500 transition-colors" title="Disconnect Account">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => toggleConnection(account.id)} className="btn-glass border-slate-200 hover:border-indigo-300 hover:text-indigo-600 h-9 px-4 text-xs font-semibold gap-1.5 flex items-center shadow-xs">
+                                            <ExternalLink className="w-3.5 h-3.5" /> Connect
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         );
                     })}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            {/* Publishing Settings */}
-            <Card className="bg-blue-50 border-blue-200">
-                <CardHeader>
-                    <CardTitle className="text-blue-900">Publishing Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h4 className="font-medium text-blue-900">Default to all connected accounts</h4>
-                            <p className="text-sm text-blue-700">When approving a job post, all connected accounts will be pre-selected</p>
-                        </div>
-                        <Switch defaultChecked />
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h4 className="font-medium text-blue-900">Include company branding</h4>
-                            <p className="text-sm text-blue-700">Add company logo and colors to social media images</p>
-                        </div>
-                        <Switch defaultChecked />
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Floating Plus Button */}
-            <button
-                onClick={() => setShowPlatformsModal(true)}
-                className="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-full shadow-2xl hover:shadow-blue-500/30 hover:scale-110 transition-all duration-300 flex items-center justify-center group z-40"
-            >
-                <Plus className="h-7 w-7 group-hover:rotate-90 transition-transform duration-300" />
-            </button>
-
-            {/* Platforms Modal */}
+            {/* Platforms Dialog */}
             <Dialog open={showPlatformsModal} onOpenChange={setShowPlatformsModal}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">Add Integration</DialogTitle>
-                        <DialogDescription>
-                            Connect popular job posting platforms to publish your listings
+                        <DialogTitle className="text-lg font-bold text-slate-900">Select Platform to Connect</DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500 mt-1">
+                            Publish jobs across recruitment boards with one click
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-3 py-4">
+
+                    <div className="grid gap-2.5 py-3">
                         {jobPlatforms.map((platform) => {
                             const Icon = platform.icon;
                             return (
                                 <button
-                                    key={platform.id}
-                                    onClick={() => handlePlatformClick(platform)}
-                                    className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 text-left group"
+                                    key={platform.id} onClick={() => handlePlatformClick(platform)}
+                                    className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 text-left transition-all hover:border-indigo-300 hover:bg-white shadow-xs group"
                                 >
-                                    <div className={`p-3 rounded-lg ${platform.color} text-white group-hover:scale-110 transition-transform duration-200`}>
-                                        <Icon className="h-5 w-5" />
+                                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-xs" style={{ background: platform.color }}>
+                                        <Icon className="w-4.5 h-4.5" />
                                     </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">{platform.name}</h4>
-                                        <p className="text-sm text-slate-500">{platform.description}</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{platform.name}</p>
+                                        <p className="text-[11px] font-medium text-slate-500 truncate mt-0.5">{platform.description}</p>
                                     </div>
-                                    <ExternalLink className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                                    <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                                 </button>
                             );
                         })}
                     </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Credentials Modal */}
-            <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <div className="flex items-center gap-3 mb-2">
-                            {selectedPlatform && (
-                                <div className={`p-3 rounded-lg ${selectedPlatform.color} text-white`}>
-                                    <selectedPlatform.icon className="h-5 w-5" />
-                                </div>
-                            )}
-                            <div>
-                                <DialogTitle className="text-xl font-bold">
-                                    Connect {selectedPlatform?.name}
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Enter your {selectedPlatform?.name} credentials to connect
-                                </DialogDescription>
-                            </div>
-                        </div>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="username" className="text-sm font-medium">
-                                {selectedPlatform?.id === 'instagram' ? 'Instagram Username' : 'Email / Username'}
-                            </Label>
-                            <Input
-                                id="username"
-                                placeholder={selectedPlatform?.id === 'instagram' ? '@username' : 'Enter your email or username'}
-                                value={credentials.username}
-                                onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-                                className="h-11"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="password" className="text-sm font-medium">
-                                Password
-                            </Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                placeholder="Enter your password"
-                                value={credentials.password}
-                                onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
-                                className="h-11"
-                            />
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                            Your credentials are securely encrypted and never stored in plain text.
-                        </p>
-                    </div>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowCredentialsModal(false)}
-                            disabled={isConnecting}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleConnect}
-                            disabled={!credentials.username || !credentials.password || isConnecting}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                        >
-                            {isConnecting ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Connecting...
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Connect
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* WhatsApp Credentials Modal */}
-            <Dialog open={showWhatsappCredentialsModal} onOpenChange={setShowWhatsappCredentialsModal}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="p-3 rounded-lg bg-[#25D366] text-white">
-                                <MessageSquare className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <DialogTitle className="text-xl font-bold">
-                                    Connect WhatsApp Business
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Enter your WhatsApp Business API credentials to connect your account
-                                </DialogDescription>
-                            </div>
-                        </div>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="wa-phone-number-id" className="text-sm font-medium">
-                                Phone Number ID
-                            </Label>
-                            <Input
-                                id="wa-phone-number-id"
-                                placeholder="Enter your Phone Number ID"
-                                value={whatsappCredentials.phone_number_id}
-                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, phone_number_id: e.target.value }))}
-                                className="h-11"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="wa-waba-id" className="text-sm font-medium">
-                                WhatsApp Business Account ID
-                            </Label>
-                            <Input
-                                id="wa-waba-id"
-                                placeholder="Enter your WhatsApp Business Account ID"
-                                value={whatsappCredentials.waba_id}
-                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, waba_id: e.target.value }))}
-                                className="h-11"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="wa-access-token" className="text-sm font-medium">
-                                Access Token
-                            </Label>
-                            <Input
-                                id="wa-access-token"
-                                placeholder="Enter your Temporary Access Token"
-                                value={whatsappCredentials.access_token}
-                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, access_token: e.target.value }))}
-                                className="h-11"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="wa-verify-token" className="text-sm font-medium">
-                                Verify Token
-                            </Label>
-                            <Input
-                                id="wa-verify-token"
-                                placeholder="Enter your Verify Token"
-                                value={whatsappCredentials.verify_token}
-                                onChange={(e) => setWhatsappCredentials(prev => ({ ...prev, verify_token: e.target.value }))}
-                                className="h-11"
-                            />
-                        </div>
-
-                        <div className="relative my-2">
-                            <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-slate-300" />
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-white px-2 text-slate-500">Or</span>
-                            </div>
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            className="w-full h-11 border-blue-600 text-blue-600 hover:bg-blue-50"
-                            onClick={connectWithFacebook}
-                            disabled={isConnecting}
-                        >
-                            <Facebook className="mr-2 h-5 w-5" />
-                            Continue with Facebook
-                        </Button>
-                    </div>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowWhatsappCredentialsModal(false)}
-                            disabled={isConnecting}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={connectWhatsapp}
-                            disabled={!whatsappCredentials.phone_number_id || !whatsappCredentials.waba_id || !whatsappCredentials.access_token || !whatsappCredentials.verify_token || isConnecting}
-                            className="bg-[#25D366] hover:bg-[#20bd5a]"
-                        >
-                            {isConnecting ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Connecting...
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Connect WhatsApp
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* WhatsApp Test Message Modal */}
-            <Dialog open={showWhatsappTestModal} onOpenChange={setShowWhatsappTestModal}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="p-3 rounded-lg bg-[#25D366] text-white">
-                                <MessageSquare className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <DialogTitle className="text-xl font-bold">
-                                    Send WhatsApp Test Message
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Send a test message to verify your WhatsApp integration
-                                </DialogDescription>
-                            </div>
-                        </div>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="whatsapp-to" className="text-sm font-medium">
-                                Recipient Phone Number
-                            </Label>
-                            <Input
-                                id="whatsapp-to"
-                                placeholder="e.g., 03448260340 or 923448260340"
-                                value={whatsappTestMessage.to}
-                                onChange={(e) => setWhatsappTestMessage(prev => ({ ...prev, to: e.target.value }))}
-                                className="h-11"
-                            />
-                            <p className="text-xs text-slate-500">
-                                Enter in local format (e.g., 03448260340) or international format (e.g., 923448260340). The system will automatically format it correctly.
-                            </p>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="whatsapp-message" className="text-sm font-medium">
-                                Message
-                            </Label>
-                            <textarea
-                                id="whatsapp-message"
-                                placeholder="Enter your test message"
-                                value={whatsappTestMessage.message}
-                                onChange={(e) => setWhatsappTestMessage(prev => ({ ...prev, message: e.target.value }))}
-                                className="h-24 w-full rounded-md border border-slate-300 p-2 resize-none"
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowWhatsappTestModal(false)}
-                            disabled={isSendingTestMessage}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={sendWhatsappTestMessage}
-                            disabled={!whatsappTestMessage.to || !whatsappTestMessage.message || isSendingTestMessage}
-                            className="bg-[#25D366] hover:bg-[#20bd5a]"
-                        >
-                            {isSendingTestMessage ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Sending...
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Send Message
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

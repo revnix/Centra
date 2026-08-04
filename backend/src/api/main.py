@@ -25,11 +25,16 @@ from src.api.routes import (
     gmail,
     integrations,
     interviews,
+    interview_schedules,
     jobs,
     langgraph,
     onboarding,
     screening,
     uploads,
+    langgraph,
+    applications,
+    interviews,
+    inbox,
 )
 from src.api.routes.admin import (
     users as admin_users,
@@ -79,6 +84,19 @@ async def lifespan(app: FastAPI):
 
 
     await _migrate_enum_values()
+
+    async def _create_missing_tables():
+        try:
+            from src.api.db.base import Base
+            # Import models to ensure metadata registration
+            from src.api.models.interview_schedule import InterviewSchedule, InterviewPanelist, InterviewFeedback  # noqa
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database schema verification/creation complete")
+        except Exception as e:
+            logger.warning("Table auto-creation check failed: %s", e)
+
+    await _create_missing_tables()
 
     async def _warmup_db():
         from src.api.db.session import _update_last_ping
@@ -154,25 +172,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error("Error while terminating background process: %s", e)
 
-
-
-    # Clean up subprocess on application shutdown
-    if proc is not None:
-        logger.info("Stopping background reply polling service subprocess...")
-        try:
-            proc.terminate()
-            proc.wait(timeout=3)
-            logger.info("Background reply polling service subprocess terminated successfully.")
-        except subprocess.TimeoutExpired:
-            logger.warning("Subprocess did not terminate; killing it...")
-            proc.kill()
-            proc.wait()
-        except Exception as e:
-            logger.error("Error while terminating background process: %s", e)
-
-
-
-
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
@@ -241,6 +240,13 @@ app.include_router(onboarding.router, prefix=f"{settings.API_V1_PREFIX}/onboardi
 app.include_router(uploads.router, prefix=f"{settings.API_V1_PREFIX}/uploads", tags=["uploads"])
 app.include_router(screening.router, prefix=f"{settings.API_V1_PREFIX}/screening", tags=["screening"])
 app.include_router(langgraph.router, tags=["langgraph"])
+
+# Smart HR Inbox
+app.include_router(inbox.router, prefix=f"{settings.API_V1_PREFIX}/inbox", tags=["inbox"])
+
+# Interview Scheduling & Feedback Panel
+app.include_router(interview_schedules.router, prefix=f"{settings.API_V1_PREFIX}", tags=["interview-schedules"])
+
 
 
 

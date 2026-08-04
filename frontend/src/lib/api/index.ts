@@ -19,6 +19,7 @@ export { candidatesApi } from './candidates';
 export { codingApi } from './coding';
 export { integrationsApi } from './integrations';
 export { screeningApi } from './screening';
+export { interviewSchedulesApi } from './interview_schedules';
 
 // Compatibility export for legacy code
 export const api = {

@@ -206,6 +206,76 @@ class ScreeningService:
             raise ValueError("LLM did not generate options for every question")
         return questions
 
+    async def generate_raw_questions_for_app(self, application_id: int, count: int = 20) -> list[str]:
+        """Generate `count` open/technical screening questions tailored to candidate and job using LLM."""
+        result = await self.db.execute(
+            select(Application)
+            .options(
+                joinedload(Application.candidate).joinedload(
+                    __import__("src.api.models.user", fromlist=["User"]).User.candidate_profile
+                ),
+                joinedload(Application.job),
+            )
+            .where(Application.id == application_id)
+        )
+        application = result.scalars().first()
+        if not application:
+            raise ValueError(f"Application {application_id} not found")
+
+        job = application.job
+        job_title = job.title if job else "General Role"
+        job_desc = job.description if job else ""
+        job_skills = ", ".join(job.required_skills) if (job and job.required_skills) else ""
+
+        candidate = application.candidate
+        profile = getattr(candidate, "candidate_profile", None)
+        cand_skills = ", ".join(profile.skills) if (profile and profile.skills) else ""
+        cand_bio = profile.bio if (profile and profile.bio) else ""
+        exp_years = profile.experience_years if (profile and profile.experience_years) else 0
+
+        prompt = (
+            f"You are an expert technical interviewer and HR specialist.\n"
+            f"Generate exactly {count} relevant, clear, and distinct screening test questions for a candidate.\n\n"
+            f"Job Title: {job_title}\n"
+            f"Required Job Skills: {job_skills}\n"
+            f"Job Description: {job_desc[:500]}\n"
+            f"Candidate Skills: {cand_skills}\n"
+            f"Candidate Experience: {exp_years} years\n"
+            f"Candidate Bio: {cand_bio[:300]}\n\n"
+            f"Requirements:\n"
+            f"1. Generate exactly {count} conceptual and practical questions.\n"
+            f"2. Each question should test technical knowledge or problem-solving relevant to {job_title}.\n"
+            f"3. Return ONLY a valid JSON array of question strings — no markdown formatting, no numbers at start, no surrounding text.\n"
+            f'Format example: ["What is ...?", "How do you handle ...?", "Explain the difference between ..."]'
+        )
+
+        llm = get_llm()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw: str = str(response.content).strip()
+
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+
+        try:
+            questions_list = json.loads(raw)
+            if isinstance(questions_list, list):
+                clean_q = [str(q).strip() for q in questions_list if str(q).strip()]
+                if clean_q:
+                    return clean_q[:count]
+        except Exception as e:
+            logger.warning(f"Failed to parse JSON response for generate_raw_questions_for_app: {e}")
+
+        # Fallback if parsing fails
+        lines = [line.strip() for line in raw.split("\n") if line.strip()]
+        cleaned = []
+        for line in lines:
+            line_clean = line.lstrip("0123456789.-* \"'[").rstrip("]\",'")
+            if line_clean and len(line_clean) > 5:
+                cleaned.append(line_clean)
+        return cleaned[:count] if cleaned else [f"Question {i+1} for {job_title}" for i in range(count)]
+
     def calculate_score(self, questions: list, answers: list) -> float:
         """Return percentage of correct answers (0–100)."""
         if not questions:

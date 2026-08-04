@@ -1,685 +1,620 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { gmailApi } from "@/lib/api/gmail";
 import { useApplications, applicationKeys } from "@/lib/hooks/useApplications";
-import { useQueryClient } from "@tanstack/react-query";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { ScoreRing } from "@/components/ui/score-ring";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Eye, Search, Filter, Loader2, Trash2, Mail, Send, Download } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Eye, Search, Loader2, Trash2, Mail, Send, Download, Filter, ChevronRight, Zap, Users, Briefcase, UserPlus, Globe, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-// jszip/file-saver are only needed by the (rare) resume-download actions below —
-// dynamically imported inside those handlers instead of shipped in this page's
-// main bundle on every visit.
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const LinkedinIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+  </svg>
+);
 
 interface Application {
-    id: string;
-    status: string;
-    match_score?: number;
-    ai_score?: number;
-    email_delivery_status?: string;
-    email_logs?: any;
-    interview_invitation_status?: string;
-    interview_invite_sent_at?: string;
-    city?: string;
-    qualification?: string;
-    expected_salary?: number;
-    salary_filter_status?: string;
-    created_at?: string;
-    candidate?: {
-        full_name?: string;
-        email?: string;
-        candidate_profile?: { resume_url?: string };
-    };
-    job?: { title?: string };
+  id: string;
+  status: string;
+  source?: string;
+  match_score?: number;
+  ai_score?: number;
+  city?: string;
+  qualification?: string;
+  expected_salary?: number;
+  salary_filter_status?: string;
+  created_at?: string;
+  candidate?: { full_name?: string; email?: string; candidate_profile?: { resume_url?: string } };
+  job?: { title?: string };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const getInitials = (name: string) =>
-    name ? name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() : "??";
-
-const defaultSubject = (jobTitle: string) => `Interview Invitation – ${jobTitle}`;
-
-const defaultMessage = (candidateName: string, jobTitle: string) =>
-    `We are pleased to inform you that after reviewing your application for the ${jobTitle} position, we would like to invite you for an interview.\n\nPlease reply to this email or contact us to schedule a convenient time.\n\nWe look forward to speaking with you.`;
-
-// Resumes are uploaded in whatever format the candidate provided (pdf/doc/docx).
-// Hardcoding ".pdf" on download renamed docx files to *.pdf, so PDF viewers then
-// failed to open what was actually a Word document. Preserve the real extension.
 const getResumeExtension = (resumeUrl: string): string => {
-    try {
-        const pathname = new URL(resumeUrl).pathname;
-        const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
-        if (match) return `.${match[1].toLowerCase()}`;
-    } catch {
-        // not a parseable absolute URL — fall through to the plain-string check below
-    }
-    const match = resumeUrl.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
-    return match ? `.${match[1].toLowerCase()}` : ".pdf";
+  try { const m = new URL(resumeUrl).pathname.match(/\.([a-zA-Z0-9]+)$/); if (m) return `.${m[1].toLowerCase()}`; } catch {}
+  const m = resumeUrl.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
+  return m ? `.${m[1].toLowerCase()}` : ".pdf";
 };
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function ApplicationsPage() {
-    const queryClient = useQueryClient();
-    const [searchTerm, setSearchTerm] = useState("");
-    const [cityFilter, setCityFilter] = useState("all");
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [isDownloading, setIsDownloading] = useState(false);
+  const queryClient = useQueryClient();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-    // ── Invite modal state
-    const [inviteApp, setInviteApp] = useState<Application | null>(null);
-    const [inviteSubject, setInviteSubject] = useState("");
-    const [inviteMessage, setInviteMessage] = useState("");
-    const [isSending, setIsSending] = useState(false);
+  // Invite modal state
+  const [inviteApp, setInviteApp] = useState<Application | null>(null);
+  const [inviteSubject, setInviteSubject] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteFromAlias, setInviteFromAlias] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
-    // React Query replaces manual useState/useEffect/fetchApplications pattern.
-    const {
-        data: applications = [],
-        isLoading,
-        isError,
-        error,
-        refetch,
-    } = useApplications();
+  // Cached Gmail aliases for instant rendering
+  const { data: aliasesData } = useQuery({
+    queryKey: ['gmail', 'aliases'],
+    queryFn: gmailApi.getAliases,
+    staleTime: 10 * 60 * 1000,
+  });
+  const gmailAliases = aliasesData?.aliases ?? [];
 
-    // Auto-select all applications when data first arrives (for bulk resume download).
-    useEffect(() => {
-        if (applications.length > 0) {
-            setSelectedIds(new Set((applications as any[]).map((app) => app.id)));
-        }
-    }, [applications]);
-
-    // Sync Gmail replies on page mount — marks candidates as RESPONDED if they replied to invite email.
-    useEffect(() => {
-        gmailApi.syncReplies()
-            .then(res => { if (res.updated > 0) queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); })
-            .catch(() => {}); // silently ignore if Gmail not connected
-    }, [queryClient]);
-
-    // ── Open invite modal
-    const openInviteModal = (app: Application) => {
-        const name = app.candidate?.full_name || "Candidate";
-        const job = app.job?.title || "our open position";
-        setInviteApp(app);
-        setInviteSubject(defaultSubject(job));
-        setInviteMessage(defaultMessage(name, job));
-    };
-
-    const closeInviteModal = () => {
-        setInviteApp(null);
-        setInviteSubject("");
-        setInviteMessage("");
-    };
-
-    // ── Send invite
-    const handleSendInvite = async () => {
-        if (!inviteApp) return;
-        if (!inviteSubject.trim() || !inviteMessage.trim()) {
-            toast.error("Subject and message are required.");
-            return;
-        }
-
-        setIsSending(true);
-        try {
-            await api.applications.invite(inviteApp.id, inviteSubject.trim(), inviteMessage.trim());
-            toast.success(`Interview invitation sent to ${inviteApp.candidate?.email || "candidate"}!`);
-            closeInviteModal();
-            queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
-        } catch (err: any) {
-            toast.error(`Failed to send invite: ${err.message || "Please try again."}`);
-        } finally {
-            setIsSending(false);
-        }
-    };
-
-    // ── Delete
-    const handleDelete = async (id: string, name: string) => {
-        if (
-            !window.confirm(
-                `Are you sure you want to permanently delete the application for ${name}? This will remove all interview data and cannot be undone.`
-            )
-        )
-            return;
-
-        try {
-            await api.applications.delete(id);
-            toast.success(`Application for ${name} deleted successfully`);
-            queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
-        } catch (err: any) {
-            toast.error(`Failed to delete application: ${err.message || "Unauthorized"}`);
-        }
-    };
-
-    // ── Filter — memoized so every keystroke/poll-tick/unrelated state change
-    // doesn't re-scan the full applications list (this page can list hundreds).
-    const filteredApps = useMemo(
-        () =>
-            Array.isArray(applications)
-                ? applications.filter((app) => {
-                    const candidateName = app?.candidate?.full_name || "Unknown Candidate";
-                    const jobTitle = app?.job?.title || "Unknown Job";
-                    const email = app?.candidate?.email || "";
-                    const term = searchTerm.toLowerCase();
-
-                    const matchesSearch =
-                        candidateName.toLowerCase().includes(term) ||
-                        jobTitle.toLowerCase().includes(term) ||
-                        email.toLowerCase().includes(term);
-
-                    if (cityFilter !== "all") {
-                        const appCity = app.city ? app.city.toLowerCase() : "unknown";
-                        if (appCity !== cityFilter.toLowerCase()) return false;
-                    }
-
-                    return matchesSearch;
-                })
-                : [],
-        [applications, searchTerm, cityFilter]
-    );
-
-    const allFilteredSelected = useMemo(
-        () => filteredApps.length > 0 && filteredApps.every((app) => selectedIds.has(app.id)),
-        [filteredApps, selectedIds]
-    );
-    const someFilteredSelected = useMemo(
-        () => filteredApps.some((app) => selectedIds.has(app.id)),
-        [filteredApps, selectedIds]
-    );
-
-    const handleSelectAll = () => {
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (allFilteredSelected) {
-                filteredApps.forEach((app) => next.delete(app.id));
-            } else {
-                filteredApps.forEach((app) => next.add(app.id));
-            }
-            return next;
-        });
-    };
-
-    const handleSelectOne = (id: string) => {
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    };
-
-    // ── Bulk resume download
-    const handleDownloadResumes = async () => {
-        const toDownload = applications.filter(
-            (app) => selectedIds.has(app.id) && app.candidate?.candidate_profile?.resume_url
-        );
-        if (toDownload.length === 0) {
-            toast.error("No resumes available for the selected applications");
-            return;
-        }
-        setIsDownloading(true);
-        const [{ default: JSZip }, { saveAs }] = await Promise.all([
-            import("jszip"),
-            import("file-saver"),
-        ]);
-        const zip = new JSZip();
-        let failed = 0;
-
-        await Promise.all(toDownload.map(async (app) => {
-            try {
-                const resumeUrl = app.candidate?.candidate_profile?.resume_url;
-                if (!resumeUrl) return;
-                const response = await fetch(resumeUrl);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const blob = await response.blob();
-                const name = (app.candidate?.full_name || "Unknown")
-                    .replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
-                const job = (app.job?.title || "Unknown_Job")
-                    .replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
-                zip.file(`${name}_${job}${getResumeExtension(resumeUrl)}`, blob);
-            } catch {
-                failed++;
-            }
-        }));
-
-        try {
-            const content = await zip.generateAsync({ type: "blob" });
-            const date = new Date().toISOString().split("T")[0];
-            saveAs(content, `resumes_${date}.zip`);
-            if (failed > 0) {
-                toast.warning(`Downloaded ${toDownload.length - failed} resume(s). ${failed} failed.`);
-            } else {
-                toast.success(`${toDownload.length} resume(s) bundled and downloaded`);
-            }
-        } catch {
-            toast.error("Failed to generate ZIP file");
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
-    const handleDownloadSingle = async (app: Application) => {
-        try {
-            const resumeUrl = app.candidate?.candidate_profile?.resume_url;
-            if (!resumeUrl) return;
-            const response = await fetch(resumeUrl);
-            if (!response.ok) throw new Error();
-            const blob = await response.blob();
-            const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
-            const job = (app.job?.title || "Unknown_Job").replace(/\s+/g, "_");
-            const { saveAs } = await import("file-saver");
-            saveAs(blob, `${name}_${job}${getResumeExtension(resumeUrl)}`);
-        } catch {
-            toast.error("Failed to download resume");
-        }
-    };
-
-    // ── Loading
-    if (isLoading) {
-        return (
-            <div className="flex min-h-[400px] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+  useEffect(() => {
+    if (gmailAliases.length > 0 && !inviteFromAlias) {
+      setInviteFromAlias(gmailAliases[0].email);
     }
+  }, [gmailAliases, inviteFromAlias]);
 
-    if (isError) {
-        const message = error instanceof Error ? error.message : "Failed to load applications.";
+  const { data: applications = [], isLoading, isError, error, refetch } = useApplications();
 
-        return (
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Applications</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Review candidates, AI-scored automatically. Send interview invites manually.
-                    </p>
-                </div>
 
-                <Card className="border-destructive/20 bg-destructive/5">
-                    <CardContent className="flex flex-col items-start gap-3 p-6">
-                        <div>
-                            <h2 className="text-lg font-semibold text-destructive">Could not load applications</h2>
-                            <p className="text-sm text-muted-foreground mt-1">{message}</p>
-                        </div>
-                        <Button onClick={() => refetch()} variant="outline">
-                            Retry
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
+
+  useEffect(() => {
+    gmailApi.syncReplies()
+      .then(res => { if (res.updated > 0) queryClient.invalidateQueries({ queryKey: applicationKeys.lists() }); })
+      .catch(() => {});
+  }, [queryClient]);
+
+  const handleImportCandidates = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await gmailApi.syncApplications();
+      if (res.created > 0) {
+        toast.success(`Imported ${res.created} new candidate application(s)!`);
+        queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
+      } else {
+        toast.info(res.message || "No new candidate applications found in email inbox.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to import applications.");
+    } finally {
+      setIsSyncing(false);
     }
+  };
 
-    // ── Render
+  const renderSourceBadge = (source?: string) => {
+    const s = (source || "web").toLowerCase();
+    if (s === "linkedin") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[0.68rem] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+          <LinkedinIcon className="w-3.5 h-3.5 text-blue-600" /> LinkedIn
+        </span>
+      );
+    }
+    if (s === "indeed") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[0.68rem] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs">
+          <Briefcase className="w-3.5 h-3.5 text-indigo-600" /> Indeed
+        </span>
+      );
+    }
+    if (s === "email" || s === "gmail") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[0.68rem] font-bold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+          <Mail className="w-3.5 h-3.5 text-rose-600" /> Gmail
+        </span>
+      );
+    }
     return (
-        <div className="space-y-8">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Applications</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Review candidates, AI-scored automatically. Send interview invites manually.
-                    </p>
-                </div>
-                <div className="flex gap-2 w-full md:w-auto flex-wrap">
-                    <div className="relative flex-1 md:w-64">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search candidates..."
-                            className="pl-9"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <select
-                        className="flex h-10 w-full sm:w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950"
-                        value={cityFilter}
-                        onChange={(e) => setCityFilter(e.target.value)}
-                    >
-                        <option value="all">All Cities</option>
-                        <option value="haripur">Haripur</option>
-                        <option value="islamabad">Islamabad</option>
-                        <option value="lahore">Lahore</option>
-                        <option value="karachi">Karachi</option>
-                    </select>
-                    <Button variant="outline" size="icon">
-                        <Filter className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-950/40"
-                        onClick={handleDownloadResumes}
-                        disabled={selectedIds.size === 0 || isDownloading}
-                    >
-                        {isDownloading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Download className="h-4 w-4" />
-                        )}
-                        Download Resumes ({selectedIds.size})
-                    </Button>
-                </div>
-            </div>
-
-            {/* Table */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <Card className="border-border shadow-sm">
-                    <CardContent className="p-0">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="hover:bg-transparent">
-                                    <TableHead className="w-10 pl-4">
-                                        <input
-                                            type="checkbox"
-                                            checked={allFilteredSelected}
-                                            ref={(el) => {
-                                                if (el)
-                                                    el.indeterminate =
-                                                        !allFilteredSelected && someFilteredSelected;
-                                            }}
-                                            onChange={handleSelectAll}
-                                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-                                        />
-                                    </TableHead>
-                                    <TableHead className="w-[220px] pl-4">Candidate</TableHead>
-                                    <TableHead>City</TableHead>
-                                    <TableHead>Qualification</TableHead>
-                                    <TableHead>Job Role</TableHead>
-                                    <TableHead>Applied</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Salary</TableHead>
-                                    <TableHead className="text-center">ATS Score</TableHead>
-                                    <TableHead className="text-right pr-6">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredApps.map((app) => (
-                                    <TableRow
-                                        key={app.id}
-                                        className={`group cursor-pointer transition-colors ${selectedIds.has(app.id)
-                                            ? "bg-indigo-50/70 dark:bg-indigo-950/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
-                                            : "hover:bg-slate-50 dark:hover:bg-slate-900/50"
-                                            }`}
-                                    >
-                                        <TableCell className="pl-4">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.has(app.id)}
-                                                onChange={() => handleSelectOne(app.id)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-                                            />
-                                        </TableCell>
-
-                                        {/* Candidate */}
-                                        <TableCell className="pl-4 font-medium">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-9 w-9 border border-border">
-                                                    <AvatarFallback className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-                                                        {getInitials(
-                                                            app.candidate?.full_name || "Unknown Candidate"
-                                                        )}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex flex-col">
-                                                    <span>{app.candidate?.full_name || "Unknown"}</span>
-                                                    <span className="text-xs text-muted-foreground font-normal">
-                                                        {app.candidate?.email || "No email"}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-
-                                        {/* City */}
-                                        <TableCell>
-                                            {app.city ? (
-                                                <span className="capitalize">{app.city}</span>
-                                            ) : (
-                                                <span className="text-muted-foreground italic">Unknown</span>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Qualification */}
-                                        <TableCell>
-                                            {app.qualification ? (
-                                                <span className="capitalize">{app.qualification}</span>
-                                            ) : (
-                                                <span className="text-muted-foreground italic">N/A</span>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Job Role */}
-                                        <TableCell>{app.job?.title || "Unknown Job"}</TableCell>
-
-                                        {/* Applied */}
-                                        <TableCell className="text-muted-foreground">
-                                            {app.created_at
-                                                ? formatDistanceToNow(new Date(app.created_at), { addSuffix: true })
-                                                : "N/A"}
-                                        </TableCell>
-
-                                        {/* Status */}
-                                        <TableCell>
-                                            <StatusBadge status={app.status || "APPLIED"} />
-                                        </TableCell>
-
-                                        {/* Salary */}
-                                        <TableCell>
-                                            {app.expected_salary ? (
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-xs font-medium">
-                                                        {Number(app.expected_salary).toLocaleString()}
-                                                    </span>
-                                                    {app.salary_filter_status === "within_budget" && (
-                                                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 w-fit">
-                                                            Within Budget
-                                                        </span>
-                                                    )}
-                                                    {app.salary_filter_status === "above_budget" && (
-                                                        <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 w-fit">
-                                                            Above Budget
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground italic">—</span>
-                                            )}
-                                        </TableCell>
-
-                                        {/* ATS Score */}
-                                        <TableCell className="text-center">
-                                            <div className="flex justify-center">
-                                                <ScoreRing
-                                                    score={app.match_score ?? app.ai_score ?? 0}
-                                                    size="sm"
-                                                    animate={false}
-                                                />
-                                            </div>
-                                        </TableCell>
-
-                                        {/* Actions */}
-                                        <TableCell className="text-right pr-6">
-                                            <div className="flex justify-end items-center gap-1">
-                                                {app.candidate?.candidate_profile?.resume_url && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        title="Download resume"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDownloadSingle(app);
-                                                        }}
-                                                    >
-                                                        <Download className="w-4 h-4" />
-                                                    </Button>
-                                                )}
-
-                                                {/* Invite for Interview */}
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 gap-1.5"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openInviteModal(app);
-                                                    }}
-                                                    title="Send interview invitation email"
-                                                >
-                                                    <Mail className="w-3.5 h-3.5" />
-                                                    Invite
-                                                </Button>
-
-                                                {/* Review */}
-                                                <Link href={`/dashboard/applications/${app.id}`}>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    >
-                                                        Review <Eye className="w-4 h-4 ml-1" />
-                                                    </Button>
-                                                </Link>
-
-                                                {/* Delete */}
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDelete(
-                                                            app.id,
-                                                            app.candidate?.full_name || "Unknown"
-                                                        );
-                                                    }}
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-
-                                {filteredApps.length === 0 && (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={11}
-                                            className="h-24 text-center text-muted-foreground"
-                                        >
-                                            No applications found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </motion.div>
-
-            {/* ── Invite for Interview Modal ─────────────────────────────────── */}
-            <Dialog
-                open={!!inviteApp}
-                onOpenChange={(open) => {
-                    if (!open) closeInviteModal();
-                }}
-            >
-                <DialogContent className="sm:max-w-[560px]">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-xl">
-                            <Mail className="h-5 w-5 text-indigo-600" />
-                            Invite for Interview
-                        </DialogTitle>
-                        <DialogDescription>
-                            Compose a custom email to{" "}
-                            <strong>{inviteApp?.candidate?.full_name || "the candidate"}</strong>{" "}
-                            ({inviteApp?.candidate?.email || "—"}) for the{" "}
-                            <strong>{inviteApp?.job?.title || "role"}</strong> position.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-2">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="invite-subject" className="text-sm font-medium">
-                                Subject
-                            </Label>
-                            <Input
-                                id="invite-subject"
-                                value={inviteSubject}
-                                onChange={(e) => setInviteSubject(e.target.value)}
-                                placeholder="Interview Invitation – Software Engineer"
-                                className="focus-visible:ring-indigo-500"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="invite-message" className="text-sm font-medium">
-                                Message
-                            </Label>
-                            <textarea
-                                id="invite-message"
-                                rows={9}
-                                value={inviteMessage}
-                                onChange={(e) => setInviteMessage(e.target.value)}
-                                placeholder="Write your custom message here…"
-                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 resize-none"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                The candidate's name will be added as a greeting automatically.
-                            </p>
-                        </div>
-                    </div>
-
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={closeInviteModal} disabled={isSending}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleSendInvite}
-                            disabled={isSending || !inviteSubject.trim() || !inviteMessage.trim()}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                        >
-                            {isSending ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Sending…
-                                </>
-                            ) : (
-                                <>
-                                    <Send className="h-4 w-4" />
-                                    Send Email
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[0.68rem] font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+        <Globe className="w-3.5 h-3.5 text-slate-500" /> Direct Portal
+      </span>
     );
+  };
+
+  const openInviteModal = (app: Application) => {
+    const name = app.candidate?.full_name || "Candidate";
+    const job = app.job?.title || "position";
+    setInviteApp(app);
+    setInviteSubject(`Interview Invitation – ${job}`);
+    setInviteMessage(`Hi ${name},\n\nWe would like to invite you for an interview for the ${job} position. Please let us know your availability.\n\nBest regards,\nHR Team`);
+  };
+
+  const handleSendInvite = async () => {
+    if (!inviteApp) return;
+    if (!inviteSubject.trim() || !inviteMessage.trim()) { toast.error("Subject and message are required."); return; }
+    setIsSending(true);
+    try {
+      await api.applications.invite(inviteApp.id, inviteSubject.trim(), inviteMessage.trim());
+      toast.success(`Invite sent to ${inviteApp.candidate?.email}!`);
+      setInviteApp(null);
+      queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
+    } catch (err: any) {
+      toast.error(`Failed: ${err.message || "Please try again."}`);
+    } finally { setIsSending(false); }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete application for ${name}?`)) return;
+    try {
+      await api.applications.delete(id);
+      toast.success("Application deleted");
+      queryClient.invalidateQueries({ queryKey: applicationKeys.lists() });
+    } catch (err: any) { toast.error(`Failed: ${err.message || "Unauthorized"}`); }
+  };
+
+  const handleDownloadSingle = async (app: Application) => {
+    try {
+      const url = app.candidate?.candidate_profile?.resume_url;
+      if (!url) return;
+      const blob = await (await fetch(url)).blob();
+      const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
+      const job = (app.job?.title || "Job").replace(/\s+/g, "_");
+      const { saveAs } = await import("file-saver");
+      saveAs(blob, `${name}_${job}${getResumeExtension(url)}`);
+    } catch { toast.error("Failed to download resume"); }
+  };
+
+  const handleDownloadResumes = async () => {
+    const toDownload = applications.filter((a) => selectedIds.has(a.id) && a.candidate?.candidate_profile?.resume_url);
+    if (toDownload.length === 0) { toast.error("No resumes for selected applications"); return; }
+    setIsDownloading(true);
+    try {
+      const [{ default: JSZip }, { saveAs }] = await Promise.all([import("jszip"), import("file-saver")]);
+      const zip = new JSZip();
+      await Promise.all(toDownload.map(async (app) => {
+        try {
+          const url = app.candidate?.candidate_profile?.resume_url!;
+          const blob = await (await fetch(url)).blob();
+          const n = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
+          const j = (app.job?.title || "Job").replace(/\s+/g, "_");
+          zip.file(`${n}_${j}${getResumeExtension(url)}`, blob);
+        } catch {}
+      }));
+      saveAs(await zip.generateAsync({ type: "blob" }), `resumes_${new Date().toISOString().split("T")[0]}.zip`);
+      toast.success(`${toDownload.length} resume(s) downloaded`);
+    } catch { toast.error("Failed to create ZIP"); }
+    finally { setIsDownloading(false); }
+  };
+
+  const [selectedJob, setSelectedJob] = useState<string>("all");
+
+  // Group applications by Job Title
+  const jobGroups = useMemo(() => {
+    if (!Array.isArray(applications)) return [];
+    const groups: { [key: string]: { title: string; count: number; hired: number; shortlisted: number; topScore: number } } = {};
+
+    applications.forEach((app: any) => {
+      const title = app.job?.title || "Unassigned Position";
+      if (!groups[title]) {
+        groups[title] = { title, count: 0, hired: 0, shortlisted: 0, topScore: 0 };
+      }
+      groups[title].count += 1;
+      if (app.status === "HIRED") groups[title].hired += 1;
+      if (app.status === "SHORTLISTED") groups[title].shortlisted += 1;
+      const score = app.match_score ?? app.ai_score ?? 0;
+      if (score > groups[title].topScore) groups[title].topScore = score;
+    });
+
+    return Object.values(groups);
+  }, [applications]);
+
+  const filteredApps = useMemo(() =>
+    Array.isArray(applications) ? applications.filter((app) => {
+      const term = searchTerm.toLowerCase();
+      const matchSearch = (app.candidate?.full_name || "").toLowerCase().includes(term) ||
+        (app.job?.title || "").toLowerCase().includes(term) ||
+        (app.candidate?.email || "").toLowerCase().includes(term);
+      const matchCity = cityFilter === "all" || (app.city || "unknown").toLowerCase() === cityFilter;
+      const matchStatus = statusFilter === "all" || app.status === statusFilter;
+      const matchJob = selectedJob === "all" || (app.job?.title || "Unassigned Position") === selectedJob;
+      return matchSearch && matchCity && matchStatus && matchJob;
+    }) : []
+  , [applications, searchTerm, cityFilter, statusFilter, selectedJob]);
+
+  const allSelected = filteredApps.length > 0 && filteredApps.every((a) => selectedIds.has(a.id));
+  const someSelected = filteredApps.some((a) => selectedIds.has(a.id));
+
+  const toggleAll = () => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (allSelected) filteredApps.forEach((a) => next.delete(a.id));
+    else filteredApps.forEach((a) => next.add(a.id));
+    return next;
+  });
+
+  const toggleOne = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+
+  // Inline skeleton — no full-page spinner blocker
+  const SkeletonRow = () => (
+    <tr className="animate-pulse border-b border-slate-100">
+      <td className="pl-6 py-4"><div className="w-4 h-4 bg-slate-100 rounded" /></td>
+      <td className="py-4">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 flex-shrink-0" />
+          <div className="space-y-1.5">
+            <div className="h-3 bg-slate-100 rounded w-32" />
+            <div className="h-2.5 bg-slate-100 rounded w-24" />
+          </div>
+        </div>
+      </td>
+      <td className="py-4"><div className="h-3 bg-slate-100 rounded w-28" /></td>
+      <td className="py-4"><div className="h-6 bg-slate-100 rounded-full w-20" /></td>
+      <td className="py-4"><div className="h-3 bg-slate-100 rounded w-16" /></td>
+      <td className="py-4"><div className="h-6 bg-slate-100 rounded-full w-16" /></td>
+      <td className="py-4 text-right"><div className="h-3 bg-slate-100 rounded w-20 ml-auto" /></td>
+      <td className="py-4 text-center"><div className="h-3 bg-slate-100 rounded w-10 mx-auto" /></td>
+      <td className="py-4" />
+    </tr>
+  );
+
+  if (isError) return (
+    <div className="panel-elevated p-12 text-center">
+      <p className="text-base font-bold text-rose-600 mb-4">{(error as Error)?.message || "Failed to load candidates"}</p>
+      <button onClick={() => refetch()} className="btn-glass text-sm">Retry Connection</button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Applications</h1>
+          <p className="text-sm text-slate-500 mt-1">Review applications grouped by job postings, AI match scores, and dispatch invitations.</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {selectedIds.size > 0 && (
+            <button onClick={handleDownloadResumes} disabled={isDownloading} className="btn-glass text-sm border-indigo-200 hover:border-indigo-400 text-indigo-700">
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 text-indigo-600" />}
+              Export {selectedIds.size} Resumes
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Job Panels Grid */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <Filter className="w-3.5 h-3.5 text-indigo-500" /> Filter Applications By Job Posting
+          </h3>
+          {selectedJob !== "all" && (
+            <button onClick={() => setSelectedJob("all")} className="text-xs font-semibold text-indigo-600 hover:underline">
+              Show All ({applications.length})
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* All Jobs Panel */}
+          <div
+            onClick={() => setSelectedJob("all")}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              selectedJob === "all"
+                ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white border-indigo-600 shadow-md scale-[1.01]"
+                : "bg-white text-slate-800 border-slate-200/80 hover:border-indigo-300 hover:shadow-sm"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                selectedJob === "all" ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-700"
+              }`}>
+                All Positions
+              </span>
+              <Users className={`w-4 h-4 ${selectedJob === "all" ? "text-white/80" : "text-slate-400"}`} />
+            </div>
+            <p className="font-extrabold text-base line-clamp-1">All Job Postings</p>
+            <p className={`text-xs mt-1 font-semibold ${selectedJob === "all" ? "text-indigo-100" : "text-slate-500"}`}>
+              {applications.length} total applications
+            </p>
+          </div>
+
+          {/* Individual Job Panels */}
+          {jobGroups.map((job) => {
+            const isSelected = selectedJob === job.title;
+            return (
+              <div
+                key={job.title}
+                onClick={() => setSelectedJob(job.title)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white border-indigo-600 shadow-md scale-[1.01]"
+                    : "bg-white text-slate-800 border-slate-200/80 hover:border-indigo-300 hover:shadow-sm"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                    isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  }`}>
+                    {job.count} Applicant{job.count !== 1 ? 's' : ''}
+                  </span>
+                  {job.topScore > 0 && (
+                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                      isSelected ? "bg-emerald-400/30 text-emerald-100" : "bg-emerald-50 text-emerald-700"
+                    }`}>
+                      ⚡ {job.topScore}% Top AI
+                    </span>
+                  )}
+                </div>
+                <p className="font-extrabold text-base line-clamp-1">{job.title}</p>
+                <p className={`text-xs mt-1 font-medium ${isSelected ? "text-indigo-100" : "text-slate-500"}`}>
+                  {job.hired > 0 ? `${job.hired} Hired` : `${job.shortlisted} Shortlisted`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Filters & Actions Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+        <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-lg">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              placeholder="Search by candidate name, email, or job role..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 overflow-x-auto flex-wrap sm:flex-nowrap">
+          {selectedJob !== "all" && (
+            <span className="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold flex items-center gap-1.5">
+              Job: {selectedJob}
+              <button onClick={() => setSelectedJob("all")} className="hover:text-indigo-900 font-extrabold ml-1">✕</button>
+            </span>
+          )}
+
+          <select className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+            <option value="all">🌍 All Locations</option>
+            <option value="haripur">Haripur</option>
+            <option value="islamabad">Islamabad</option>
+            <option value="lahore">Lahore</option>
+            <option value="karachi">Karachi</option>
+          </select>
+
+          <select className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">⚡ All Stages</option>
+            <option value="APPLIED">Applied</option>
+            <option value="SHORTLISTED">Shortlisted</option>
+            <option value="NO_RESPONSE">No Response</option>
+            <option value="INTERVIEW_SCHEDULED">Interview Scheduled</option>
+            <option value="PENDING_REVIEW">Pending Review</option>
+            <option value="OFFER_EXTENDED">Offer - Extended</option>
+            <option value="OFFER_ACCEPTED">Offer - Accepted</option>
+            <option value="DECLINED">Declined</option>
+            <option value="UNAFFORDABLE">Unaffordable</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="HIRED">Hired</option>
+            <option value="ON_HOLD">On Hold</option>
+          </select>
+
+          <button
+            onClick={handleImportCandidates}
+            disabled={isSyncing}
+            className="btn-dribbble py-2.5 px-4 text-xs font-bold flex items-center gap-2 flex-shrink-0 shadow-sm cursor-pointer"
+            title="Import candidate applications from Gmail"
+          >
+            {isSyncing ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <UserPlus className="w-4 h-4 text-white" />
+            )}
+            {isSyncing ? "Importing..." : "Import Applications"}
+          </button>
+        </div>
+      </div>
+
+      {/* Applications Table Card */}
+      <div className="panel-elevated overflow-hidden border-0 bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                <th className="w-12 pl-6 py-4">
+                  <input type="checkbox" checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                    onChange={toggleAll}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                </th>
+                <th className="py-4">Candidate</th>
+                <th className="py-4">Position</th>
+                <th className="py-4">Status</th>
+                <th className="py-4">Applied</th>
+                <th className="py-4">Applied Through</th>
+                <th className="py-4 text-right">Salary Exp.</th>
+                <th className="py-4 text-center">AI Score</th>
+                <th className="py-4 text-right pr-6">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : filteredApps.map((app) => {
+                const name = app.candidate?.full_name || "Unknown Candidate";
+                const score = app.match_score ?? app.ai_score ?? 0;
+                const salary = app.expected_salary ? `PKR ${Number(app.expected_salary).toLocaleString()}` : null;
+
+                return (
+                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="pl-6 py-4">
+                      <input type="checkbox" checked={selectedIds.has(app.id)}
+                        onChange={() => toggleOne(app.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                    </td>
+
+                    <td className="py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                          {name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{name}</p>
+                          <p className="text-xs font-medium text-slate-500 mt-0.5">{app.candidate?.email || "—"}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-4 font-semibold text-slate-700 text-sm">{app.job?.title || "—"}</td>
+
+                    <td className="py-4">
+                      <span className="badge-glow-indigo text-[0.65rem] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md">
+                        {app.status || "APPLIED"}
+                      </span>
+                    </td>
+
+                    <td className="py-4 text-slate-500 font-medium text-sm">
+                      {app.created_at ? formatDistanceToNow(new Date(app.created_at), { addSuffix: true }) : "—"}
+                    </td>
+
+                    <td className="py-4">
+                      {renderSourceBadge(app.source)}
+                    </td>
+
+                    <td className="py-4 text-right">
+                      {salary ? (
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shadow-sm text-sm">
+                            {salary}
+                          </span>
+                          {app.salary_filter_status === "above_budget" && (
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md uppercase tracking-wide">
+                              Out of Range
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+
+                    <td className="py-4">
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <div className="flex items-center gap-2">
+                          <Zap className={`w-3.5 h-3.5 ${score >= 70 ? 'text-emerald-500' : 'text-amber-500'}`} />
+                          <span className="font-black text-slate-800 text-sm">{score}%</span>
+                        </div>
+                        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${score >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : 'bg-gradient-to-r from-indigo-400 to-indigo-500'}`} style={{ width: `${score}%` }} />
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-4 text-right pr-6">
+                      <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                        {app.candidate?.candidate_profile?.resume_url && (
+                          <button onClick={() => handleDownloadSingle(app)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:shadow-sm transition-all" title="Download CV">
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button onClick={() => openInviteModal(app)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:shadow-sm transition-all" title="Send Email">
+                          <Mail className="w-4 h-4" />
+                        </button>
+                        <Link href={`/dashboard/applications/${app.id}`}>
+                          <button className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-400 hover:shadow-sm transition-all" title="View Profile">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </Link>
+                        <button onClick={() => handleDelete(app.id, name)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-rose-600 hover:border-rose-300 hover:shadow-sm transition-all" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {!isLoading && filteredApps.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-16 text-center text-sm font-medium text-slate-400">
+                    No candidates found matching filter criteria.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Invite Modal */}
+      <Dialog open={!!inviteApp} onOpenChange={(open) => !open && setInviteApp(null)}>
+        <DialogContent className="max-w-md bg-white border border-slate-200 rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Mail className="w-5 h-5 text-indigo-600" /> Send Notification
+            </DialogTitle>
+            <DialogDescription className="text-sm font-medium text-slate-500">
+              To: {inviteApp?.candidate?.full_name} ({inviteApp?.candidate?.email})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">From</label>
+              <div className="relative">
+                <select
+                  value={inviteFromAlias || (gmailAliases[0]?.email ?? '')}
+                  onChange={e => setInviteFromAlias(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none pr-9 font-medium"
+                >
+                  {gmailAliases.length > 0 ? (
+                    gmailAliases.map(a => (
+                      <option key={a.email} value={a.email}>
+                        {a.formatted || a.email}{a.is_default ? ' (default)' : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">Default Connected Account</option>
+                  )}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Subject</label>
+              <input value={inviteSubject} onChange={(e) => setInviteSubject(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">Message</label>
+              <textarea rows={5} value={inviteMessage} onChange={(e) => setInviteMessage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none" />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3">
+            <button onClick={() => setInviteApp(null)} className="btn-glass text-sm" disabled={isSending}>Cancel</button>
+            <button onClick={handleSendInvite} className="btn-dribbble text-sm" disabled={isSending}>
+              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Send Invite
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

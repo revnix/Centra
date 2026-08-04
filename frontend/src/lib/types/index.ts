@@ -387,6 +387,7 @@ export interface IntegrationResponse {
   user_id: number;
   platform: string;
   platform_user_id?: string;
+  platform_display_name?: string;
   access_token?: string;
   refresh_token?: string;
   expires_at?: string;

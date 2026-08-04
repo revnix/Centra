@@ -38,19 +38,24 @@ class ApplicationStatus(str, enum.Enum):
     SCREENING = "SCREENING"
     SCREENING_TEST = "SCREENING_TEST"
     SHORTLISTED = "SHORTLISTED"
+    NO_RESPONSE = "NO_RESPONSE"
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
     INTERVIEW_INVITED = "INTERVIEW_INVITED"
     RESPONDED = "RESPONDED"
     INTERVIEW_PENDING = "INTERVIEW_PENDING"
     INTERVIEW_IN_PROGRESS = "INTERVIEW_IN_PROGRESS"
     INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
+    PENDING_REVIEW = "PENDING_REVIEW"
     REJECTED = "REJECTED"
     REFERENCE_CHECK = "REFERENCE_CHECK"
+    UNAFFORDABLE = "UNAFFORDABLE"
     OFFER_EXTENDED = "OFFER_EXTENDED"
     OFFER = "OFFER"
+    DECLINED = "DECLINED"
     OFFER_ACCEPTED = "OFFER_ACCEPTED"
     ONBOARDING = "ONBOARDING"
     HIRED = "HIRED"
+    ON_HOLD = "ON_HOLD"
     WITHDRAWN = "WITHDRAWN"
 
 class Application(Base):
@@ -110,3 +115,5 @@ class Application(Base):
     candidate = relationship("User", backref="applications")
     interview_session = relationship("InterviewSession", back_populates="application", uselist=False, cascade="all, delete-orphan")
     screening_test = relationship("ScreeningTest", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    interview_schedule = relationship("InterviewSchedule", back_populates="application", uselist=False, cascade="all, delete-orphan")
+

@@ -1,438 +1,329 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { useApplications } from '@/lib/hooks/useApplications';
+import { useJobs } from '@/lib/hooks/useJobs';
 import {
-    Users, Briefcase, Zap, ArrowRight, FileText, TrendingUp,
-    CheckCircle2, Clock, Loader2, Sparkles, BarChart3,
-    Target, ArrowUpRight, ArrowDownRight, Circle,
-    GitPullRequest, UserCheck, Calendar, ChevronRight, Flame
-} from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useDashboardStats } from "@/lib/hooks/useJobs";
+  Users, Briefcase, TrendingUp, Sparkles, ArrowRight,
+  Loader2, CheckCircle2, Zap, MoreHorizontal, Clock, Calendar
+} from 'lucide-react';
+import Link from 'next/link';
+import type { Application, Job } from '@/lib/types';
+import { useMemo, useState } from 'react';
 
-// ─── Animation Variants ────────────────────────────────────────────────────────
-// Cap delay at 200ms so the page never feels artificially slow
-const fadeUp = {
-    hidden: { opacity: 0, y: 16 },
-    visible: (i: number) => ({
-        opacity: 1,
-        y: 0,
-        transition: { delay: Math.min(i * 0.04, 0.2), duration: 0.3, ease: [0.22, 1, 0.36, 1] },
-    }),
-};
+export default function DashboardHome() {
+  const { data: applications = [], isLoading: appsLoading } = useApplications();
+  const { data: jobs = [], isLoading: jobsLoading } = useJobs();
+  const [filterStage, setFilterStage] = useState('ALL');
 
-// ─── Tiny Sparkline ────────────────────────────────────────────────────────────
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const range = max - min || 1;
-    const w = 80, h = 32;
-    const points = data
-        .map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`)
-        .join(" ");
-    return (
-        <svg width={w} height={h} className="opacity-70">
-            <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points} />
-        </svg>
-    );
-}
+  const isLoading = appsLoading || jobsLoading;
 
-// ─── Stat Card ─────────────────────────────────────────────────────────────────
-interface StatCardProps {
-    title: string;
-    value: number | string;
-    subtitle: string;
-    icon: React.ElementType;
-    trend?: { value: number; positive: boolean };
-    sparkData?: number[];
-    gradient: string;
-    iconBg: string;
-    sparkColor: string;
-    href: string;
-    index: number;
-}
+  const metrics = useMemo(() => {
+    const totalApps = applications.length;
+    const totalJobs = jobs.length;
+    const activeJobs = jobs.filter((j: Job) => j.status === 'PUBLISHED').length;
+    const avgScore = totalApps > 0
+      ? Math.round(applications.reduce((acc: number, a: Application) => acc + (a.match_score ?? a.ai_score ?? 0), 0) / totalApps)
+      : 0;
+    const hiredCount = applications.filter((a: Application) => (a.status || '').toUpperCase() === 'HIRED').length;
 
-function StatCard({ title, value, subtitle, icon: Icon, trend, sparkData, gradient, iconBg, sparkColor, href, index }: StatCardProps) {
-    return (
-        <motion.div custom={index} variants={fadeUp} initial="hidden" animate="visible">
-            <Link href={href}>
-                <div className={`relative group overflow-hidden rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${gradient}`}>
-                    {/* Glow blob */}
-                    <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10 blur-2xl group-hover:scale-125 transition-transform duration-500" />
+    return { totalApps, totalJobs, activeJobs, avgScore, hiredCount };
+  }, [applications, jobs]);
 
-                    <div className="relative z-10">
-                        <div className="flex items-start justify-between mb-4">
-                            <div className={`p-2.5 rounded-xl ${iconBg} shadow-lg`}>
-                                <Icon className="h-5 w-5 text-white" />
-                            </div>
-                            {trend && (
-                                <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${trend.positive ? 'bg-emerald-500/20 text-emerald-100' : 'bg-red-500/20 text-red-100'}`}>
-                                    {trend.positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                                    {trend.value}%
-                                </span>
-                            )}
-                        </div>
+  const recentApps = useMemo(() => {
+    let list = [...applications];
+    if (filterStage !== 'ALL') {
+      list = list.filter(a => (a.status || '').toUpperCase() === filterStage);
+    }
+    return list.slice(0, 5);
+  }, [applications, filterStage]);
 
-                        <div className="flex items-end justify-between">
-                            <div>
-                                <p className="text-white/70 text-xs font-medium uppercase tracking-widest mb-1">{title}</p>
-                                <p className="text-4xl font-bold text-white tabular-nums">{value}</p>
-                                <p className="text-white/60 text-xs mt-1">{subtitle}</p>
-                            </div>
-                            {sparkData && <Sparkline data={sparkData} color="rgba(255,255,255,0.6)" />}
-                        </div>
-                    </div>
-                </div>
-            </Link>
-        </motion.div>
-    );
-}
-
-// ─── Pipeline Stage Bar ────────────────────────────────────────────────────────
-const pipelineStages = [
-    { label: "Applied", count: 38, color: "bg-indigo-500", light: "bg-indigo-50 text-indigo-700" },
-    { label: "Screening", count: 24, color: "bg-violet-500", light: "bg-violet-50 text-violet-700" },
-    { label: "Interview", count: 14, color: "bg-amber-500", light: "bg-amber-50 text-amber-700" },
-    { label: "Offer", count: 6, color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700" },
-    { label: "Hired", count: 3, color: "bg-teal-500", light: "bg-teal-50 text-teal-700" },
-];
-
-function PipelineFunnel() {
-    const max = Math.max(...pipelineStages.map(s => s.count));
-    return (
-        <div className="space-y-3">
-            {pipelineStages.map((stage, i) => (
-                <motion.div
-                    key={stage.label}
-                    custom={i}
-                    variants={fadeUp}
-                    initial="hidden"
-                    animate="visible"
-                    className="flex items-center gap-4"
-                >
-                    <span className="text-xs font-medium text-slate-500 w-16 text-right shrink-0">{stage.label}</span>
-                    <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <motion.div
-                            className={`h-full rounded-full ${stage.color}`}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(stage.count / max) * 100}%` }}
-                            transition={{ duration: 0.5, delay: i * 0.05, ease: "easeOut" }}
-                        />
-                    </div>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.light} w-8 text-center shrink-0`}>
-                        {stage.count}
-                    </span>
-                </motion.div>
-            ))}
-        </div>
-    );
-}
-
-const badgeColors: Record<string, string> = {
-    Applied: "bg-indigo-100 text-indigo-700",
-    Shortlisted: "bg-emerald-100 text-emerald-700",
-    Interview: "bg-violet-100 text-violet-700",
-    Hired: "bg-teal-100 text-teal-700",
-    Published: "bg-amber-100 text-amber-700",
-    Rejected: "bg-rose-100 text-rose-700",
-};
-
-// Helper function to calculate relative time
-function getRelativeTime(timestampStr: string) {
-    if (!timestampStr) return "Just now";
-    
-    const timestamp = new Date(timestampStr).getTime();
-    const now = new Date().getTime();
-    const diffInSeconds = Math.floor((now - timestamp) / 1000);
-
-    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
-    
+  const formatTimeAgo = (dateInput?: string | Date): string => {
+    if (!dateInput) return 'Recently';
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return 'Recently';
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffInSeconds < 60) return 'Just now';
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) return `${diffInHours}h ago`;
-    
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 30) return `${diffInDays}d ago`;
-    
-    return new Date(timestampStr).toLocaleDateString();
-}
+    return date.toLocaleDateString();
+  };
 
-// ─── Quick Action ──────────────────────────────────────────────────────────────
-interface QuickActionProps {
-    icon: React.ElementType;
-    title: string;
-    description: string;
-    href: string;
-    accent: string;
-    index: number;
-}
+  const activityLogs = useMemo(() => {
+    const logs: Array<{ id: string; title: string; time: string; icon: any; date: Date }> = [];
 
-function QuickAction({ icon: Icon, title, description, href, accent, index }: QuickActionProps) {
+    // Process Applications into Activity items
+    applications.forEach((app: Application) => {
+      const candName = app.candidate?.full_name || 'Candidate';
+      const jobTitle = app.job?.title || 'Position';
+      const dateStr = app.created_at || app.applied_at;
+      const dateObj = dateStr ? new Date(dateStr) : new Date(0);
+
+      const statusUpper = (app.status || '').toUpperCase();
+      if (statusUpper === 'HIRED') {
+        logs.push({
+          id: `app-hired-${app.id}`,
+          title: `${candName} hired for ${jobTitle}`,
+          time: formatTimeAgo(dateStr),
+          icon: CheckCircle2,
+          date: dateObj,
+        });
+      } else if (statusUpper.includes('INTERVIEW')) {
+        logs.push({
+          id: `app-interview-${app.id}`,
+          title: `Interview scheduled with ${candName}`,
+          time: formatTimeAgo(dateStr),
+          icon: Users,
+          date: dateObj,
+        });
+      } else {
+        logs.push({
+          id: `app-screened-${app.id}`,
+          title: `AI Screened ${candName}`,
+          time: formatTimeAgo(dateStr),
+          icon: Zap,
+          date: dateObj,
+        });
+      }
+    });
+
+    // Process Jobs into Activity items
+    jobs.forEach((job: Job) => {
+      const dateStr = job.created_at;
+      const dateObj = dateStr ? new Date(dateStr) : new Date(0);
+      logs.push({
+        id: `job-created-${job.id}`,
+        title: `Job Posting: ${job.title}`,
+        time: formatTimeAgo(dateStr),
+        icon: Briefcase,
+        date: dateObj,
+      });
+    });
+
+    // Sort descending by date
+    logs.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return logs.slice(0, 5);
+  }, [applications, jobs]);
+
+  if (isLoading) {
     return (
-        <motion.div custom={index} variants={fadeUp} initial="hidden" animate="visible">
-            <Link href={href}>
-                <div className="group flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/40 transition-all duration-200 cursor-pointer">
-                    <div className={`p-2.5 rounded-xl ${accent} shadow-sm group-hover:scale-110 transition-transform duration-200`}>
-                        <Icon className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800">{title}</p>
-                        <p className="text-xs text-slate-500 truncate">{description}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
-                </div>
-            </Link>
-        </motion.div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
     );
-}
+  }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
-export default function DashboardPage() {
-    const { data: stats, isLoading } = useDashboardStats();
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-
-    const statCards: StatCardProps[] = useMemo(() => [
-        {
-            title: "Total Applications",
-            value: 12,
-            subtitle: "+2 since yesterday",
-            icon: Users,
-            trend: { value: 16, positive: true },
-            sparkData: [5, 7, 6, 9, 8, 10, 12],
-            gradient: "bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600",
-            iconBg: "bg-white/20",
-            sparkColor: "#a5b4fc",
-            href: "/dashboard/applications",
-            index: 0,
-        },
-        {
-            title: "Active Positions",
-            value: stats?.total_jobs ?? 0,
-            subtitle: "Open job postings",
-            icon: Briefcase,
-            trend: { value: 8, positive: true },
-            sparkData: [30, 36, 38, 40, 41, 43, stats?.total_jobs ?? 44],
-            gradient: "bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600",
-            iconBg: "bg-white/20",
-            sparkColor: "#6ee7b7",
-            href: "/dashboard/jobs",
-            index: 1,
-        },
-        {
-            title: "Pending Actions",
-            value: stats?.pending_actions ?? 0,
-            subtitle: "Jobs needing review",
-            icon: Zap,
-            trend: { value: 4, positive: false },
-            sparkData: [30, 28, 27, 26, 28, 25, stats?.pending_actions ?? 25],
-            gradient: "bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500",
-            iconBg: "bg-white/20",
-            sparkColor: "#fcd34d",
-            href: "/dashboard/generated-jobs",
-            index: 2,
-        },
-    ], [stats?.total_jobs, stats?.pending_actions]);
-
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 animate-pulse" />
-                        <Loader2 className="h-8 w-8 animate-spin text-white absolute inset-0 m-auto" />
-                    </div>
-                    <p className="text-slate-500 text-sm font-medium animate-pulse">Loading your workspace…</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="max-w-7xl mx-auto space-y-8">
-
-            {/* ── Header ── */}
-            <motion.div custom={0} variants={fadeUp} initial="hidden" animate="visible" className="flex items-start justify-between">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Flame className="h-5 w-5 text-amber-500" />
-                        <span className="text-sm font-medium text-slate-500">{greeting}, Admin 👋</span>
-                    </div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-indigo-800 to-slate-900 bg-clip-text text-transparent">
-                        Dashboard Overview
-                    </h1>
-                    <p className="text-slate-500 mt-1.5 text-sm">
-                        Here's what's happening across your hiring workspace today.
-                    </p>
-                </div>
-                <div className="hidden md:flex items-center gap-3">
-                    <Link href="/dashboard/jobs/new">
-                        <Button className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-lg shadow-indigo-500/25 gap-2 rounded-xl">
-                            <Sparkles className="h-4 w-4" />
-                            New Job Post
-                        </Button>
-                    </Link>
-                </div>
-            </motion.div>
-
-            {/* ── Stat Cards ── */}
-            <div className="grid gap-5 md:grid-cols-3">
-                {statCards.map((card) => (
-                    <StatCard key={card.title} {...card} />
-                ))}
-            </div>
-
-            {/* ── Middle Row ── */}
-            <div className="grid gap-6 lg:grid-cols-7">
-
-                {/* Recent Activity */}
-                <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible" className="lg:col-span-4">
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full">
-                        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-50">
-                            <div>
-                                <h2 className="text-base font-semibold text-slate-800">Recent Activity</h2>
-                                <p className="text-xs text-slate-500 mt-0.5">Latest actions across your workspace</p>
-                            </div>
-                            <Link href="/dashboard/applications">
-                                <button className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors">
-                                    View all <ArrowRight className="h-3 w-3" />
-                                </button>
-                            </Link>
-                        </div>
-                        <div className="divide-y divide-slate-50">
-                            {stats?.recent_activity && stats.recent_activity.length > 0 ? (
-                                stats.recent_activity.map((item: any, i: number) => {
-                                    // Determine icon and color based on status
-                                    let Icon = FileText;
-                                    let color = "text-indigo-600 bg-indigo-50";
-                                    
-                                    if (item.status === 'SHORTLISTED') {
-                                        Icon = UserCheck;
-                                        color = "text-emerald-600 bg-emerald-50";
-                                    } else if (item.status === 'INTERVIEW_SCHEDULED') {
-                                        Icon = Calendar;
-                                        color = "text-violet-600 bg-violet-50";
-                                    } else if (item.status === 'HIRED') {
-                                        Icon = CheckCircle2;
-                                        color = "text-teal-600 bg-teal-50";
-                                    } else if (item.status === 'REJECTED') {
-                                        Icon = Target;
-                                        color = "text-rose-600 bg-rose-50";
-                                    }
-
-                                    return (
-                                        <motion.div
-                                            key={i}
-                                            custom={i}
-                                            variants={fadeUp}
-                                            initial="hidden"
-                                            animate="visible"
-                                            className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors group cursor-pointer"
-                                        >
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-                                                <Icon className="h-4 w-4" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-slate-800">{item.label}</p>
-                                                <p className="text-xs text-slate-500 truncate">{item.sub}</p>
-                                            </div>
-                                            <div className="flex items-center gap-3 flex-shrink-0">
-                                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeColors[item.badge] || badgeColors.Applied}`}>
-                                                    {item.badge}
-                                                </span>
-                                                <span className="text-xs text-slate-400">{getRelativeTime(item.time)}</span>
-                                            </div>
-                                        </motion.div>
-                                    );
-                                })
-                            ) : (
-                                <div className="px-6 py-8 text-center text-slate-500 text-sm">
-                                    No recent activity found.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Right column */}
-                <div className="lg:col-span-3 flex flex-col gap-6">
-
-                    {/* Hiring Pipeline */}
-                    <motion.div custom={5} variants={fadeUp} initial="hidden" animate="visible">
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <div className="flex items-center justify-between mb-5">
-                                <div>
-                                    <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                                        <BarChart3 className="h-4 w-4 text-indigo-500" />
-                                        Hiring Pipeline
-                                    </h2>
-                                    <p className="text-xs text-slate-500 mt-0.5">Candidate flow this month</p>
-                                </div>
-                                <Link href="/dashboard/pipeline">
-                                    <button className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors">
-                                        Pipeline <ArrowRight className="h-3 w-3" />
-                                    </button>
-                                </Link>
-                            </div>
-                            <PipelineFunnel />
-                            <div className="mt-5 pt-4 border-t border-slate-50 flex items-center justify-between text-xs text-slate-500">
-                                <span className="flex items-center gap-1.5">
-                                    <Circle className="h-2 w-2 fill-emerald-400 text-emerald-400" />
-                                    <span className="font-medium text-emerald-600">7.9%</span> conversion rate
-                                </span>
-                                <span className="text-slate-400">Last 30 days</span>
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Quick Actions */}
-                    <motion.div custom={6} variants={fadeUp} initial="hidden" animate="visible">
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                            <h2 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                                <Target className="h-4 w-4 text-violet-500" />
-                                Quick Actions
-                            </h2>
-                            <div className="space-y-2">
-                                <QuickAction icon={Briefcase} title="Post New Job" description="Create a manual job posting" href="/dashboard/jobs/new" accent="bg-gradient-to-br from-indigo-500 to-violet-600" index={7} />
-                                <QuickAction icon={Sparkles} title="Generate with AI" description="Let AI write the job description" href="/dashboard/jobs/new" accent="bg-gradient-to-br from-violet-500 to-purple-600" index={8} />
-                                <QuickAction icon={Users} title="View Applications" description="Review candidate submissions" href="/dashboard/applications" accent="bg-gradient-to-br from-emerald-500 to-teal-600" index={9} />
-                                <QuickAction icon={TrendingUp} title="Candidate Pipeline" description="Track hiring progress" href="/dashboard/pipeline" accent="bg-gradient-to-br from-amber-500 to-orange-600" index={10} />
-                            </div>
-                        </div>
-                    </motion.div>
-                </div>
-            </div>
-
-            {/* ── Bottom Strip ── */}
-            <motion.div custom={11} variants={fadeUp} initial="hidden" animate="visible">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                        { label: "Avg. Time to Hire", value: "14 days", icon: Clock, color: "text-indigo-600 bg-indigo-50" },
-                        { label: "Offer Acceptance", value: "87%", icon: CheckCircle2, color: "text-emerald-600 bg-emerald-50" },
-                        { label: "Active Interviewees", value: "14", icon: UserCheck, color: "text-violet-600 bg-violet-50" },
-                        { label: "Positions Filled", value: "3 / 10", icon: Target, color: "text-amber-600 bg-amber-50" },
-                    ].map((item, i) => (
-                        <motion.div key={item.label} custom={i + 11} variants={fadeUp} initial="hidden" animate="visible">
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
-                                <div className={`p-2.5 rounded-xl ${item.color} flex-shrink-0`}>
-                                    <item.icon className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <p className="text-lg font-bold text-slate-900 tabular-nums">{item.value}</p>
-                                    <p className="text-xs text-slate-500">{item.label}</p>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
-                </div>
-            </motion.div>
-
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="bg-blue-100 border border-blue-300 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-full">HQ Overview</span>
+          </div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Welcome to Evalyn</h1>
+          <p className="text-base text-slate-500 mt-1">Your AI-powered recruitment engine is running smoothly.</p>
         </div>
-    );
+        <div className="flex items-center gap-3">
+          <button className="btn-glass flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-slate-500" /> Last 30 Days
+          </button>
+        </div>
+      </div>
+
+      {/* Striking Metric Cards with Mini-Charts (Simulated) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: 'Active Openings', value: metrics.activeJobs, trend: '+2', trendUp: true, icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Total Applicants', value: metrics.totalApps, trend: '+14%', trendUp: true, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'AI Match Avg',  value: `${metrics.avgScore}%`, trend: '+5%', trendUp: true, icon: Zap, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Hired Candidates', value: metrics.hiredCount, trend: 'Steady', trendUp: true, icon: CheckCircle2, color: 'text-blue-600', bg: 'bg-blue-50' },
+        ].map((m) => (
+          <div key={m.label} className="panel-elevated p-5 relative overflow-hidden group">
+            {/* Background decorative blob */}
+            <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full ${m.bg} opacity-50 group-hover:scale-150 transition-transform duration-500`}></div>
+            
+            <div className="relative z-10 flex justify-between items-start mb-4">
+              <div className={`w-10 h-10 rounded-xl ${m.bg} flex items-center justify-center`}>
+                <m.icon className={`w-5 h-5 ${m.color}`} />
+              </div>
+              <span className={`text-xs font-bold px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200`}>
+                {m.trend}
+              </span>
+            </div>
+            
+            <div className="relative z-10">
+              <p className="text-3xl font-black text-slate-900 tracking-tight tabular-nums">{m.value}</p>
+              <p className="text-sm font-medium text-slate-500 mt-1">{m.label}</p>
+            </div>
+
+            {/* Simulated mini chart */}
+            <div className="absolute bottom-0 left-0 right-0 h-10 opacity-20 pointer-events-none">
+              <svg viewBox="0 0 100 20" preserveAspectRatio="none" className="w-full h-full text-blue-600 stroke-current">
+                <path d="M0,20 L10,15 L20,18 L30,5 L40,12 L50,8 L60,15 L70,2 L80,10 L90,5 L100,20" fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+              </svg>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Content Split */}
+      <div className="grid lg:grid-cols-3 gap-8">
+
+        {/* Candidate Feed (2 Cols) */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">Talent Pipeline</h2>
+            
+            <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-200">
+              {['ALL', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_SCHEDULED'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setFilterStage(st)}
+                  className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    filterStage === st ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {st === 'ALL' ? 'All' : st.split('_')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {recentApps.length === 0 ? (
+              <div className="panel-elevated p-12 text-center text-slate-400 font-medium">
+                No candidates found.
+              </div>
+            ) : recentApps.map((app: Application, idx: number) => {
+              const name = app.candidate?.full_name || 'Unknown';
+              const role = app.job?.title || 'Open Position';
+              const score = app.match_score ?? app.ai_score ?? 0;
+              const statusClass = app.status === 'HIRED' ? 'border-status-hired' : 
+                                  app.status?.includes('INTERVIEW') ? 'border-status-interview' :
+                                  app.status === 'SHORTLISTED' ? 'border-status-screening' : 'border-status-applied';
+
+              return (
+                <Link key={app.id} href={`/dashboard/applications/${app.id}`} className="block">
+                  <div
+                    className={`panel-elevated p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer group ${statusClass}`}
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 shadow-sm flex items-center justify-center font-bold text-lg text-slate-700 flex-shrink-0 group-hover:scale-105 transition-transform">
+                        {name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                          {name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-sm text-slate-500 truncate">{role}</span>
+                          <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                          <span className="text-xs font-semibold text-blue-600">{app.status || 'APPLIED'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6 flex-shrink-0 justify-between sm:justify-end">
+                      {/* Circular Score */}
+                      <div className="flex items-center gap-3 bg-slate-50 py-1.5 px-3 rounded-xl border border-slate-100">
+                        <div className="relative w-8 h-8">
+                          <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
+                            <path
+                              className="text-slate-200"
+                              strokeWidth="3"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className={score > 75 ? "text-blue-600" : "text-blue-500"}
+                              strokeDasharray={`${score}, 100`}
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <span className="absolute inset-0 flex items-center justify-center text-[0.6rem] font-bold text-slate-700">
+                            {score}
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold text-slate-600 hidden sm:block">Match</span>
+                      </div>
+
+                      <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:shadow-md transition-all">
+                        <ArrowRight className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+          
+          <Link href="/dashboard/applications" className="block">
+            <button className="w-full py-4 text-sm font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors flex items-center justify-center gap-2">
+              View All Candidates <ArrowRight className="w-4 h-4" />
+            </button>
+          </Link>
+        </div>
+
+        {/* Right Sidebar: Timeline & AI */}
+        <div className="space-y-6">
+          <div className="panel-elevated p-6 bg-slate-900 text-white border-none shadow-[0_10px_40px_-10px_rgba(37,99,235,0.4)]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white fill-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-white">AI Copilot Active</h3>
+                <p className="text-xs text-blue-200">Evaluating {metrics.totalApps} applications</p>
+              </div>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-1.5 mb-2">
+              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${metrics.avgScore > 0 ? metrics.avgScore : 100}%` }}></div>
+            </div>
+            <p className="text-xs text-blue-200/70 text-right">{metrics.avgScore > 0 ? `${metrics.avgScore}% Evaluated` : '100% Active'}</p>
+          </div>
+
+          <div className="panel-elevated p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-slate-900">Activity Log</h3>
+              <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-5 h-5" /></button>
+            </div>
+            
+            {activityLogs.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-4">No recent activity logged.</p>
+            ) : (
+              <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                {activityLogs.map((item, i) => (
+                  <div key={item.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-50 text-blue-600 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                      <item.icon className="w-4 h-4" />
+                    </div>
+                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-900 truncate" title={item.title}>{item.title}</h4>
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-1">
+                        <Clock className="w-3 h-3" /> {item.time}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
 }

@@ -8,6 +8,13 @@ from src.api.models.interview import InterviewSession, InterviewStatus
 from src.api.models.password_reset import PasswordResetToken
 from src.api.models.onboarding import Onboarding
 from src.api.models.screening import ScreeningTest
+from src.api.models.interview_schedule import (
+    InterviewSchedule,
+    InterviewPanelist,
+    InterviewFeedback,
+    ScheduleStatus,
+    HireRecommendation,
+)
 
 __all__ = [
     "User",
@@ -25,4 +32,9 @@ __all__ = [
     "PasswordResetToken",
     "Onboarding",
     "ScreeningTest",
+    "InterviewSchedule",
+    "InterviewPanelist",
+    "InterviewFeedback",
+    "ScheduleStatus",
+    "HireRecommendation",
 ]

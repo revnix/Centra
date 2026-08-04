@@ -9,7 +9,7 @@ export default function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login', '/signup', '/jobs', '/interview', '/screening', '/portal/onboarding', '/review-job', '/forgot-password', '/reset-password', '/'];
+    const publicRoutes = ['/login', '/signup', '/jobs', '/interview', '/interview-feedback', '/screening', '/portal/onboarding', '/review-job', '/forgot-password', '/reset-password', '/'];
     const isPublicRoute = pathname === '/' || publicRoutes.some(route => route !== '/' && (pathname === route || pathname.startsWith(route + '/')));
 
     // Get token from cookie
@@ -23,8 +23,8 @@ export default function proxy(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Redirect to appropriate dashboard if already logged in (only from auth pages or landing page)
-    const authRoutes = ['/login', '/signup', '/'];
+    // Redirect to appropriate dashboard if already logged in (only from auth pages)
+    const authRoutes = ['/login', '/signup'];
     const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
 
     if (token && authRoutes.includes(pathname) && !skipRedirect) {

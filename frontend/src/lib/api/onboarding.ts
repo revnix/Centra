@@ -3,7 +3,20 @@ import { apiClient, resolveUrl } from './client';
 /** Convert a relative /uploads/... URL to a full backend URL for viewing */
 export function getDocumentViewUrl(relativeUrl: string | undefined): string | null {
     if (!relativeUrl) return null;
-    return resolveUrl(relativeUrl);
+    let url = resolveUrl(relativeUrl);
+    
+    // Clean up any fl_attachment flags to prevent forced downloads
+    url = url.replace('/fl_attachment/', '/').replace('/fl_attachment', '');
+
+    const lowerUrl = url.toLowerCase();
+    const docTypes = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx'];
+
+    // For document files (PDFs, Word docs, etc.), route through Google Docs Viewer so they open inline in the browser tab
+    if (docTypes.some(ext => lowerUrl.includes(ext))) {
+        return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=false`;
+    }
+    
+    return url;
 }
 
 export interface OnboardingResponse {
@@ -105,11 +118,12 @@ export const onboardingApi = {
     managerInductionUpdate: (applicationId: number, data: any) => 
         apiClient.put<OnboardingResponse>(`/onboarding/${applicationId}/induction/manager`, data),
         
-    sendWelcomeEmail: (applicationId: number, files?: File[], customSubject?: string, customMessage?: string) => {
+    sendWelcomeEmail: (applicationId: number, files?: File[], customSubject?: string, customMessage?: string, includeOnboardingButton: boolean = true) => {
         const body = new FormData();
         if (files) files.forEach(f => body.append('files', f));
         if (customSubject) body.append('custom_subject', customSubject);
         if (customMessage) body.append('custom_message', customMessage);
+        body.append('include_onboarding_button', String(includeOnboardingButton));
         return apiClient.post<{ message: string }>(`/onboarding/${applicationId}/send-welcome-email`, body);
     },
 
@@ -131,5 +145,9 @@ export const onboardingApi = {
     
     complete: (applicationId: number, token?: string | null) => 
         apiClient.post<OnboardingResponse>(`/onboarding/${applicationId}/complete${token ? `?token=${token}` : ''}`),
+
+    delete: (applicationId: number) =>
+        apiClient.delete<{ message: string }>(`/onboarding/${applicationId}`),
 };
+
 

@@ -125,13 +125,8 @@ class ApiClient {
             const data = error.response.data as any;
             const status = error.response.status;
 
-            // 503 = DB cold-start / expected transient; other 5xx = real crash → error overlay
-            // 4xx = expected client condition → warn only
-            if (status >= 500 && status !== 503) {
-                console.error(`[API Error] ${method} ${url} (${status}):`, data);
-            } else {
-                console.warn(`[API Warn] ${method} ${url} (${status}):`, data);
-            }
+            // 503 = DB cold-start / expected transient; other 5xx = server/proxy error → warn to avoid Next.js dev overlay red popup
+            console.warn(`[API Error] ${method} ${url} (${status}):`, data);
 
             // Handle FastAPI 'detail' field
             let message = 'An error occurred';
@@ -176,19 +171,28 @@ class ApiClient {
     }
 
     // Generic request methods
-    // GET is idempotent, so transient network failures (ECONNRESET from a dead
-    // keep-alive proxy socket, brief backend restart) are retried before surfacing.
-    async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    // GET/PUT/PATCH/DELETE are idempotent, so transient network failures (ECONNRESET
+    // from a dead keep-alive proxy socket, brief backend restart) are retried before
+    // surfacing. POST is intentionally excluded since it's often not idempotent
+    // (e.g. "Send to Team" would resend emails on retry).
+    private async requestWithRetry<T>(
+        method: 'get' | 'put' | 'delete' | 'patch',
+        url: string,
+        config?: AxiosRequestConfig,
+        data?: any
+    ): Promise<T> {
         const maxAttempts = 3;
         let lastError: any;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                const response = await this.client.get<T>(url, config);
+                const response = method === 'get' || method === 'delete'
+                    ? await this.client[method]<T>(url, config)
+                    : await this.client[method]<T>(url, data, config);
                 return response.data;
             } catch (err: any) {
                 lastError = err;
                 // A failed proxy hop (dead socket) surfaces as a bare 500/502/504,
-                // and GET is safe to retry even on a genuine backend 500.
+                // and these methods are safe to retry even on a genuine backend 500.
                 const retriable =
                     err?.code === 'NETWORK_ERROR' ||
                     err?.code === 'TIMEOUT' ||
@@ -197,10 +201,14 @@ class ApiClient {
                     err?.code === 'HTTP_504';
                 if (!retriable || attempt === maxAttempts) throw err;
                 await new Promise((r) => setTimeout(r, 500 * attempt));
-                console.warn(`[API Retry] GET ${url} (attempt ${attempt + 1}/${maxAttempts})`);
+                console.warn(`[API Retry] ${method.toUpperCase()} ${url} (attempt ${attempt + 1}/${maxAttempts})`);
             }
         }
         throw lastError;
+    }
+
+    async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+        return this.requestWithRetry<T>('get', url, config);
     }
 
     async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
@@ -209,18 +217,15 @@ class ApiClient {
     }
 
     async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.put<T>(url, data, config);
-        return response.data;
+        return this.requestWithRetry<T>('put', url, config, data);
     }
 
     async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.delete<T>(url, config);
-        return response.data;
+        return this.requestWithRetry<T>('delete', url, config);
     }
 
     async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-        const response = await this.client.patch<T>(url, data, config);
-        return response.data;
+        return this.requestWithRetry<T>('patch', url, config, data);
     }
 }
 

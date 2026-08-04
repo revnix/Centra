@@ -41,11 +41,13 @@ class SendToTeamRequest(BaseModel):
 
 
 def _build_job_details(job) -> str:
+    job_type = job.job_type.value if job.job_type else None
+    experience_level = job.experience_level.value if job.experience_level else None
     return (
         f"Title: {job.title}\n"
         f"Location: {job.location}\n"
-        f"Type: {job.job_type}\n"
-        f"Experience: {job.experience_level}\n"
+        f"Type: {job_type}\n"
+        f"Experience: {experience_level}\n"
         f"Department: {job.department}\n"
         f"\nDescription:\n{job.description}\n"
     )

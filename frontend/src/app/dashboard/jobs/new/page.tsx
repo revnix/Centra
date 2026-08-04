@@ -120,13 +120,7 @@ const jobBasicSchema = z.object({
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Min salary cannot be greater than max salary", path: ["salaryMax"] });
 });
 
-const aiConfigSchema = z.object({
-    requiredSkills: z.string().min(2, "Add at least one skill"),
-    experienceLevel: z.string().min(1, "Experience level is required"),
-});
-
 type Step1Data = z.infer<typeof jobBasicSchema>;
-type Step2Data = z.infer<typeof aiConfigSchema>;
 
 interface ConnectedAccount {
     id: string;
@@ -161,7 +155,7 @@ export default function CreateJobPage() {
     const jobGeneration = useJobGeneration();
 
     // Data State
-    const [formData, setFormData] = useState<Partial<Step1Data & Step2Data>>({});
+    const [formData, setFormData] = useState<Partial<Step1Data>>({});
 
     // AI Review State
     const [socialPost, setSocialPost] = useState("");
@@ -193,7 +187,7 @@ export default function CreateJobPage() {
                             id: int.id.toString(),
                             platform: 'linkedin' as const,
                             name: 'LinkedIn Account',
-                            handle: int.platform_user_id || 'Connected',
+                            handle: int.platform_display_name || int.platform_user_id || 'Connected',
                             icon: Linkedin,
                             color: 'bg-blue-600',
                         };
@@ -202,7 +196,7 @@ export default function CreateJobPage() {
                             id: int.id.toString(),
                             platform: 'indeed' as const,
                             name: 'Indeed Account',
-                            handle: int.platform_user_id || 'Connected',
+                            handle: int.platform_display_name || int.platform_user_id || 'Connected',
                             icon: Briefcase,
                             color: 'bg-blue-600',
                         };
@@ -259,14 +253,6 @@ export default function CreateJobPage() {
         },
     });
 
-    const form2 = useForm<Step2Data>({
-        resolver: zodResolver(aiConfigSchema) as any,
-        defaultValues: {
-            requiredSkills: "",
-            experienceLevel: "mid",
-        },
-    });
-
     // Auto-sync: when skills field changes, update 🔹 REQUIRED SKILLS in description
     const watchedSkills = form1.watch("requiredSkills");
     useEffect(() => {
@@ -301,14 +287,6 @@ export default function CreateJobPage() {
     // Handlers
     const onStep1Submit = (data: Step1Data) => {
         setFormData((prev) => ({ ...prev, ...data }));
-        // Sync Step 2 with Step 1 values
-        form2.setValue("requiredSkills", data.requiredSkills || "");
-        form2.setValue("experienceLevel", data.experienceLevel || "mid");
-        setStep(2);
-    };
-
-    const onStep2Submit = (data: Step2Data) => {
-        setFormData((prev) => ({ ...prev, ...data }));
 
         // Map employment type
         const employmentTypeMap: Record<string, 'Full-time' | 'Part-time' | 'Contract' | 'Internship'> = {
@@ -329,17 +307,17 @@ export default function CreateJobPage() {
 
         // Start LangGraph job generation
         jobGeneration.generateJob({
-            role: formData.title || 'Software Engineer',
-            location: formData.location || 'Remote',
+            role: data.title || 'Software Engineer',
+            location: data.location || 'Remote',
             skills: data.requiredSkills.split(',').map(s => s.trim()),
-            company_name: formData.department || 'TechCorp',
-            employment_type: employmentTypeMap[formData.type || 'full-time'] || 'Full-time',
+            company_name: data.department || 'TechCorp',
+            employment_type: employmentTypeMap[data.type || 'full-time'] || 'Full-time',
             experience_level: experienceLevelMap[data.experienceLevel] || 'Mid',
         });
 
         // Generate social post placeholder
-        generateInitialSocialPost(formData.title || "Job");
-        setStep(3);
+        generateInitialSocialPost(data.title || "Job");
+        setStep(2);
     };
 
     // --- AI Logic ---
@@ -617,7 +595,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                 </Button>
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900">Create New Job</h1>
-                    <p className="text-slate-500">Step {step} of 3</p>
+                    <p className="text-slate-500">Step {step} of 2</p>
                 </div>
             </div>
 
@@ -625,7 +603,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
             <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div
                     className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
-                    style={{ width: `${(step / 3) * 100}%` }}
+                    style={{ width: `${(step / 2) * 100}%` }}
                 />
             </div>
 
@@ -746,7 +724,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                             <FormItem>
                                                 <FormLabel>Type</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                                    <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
                                                     <SelectContent>
                                                         <SelectItem value="full-time">Full-time</SelectItem>
                                                         <SelectItem value="part-time">Part-time</SelectItem>
@@ -755,6 +733,27 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                         <SelectItem value="freelance">Freelance</SelectItem>
                                                         <SelectItem value="temporary">Temporary</SelectItem>
                                                         <SelectItem value="volunteer">Volunteer</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form1.control}
+                                        name="experienceLevel"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Experience Required</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="junior">Junior</SelectItem>
+                                                        <SelectItem value="mid">Mid-Level</SelectItem>
+                                                        <SelectItem value="senior">Senior</SelectItem>
+                                                        <SelectItem value="lead">Lead / Principal</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />
@@ -773,26 +772,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                         )}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form1.control}
-                                        name="experienceLevel"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Experience Required</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="junior">Junior</SelectItem>
-                                                        <SelectItem value="mid">Mid-Level</SelectItem>
-                                                        <SelectItem value="senior">Senior</SelectItem>
-                                                        <SelectItem value="lead">Lead / Principal</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                <div>
                                     <FormField
                                         control={form1.control}
                                         name="requiredSkills"
@@ -941,56 +921,6 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                     )}
                                 />
                                 <div className="flex justify-end">
-                                    <Button type="submit">Next: AI Config <ChevronRight className="ml-2 h-4 w-4" /></Button>
-                                </div>
-                            </form>
-                        </Form>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* STEP 2: AI Config */}
-            {step === 2 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>AI Configuration</CardTitle>
-                        <CardDescription>Tailor the AI recruiter for this specific role.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Form {...form2}>
-                            <form onSubmit={form2.handleSubmit(onStep2Submit)} className="space-y-6">
-                                <FormField
-                                    control={form2.control}
-                                    name="requiredSkills"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Required Skills</FormLabel>
-                                            <FormControl><Input placeholder="React, Node.js, AWS..." {...field} /></FormControl>
-                                            <FormDescription>AI will verify these skills during screening.</FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form2.control}
-                                    name="experienceLevel"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Experience Level</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="junior">Junior</SelectItem>
-                                                    <SelectItem value="mid">Mid-Level</SelectItem>
-                                                    <SelectItem value="senior">Senior</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <div className="flex justify-between pt-4">
-                                    <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
                                     <Button type="submit">Next: Review & Generate <ChevronRight className="ml-2 h-4 w-4" /></Button>
                                 </div>
                             </form>
@@ -999,8 +929,8 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                 </Card>
             )}
 
-            {/* STEP 3: Review & Refine (The Feedback Loop) */}
-            {step === 3 && (
+            {/* STEP 2: Review & Refine (The Feedback Loop) */}
+            {step === 2 && (
                 <div className="space-y-6">
                     {/* Loading State */}
                     {!!jobGeneration.isLoading && !jobGeneration.generatedPost ? (
@@ -1026,7 +956,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                     variant="outline"
                                     size="sm"
                                     className="mt-2"
-                                    onClick={() => setStep(2)}
+                                    onClick={() => setStep(1)}
                                 >
                                     Go Back
                                 </Button>
@@ -1076,7 +1006,7 @@ Apply now and shape the future with us! #Hiring #${title.replace(/\s/g, '')} #Te
                                                     </div>
                                                     <div className="flex items-center gap-1.5 text-sm">
                                                         <TrendingUp className="h-4 w-4" />
-                                                        {form2.getValues("experienceLevel") || 'Mid-Level'}
+                                                        {form1.getValues("experienceLevel") || 'Mid-Level'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1365,7 +1295,7 @@ ${jobPost.preferred_qualifications?.length > 0 ? `🔹 PREFERRED QUALIFICATIONS\
                                                                     short_description: jobPost.summary || finalFullDescription.substring(0, 200),
                                                                     location: jobPost.location || formData.location,
                                                                     job_type: formData.type || 'FULL_TIME',
-                                                                    experience_level: form2.getValues("experienceLevel") || 'MID_SENIOR',
+                                                                    experience_level: form1.getValues("experienceLevel") || 'MID_SENIOR',
                                                                     department: formData.department,
                                                                     required_skills: (jobPost.skills || []).map((s: any) => String(s)),
                                                                     preferred_skills: (jobPost.preferred_skills || []).map((s: any) => String(s)),

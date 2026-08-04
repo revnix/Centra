@@ -3,50 +3,52 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useUIStore } from '@/lib/stores/uiStore';
-import { useDashboardStats, jobKeys } from '@/lib/hooks/useJobs';
-import { applicationKeys } from '@/lib/hooks/useApplications';
-import { jobsApi } from '@/lib/api/jobs';
-import { applicationsApi } from '@/lib/api/applications';
+import { usePathname, useRouter } from 'next/navigation';
 import {
-    Briefcase,
-    Mail,
-    Menu,
-    X,
-    LogOut,
-    Bell,
-    Link2,
-    Sparkles,
-    ChevronRight,
-    Users,
-    ClipboardCheck,
-    KanbanSquare
+  LayoutDashboard, Layers, Briefcase, Users, UserCheck, Inbox,
+  Share2, Shield, LogOut, ChevronLeft, ChevronRight, Search, Command, Bell, Zap, ChevronDown, Sparkles, Plus, DatabaseZap, Calendar
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CommandPalette } from '@/components/CommandPalette';
 
-// Defined outside component — never recreated on re-render
-const NAVIGATION = [
-    { name: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
-    { name: 'Generated Jobs', href: '/dashboard/generated-jobs', icon: Sparkles },
-    { name: 'Applications', href: '/dashboard/applications', icon: Users },
-    { name: 'Pipeline', href: '/dashboard/pipeline', icon: KanbanSquare },
-    { name: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck },
-    { name: 'Integrations', href: '/dashboard/integrations', icon: Link2 },
-    { name: 'Inbox', href: '/dashboard/inbox', icon: Mail },
-];
+interface NavSubItem {
+  href: string;
+  label: string;
+  icon: any;
+}
 
-// Prefetch map: nav href → what data to warm up for that page
-const PREFETCH_QUERIES = [
-    {
-        queryKey: jobKeys.list({}),
-        queryFn: () => jobsApi.getAll(),
-    },
-    {
-        queryKey: applicationKeys.lists(),
-        queryFn: () => applicationsApi.list(),
-    },
+interface NavItem {
+  href?: string;
+  label: string;
+  icon: any;
+  children?: NavSubItem[];
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard',             label: 'Overview',     icon: LayoutDashboard },
+  {
+    label: 'Jobs',
+    icon: Briefcase,
+    children: [
+      { href: '/dashboard/jobs/new',       label: 'Create New Job',     icon: Plus },
+      { href: '/dashboard/jobs',           label: 'All Jobs',           icon: Briefcase },
+      { href: '/dashboard/generated-jobs', label: 'AI Generated Jobs', icon: Sparkles },
+    ],
+  },
+  {
+    label: 'Applications',
+    icon: Users,
+    children: [
+      { href: '/dashboard/applications', label: 'All Applications', icon: Users },
+      { href: '/dashboard/inbox',        label: 'Inbox Sync',       icon: Inbox },
+      { href: '/dashboard/candidates/pool', label: 'Resume Pooling', icon: DatabaseZap },
+    ],
+  },
+  { href: '/dashboard/pipeline',    label: 'Pipeline',     icon: Layers },
+  { href: '/dashboard/onboarding',  label: 'Onboarding',   icon: UserCheck },
+  { href: '/dashboard/interviews',  label: 'Interviews',   icon: Calendar },
+  { href: '/dashboard/integrations',label: 'Integrations', icon: Share2 },
+  { href: '/dashboard/admin',       label: 'Settings',     icon: Shield },
 ];
 
 export default function DashboardLayout({
@@ -185,46 +187,97 @@ export default function DashboardLayout({
                             Logout
                         </Button>
                     </div>
+                  )}
                 </div>
-            </aside>
+              );
+            }
 
-            {/* Main content */}
-            <div className={`transition-all duration-300 ${isSidebarOpen ? 'lg:ml-72' : 'ml-0'}`}>
-                {/* Top bar */}
-                <header className="sticky top-0 z-30 glass border-b border-white/20">
-                    <div className="flex items-center justify-between px-6 py-4">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={toggleSidebar}
-                            className={`${isSidebarOpen ? 'lg:hidden' : ''} hover:bg-indigo-100`}
-                        >
-                            <Menu className="h-5 w-5 text-slate-700" />
-                        </Button>
+            // ── Regular nav item ────────────────────────────────
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href!));
+            return (
+              <Link
+                key={item.href}
+                href={item.href!}
+                className={`group relative flex items-center gap-3.5 px-3 py-3 rounded-xl text-[0.85rem] font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'sidebar-active'
+                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                } ${collapsed ? 'justify-center' : ''}`}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                {!collapsed && (
+                  <span className="truncate flex-1">{item.label}</span>
+                )}
+                {isActive && collapsed && (
+                  <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
-                        <div className="flex items-center gap-4">
-                            {pendingActions > 0 && (
-                                <div className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-xl shadow-lg shadow-amber-500/10">
-                                    <div className="relative">
-                                        <Bell className="h-5 w-5 text-amber-600" />
-                                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full animate-ping" />
-                                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full" />
-                                    </div>
-                                    <span className="text-sm font-semibold text-amber-900">
-                                        {pendingActions} action{pendingActions !== 1 ? 's' : ''} required
-                                    </span>
-                                    <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-md">
-                                        {pendingActions}
-                                    </Badge>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </header>
 
-                {/* Page content */}
-                <main className="p-6 lg:p-8">{children}</main>
+        {/* User profile / Logout */}
+        <div className="p-4 border-t" style={{ borderColor: 'var(--sidebar-border)' }}>
+          <div className={`flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors ${collapsed ? 'justify-center' : ''}`}>
+            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-lg border border-white/10">
+              {getInitials(userEmail)}
             </div>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white truncate">Premium Workspace</p>
+                <p className="text-xs text-slate-400 truncate">{userEmail}</p>
+              </div>
+            )}
+            {!collapsed && (
+              <button
+                onClick={handleLogout}
+                className="text-slate-500 hover:text-rose-400 p-2 rounded-lg transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
-    );
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-64'}`}>
+        
+        {/* Floating Top Navbar */}
+        <div className="p-4 pb-0">
+          <header className="h-16 bg-white/70 backdrop-blur-xl border border-white shadow-sm rounded-2xl px-6 flex items-center justify-between gap-4 z-20 sticky top-4">
+            
+            {/* Global search trigger */}
+            <button
+              onClick={() => setCmdOpen(true)}
+              className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-100/50 hover:bg-slate-100 border border-slate-200/50 text-sm text-slate-500 transition-colors w-96 shadow-inner"
+            >
+              <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span className="flex-1 text-left truncate">Search candidates, run commands...</span>
+              <span className="bg-white border border-slate-200 px-2 py-0.5 rounded text-xs font-mono font-semibold text-slate-400 shadow-sm flex items-center gap-1">
+                <Command className="w-3 h-3" /> K
+              </span>
+            </button>
+
+            {/* Action buttons & Profile */}
+            <div className="flex items-center gap-4">
+              <button className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-2 border-white"></span>
+              </button>
+            </div>
+          </header>
+        </div>
+
+        {/* Page Content */}
+        <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto">
+          {children}
+        </main>
+      </div>
+
+    </div>
+  );
 }
