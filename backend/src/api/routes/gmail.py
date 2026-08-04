@@ -1397,13 +1397,15 @@ async def sync_email_applications(
                 background_tasks=background_tasks,
             )
 
-            # Update source & Tag with the Gmail message ID so this exact email is never re-imported
-            application.source = source_channel
+            # Tag with the Gmail message ID so this exact email is never re-imported
+            # as a duplicate on a future sync. Only backfill if unset — create_application()
+            # returns the existing row unchanged if the candidate already had an
+            # application for this job through another path.
             if not application.gmail_message_id:
                 application.gmail_message_id = message_id
-            db.add(application)
-            await db.commit()
-            await db.refresh(application)
+                db.add(application)
+                await db.commit()
+                await db.refresh(application)
 
             background_tasks.add_task(_run_screening, int(application.id))  # type: ignore[arg-type]
             created += 1
