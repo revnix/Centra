@@ -24,12 +24,20 @@ class ApplicationService:
         expected_salary=None,
         city: str = None,
         qualification: str = None,
+        allow_duplicate: bool = False,
     ) -> Application:
-        """Create a new application and trigger HR notification."""
+        """Create a new application and trigger HR notification.
+
+        allow_duplicate=True skips the existing-application short-circuit below,
+        used by Gmail import flows where HR explicitly wants a fresh application
+        row filed even if the candidate already has one for this job (e.g.
+        re-importing the same lead for a repeat/updated submission).
+        """
         # Check if already applied
-        existing = await self.get_application_by_user_and_job(user_id, job_id)
-        if existing:
-            return existing
+        if not allow_duplicate:
+            existing = await self.get_application_by_user_and_job(user_id, job_id)
+            if existing:
+                return existing
 
         from src.api.services.job_service import JobService
         job_service = JobService(self.db)

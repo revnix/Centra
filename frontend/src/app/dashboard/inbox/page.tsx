@@ -497,7 +497,7 @@ export default function InboxPage() {
         setSelectedThreadId(email.thread_id);
         if (email.unread) {
             setInboxEmails(prev => prev.map(e => e.id === email.id ? { ...e, unread: false } : e));
-            gmailApi.markAsRead([email.id]).catch(() => {});
+            gmailApi.markRead([email.id]).catch(() => {});
         }
     };
 
@@ -526,7 +526,7 @@ export default function InboxPage() {
         if (unreadIds.length === 0) { toast.info('No unread emails.'); return; }
         setMarkingAllRead(true);
         try {
-            await gmailApi.markAsRead(unreadIds);
+            await gmailApi.markRead(unreadIds);
             setInboxEmails(prev => prev.map(e => ({ ...e, unread: false })));
             toast.success(`Marked ${unreadIds.length} email(s) as read`);
         } catch {

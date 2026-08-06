@@ -1318,21 +1318,7 @@ async def sync_email_applications(
             seen_emails.add(sender_email)
 
             matched_job = _match_job(email["subject"], email["snippet"], list(active_jobs))
-
-            # Skip if candidate already applied for this job
             existing_user = existing_users_by_email.get(sender_email)
-            if existing_user:
-                dup = await db.execute(
-                    select(AppModel).where(
-                        AppModel.candidate_id == existing_user.id,
-                        AppModel.job_id == matched_job.id,
-                    )
-                )
-                if dup.scalars().first():
-                    skipped += 1
-                    details.append({"email": sender_email, "status": "skipped",
-                                     "reason": f"Already applied for '{matched_job.title}'"})
-                    continue
 
             # Download CV and upload to Cloudinary (skipped for no-attachment applications)
             resume_url: str | None = None
@@ -1395,12 +1381,13 @@ async def sync_email_applications(
                 cover_letter=snippet_text if snippet_text else None,  # type: ignore[arg-type]
                 source=source_channel,
                 background_tasks=background_tasks,
+                allow_duplicate=True,
             )
 
             # Tag with the Gmail message ID so this exact email is never re-imported
-            # as a duplicate on a future sync. Only backfill if unset — create_application()
-            # returns the existing row unchanged if the candidate already had an
-            # application for this job through another path.
+            # as a duplicate on a future sync. Only backfill if unset — a freshly
+            # created row always has this unset; allow_duplicate=True means
+            # create_application() never silently returns an older row instead.
             if not application.gmail_message_id:
                 application.gmail_message_id = message_id
                 db.add(application)
@@ -1551,18 +1538,6 @@ async def import_single_email_application(
     cand_svc = CandidateService(db)
 
     existing_user = await auth_svc.get_user_by_email(sender_email)
-    if existing_user:
-        dup = await db.execute(
-            select(AppModel).where(
-                AppModel.candidate_id == existing_user.id,
-                AppModel.job_id == matched_job.id,
-            )
-        )
-        if dup.scalars().first():
-            raise HTTPException(
-                status_code=409,
-                detail=f"'{sender_name or sender_email}' has already applied for '{matched_job.title}'.",
-            )
 
     # ── 6. Find and download CV attachment ────────────────────────────────────
     resume_url: str | None = None
@@ -1642,6 +1617,7 @@ async def import_single_email_application(
             cover_letter=snippet_text if snippet_text else None,  # type: ignore[arg-type]
             source="email",
             background_tasks=background_tasks,
+            allow_duplicate=True,
         )
     except ValueError as exc:
         # create_application raises ValueError for closed/not-found jobs
