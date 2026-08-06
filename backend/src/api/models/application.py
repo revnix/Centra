@@ -100,6 +100,14 @@ class Application(Base):
     interview_invitation_status = Column(String(50), default="NOT_SENT", index=True, comment="Status of interview invite: NOT_SENT, SENT, DELIVERED, OPENED, RESPONDED, NOT_RESPONDED, DECLINED")
     last_interview_invite_id = Column(String(255), nullable=True, index=True, comment="Resend message ID for the last interview invite")
     interview_invite_sent_at = Column(DateTime(timezone=True), nullable=True, index=True, comment="Timestamp of the last interview invitation sent")
+
+    # Per-application resume promotion. A candidate can apply to multiple jobs, and each
+    # one gets its own copy uploaded into that job's Drive folder — tracked here rather
+    # than on CandidateProfile so promoting for job B never gets skipped just because
+    # job A already promoted this candidate's resume.
+    resume_drive_link = Column(String, nullable=True, comment="Google Drive webViewLink for the resume copy uploaded into this job's folder")
+    resume_drive_file_id = Column(String, nullable=True, comment="Google Drive file ID for this application's resume copy")
+    resume_promoted_at = Column(DateTime(timezone=True), nullable=True, comment="Timestamp this application's resume was promoted to Drive")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)  # ✨ OPTIMIZATION — ORDER BY created_at DESC on every list call
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

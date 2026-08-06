@@ -13,8 +13,7 @@ export default function proxy(request: NextRequest) {
     const isPublicRoute = pathname === '/' || publicRoutes.some(route => route !== '/' && (pathname === route || pathname.startsWith(route + '/')));
 
     // Get token from cookie
-    const token = request.cookies.get('access_token')?.value;
-    const userRole = request.cookies.get('user_role')?.value;
+    const token = request.cookies.get('user_role')?.value;
 
     // Redirect to login if accessing protected route without token
     if (!isPublicRoute && !token) {
@@ -28,23 +27,23 @@ export default function proxy(request: NextRequest) {
     const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
 
     if (token && authRoutes.includes(pathname) && !skipRedirect) {
-        if (userRole === 'candidate') {
+        if (token === 'candidate') {
             return NextResponse.redirect(new URL('/portal/status', request.url));
         }
-        if (userRole === 'admin' || userRole === 'reviewer') {
+        if (token === 'admin' || token === 'reviewer') {
             return NextResponse.redirect(new URL('/dashboard', request.url));
         }
     }
 
     // Role-based access control for protected routes
-    if (token && userRole && !isPublicRoute) {
+    if (token && !isPublicRoute) {
         // Candidates should not access admin dashboard
-        if (pathname.startsWith('/dashboard') && userRole === 'candidate') {
+        if (pathname.startsWith('/dashboard') && token === 'candidate') {
             return NextResponse.redirect(new URL('/portal/status', request.url));
         }
-        
+
         // Admins/Reviewers should not access candidate portal (except public parts)
-        if (pathname.startsWith('/portal') && (userRole === 'admin' || userRole === 'reviewer')) {
+        if (pathname.startsWith('/portal') && (token === 'admin' || token === 'reviewer')) {
             if (!pathname.startsWith('/portal/onboarding')) {
                 return NextResponse.redirect(new URL('/dashboard', request.url));
             }

@@ -16,6 +16,10 @@ class CandidateProfile(Base):
     resume_url = Column(String, nullable=True)
     resume_file_id = Column(String, nullable=True)          # Google Drive file ID (or None)
     resume_storage_provider = Column(String, nullable=True)  # 'google_drive' | 'cloudinary' | None
+    # Original (pre-Drive) resume URL, captured once so later job-specific Drive
+    # promotions can still re-download the source file after resume_url has been
+    # overwritten with a Drive link.
+    resume_source_url = Column(String, nullable=True)
     linkedin_url = Column(String, nullable=True)
     portfolio_url = Column(String, nullable=True)
 

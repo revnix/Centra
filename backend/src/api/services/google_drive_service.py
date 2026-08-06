@@ -43,11 +43,17 @@ class GoogleDriveService:
     Service for uploading candidate resumes to Google Drive.
 
     Authentication priority:
-    1. OAuth 2.0 (refresh token) — if GOOGLE_DRIVE_OAUTH_CLIENT_ID,
-       GOOGLE_DRIVE_OAUTH_CLIENT_SECRET, and GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN are set.
-       Files are uploaded to the authenticated user's own Drive (uses their quota).
-    2. Service Account — fallback if GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO is set.
-       Requires a Shared Drive folder to avoid storageQuotaExceeded.
+    1. Service Account — used if GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO is set. Recommended:
+       service accounts have no personal storage quota, so GOOGLE_DRIVE_FOLDER_ID must
+       point into a Shared Drive (and that Shared Drive must have the service account's
+       client_email added as a member) to avoid storageQuotaExceeded.
+    2. OAuth 2.0 (refresh token) — fallback if service account is not configured, via
+       GOOGLE_DRIVE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN. Uploads to the authenticated
+       user's own Drive (uses their personal quota).
+
+    supportsAllDrives / includeItemsFromAllDrives are always sent so Shared Drive
+    folders work under either auth path — Shared Drive support depends on the target
+    folder, not on which credentials are used.
     """
 
     SCOPES = ["https://www.googleapis.com/auth/drive"]
@@ -67,16 +73,17 @@ class GoogleDriveService:
         if not has_oauth and not has_service_account:
             raise ValueError(
                 "Google Drive auth not configured. Set either "
-                "GOOGLE_DRIVE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN (recommended) "
-                "or GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO."
+                "GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO (recommended, for Shared Drive uploads) "
+                "or GOOGLE_DRIVE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN."
             )
         if not self.folder_id:
             raise ValueError("GOOGLE_DRIVE_FOLDER_ID is not configured.")
 
-        self._use_oauth = has_oauth
+        # Service account takes priority when both are configured — it's the path
+        # that supports Shared Drives without a personal-quota ceiling.
+        self._use_oauth = not has_service_account and has_oauth
 
-        # Store credentials info for service account fallback
-        if not has_oauth:
+        if has_service_account:
             self._credentials_info: dict = json.loads(settings.GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO)
 
     def _get_service(self):
@@ -113,6 +120,26 @@ class GoogleDriveService:
 
         return self._service
 
+    def download_file(self, file_id: str) -> bytes:
+        """
+        Download a file's raw bytes via the Drive API using our own credentials.
+
+        Used instead of a plain HTTP GET when the only known source for a resume
+        is a Drive file we previously uploaded — a Drive "view" link (webViewLink)
+        isn't fetchable via a bare HTTP request since it requires an authenticated
+        session, unlike the original Cloudinary/upload URL.
+        """
+        from googleapiclient.http import MediaIoBaseDownload
+
+        svc = self._get_service()
+        request = svc.files().get_media(fileId=file_id, supportsAllDrives=True)  # type: ignore[attr-defined]
+        buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(buffer, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        return buffer.getvalue()
+
     @staticmethod
     def validate_file(filename: str, content: bytes) -> None:
         """
@@ -143,10 +170,9 @@ class GoogleDriveService:
         """Grant 'reader' access to anyone with the link."""
         svc = self._get_service()
         permission = {"type": "anyone", "role": "reader"}
-        kwargs = {"fileId": file_id, "body": permission}
-        if not self._use_oauth:
-            # Shared Drive (service account) requires this flag
-            kwargs["supportsAllDrives"] = True
+        # Required whenever the target file lives in a Shared Drive, regardless of
+        # which credentials are being used.
+        kwargs = {"fileId": file_id, "body": permission, "supportsAllDrives": True}
         svc.permissions().create(**kwargs).execute()  # type: ignore[attr-defined]
 
     def _get_or_create_subfolder(self, folder_name: str) -> str:
@@ -171,11 +197,14 @@ class GoogleDriveService:
             f"and trashed=false"
         )
 
-        list_kwargs: dict = {"q": query, "fields": "files(id, name)", "pageSize": 1}
-        if not self._use_oauth:
-            list_kwargs["supportsAllDrives"] = True
-            list_kwargs["includeItemsFromAllDrives"] = True
-            list_kwargs["corpora"] = "allDrives"
+        list_kwargs: dict = {
+            "q": query,
+            "fields": "files(id, name)",
+            "pageSize": 1,
+            "supportsAllDrives": True,
+            "includeItemsFromAllDrives": True,
+            "corpora": "allDrives",
+        }
 
         results = svc.files().list(**list_kwargs).execute()  # type: ignore[attr-defined]
         files = results.get("files", [])
@@ -198,9 +227,8 @@ class GoogleDriveService:
         create_kwargs: dict = {
             "body": folder_metadata,
             "fields": "id",
+            "supportsAllDrives": True,
         }
-        if not self._use_oauth:
-            create_kwargs["supportsAllDrives"] = True
 
         folder = svc.files().create(**create_kwargs).execute()  # type: ignore[attr-defined]
         folder_id = folder["id"]
@@ -273,10 +301,9 @@ class GoogleDriveService:
             "body": file_metadata,
             "media_body": media,
             "fields": "id,webViewLink,webContentLink,name",
+            # Required whenever target_folder_id is inside a Shared Drive.
+            "supportsAllDrives": True,
         }
-        if not self._use_oauth:
-            # Required when uploading to a Shared Drive via service account
-            create_kwargs["supportsAllDrives"] = True
 
         response = (
             svc.files()  # type: ignore[attr-defined]

@@ -86,6 +86,7 @@ class ApplicationResponse(ApplicationBase):
     city: Optional[str] = None
     qualification: Optional[str] = None
     interview_invite_sent_at: Optional[datetime] = None
+    resume_drive_link: Optional[str] = None
     created_at: datetime
 
     candidate: Optional[UserResponse] = None

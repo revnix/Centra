@@ -33,7 +33,7 @@ async def run_screening(application_id: int):
         await service.evaluate_and_invite(application_id)
 
 
-async def run_resume_promotion(candidate_id: int, job_folder_name: Optional[str]):
+async def run_resume_promotion(application_id: int, job_folder_name: Optional[str]):
     """Background task: promote a shortlisted candidate's resume to Google Drive.
 
     Runs off the request path — the Drive upload (network call + synchronous
@@ -43,11 +43,11 @@ async def run_resume_promotion(candidate_id: int, job_folder_name: Optional[str]
     async with AsyncSessionLocal() as db:
         service = ApplicationService(db)
         try:
-            await service.ensure_resume_promoted_to_drive(candidate_id, job_folder_name=job_folder_name)
+            await service.ensure_resume_promoted_to_drive(application_id, job_folder_name=job_folder_name)
         except Exception:
             import logging
             logging.getLogger(__name__).exception(
-                "Background resume promotion failed for candidate %s", candidate_id
+                "Background resume promotion failed for application %s", application_id
             )
 
 
@@ -481,7 +481,7 @@ async def send_interview_invite(
                 _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
                 _job_folder = f"{_job.title} - {_jdate}"
             app_service = ApplicationService(db)
-            await app_service.ensure_resume_promoted_to_drive(application.candidate_id, job_folder_name=_job_folder)
+            await app_service.ensure_resume_promoted_to_drive(application.id, job_folder_name=_job_folder)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Resume promotion failed for candidate {application.candidate_id}: {e}")
@@ -629,7 +629,7 @@ async def update_application_status(
         if _job:
             _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
             _job_folder = f"{_job.title} - {_jdate}"
-        background_tasks.add_task(run_resume_promotion, int(application.candidate_id), _job_folder)
+        background_tasks.add_task(run_resume_promotion, int(application.id), _job_folder)
 
     # Sync with interview tracking status
     if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:

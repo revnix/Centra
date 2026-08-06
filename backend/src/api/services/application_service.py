@@ -305,7 +305,7 @@ class ApplicationService:
         if job:
             job_date = (job.published_at or job.created_at).strftime("%Y-%m-%d") if (job.published_at or job.created_at) else "undated"
             job_folder_name = f"{job.title} - {job_date}"
-        await self.ensure_resume_promoted_to_drive(application.candidate_id, job_folder_name=job_folder_name)
+        await self.ensure_resume_promoted_to_drive(application.id, job_folder_name=job_folder_name)
 
         # 2. Check if we should skip email based on city (Safety net)
         if not application.city or application.city.lower() != "haripur":
@@ -423,10 +423,14 @@ class ApplicationService:
         await self.db.commit()
         return True
 
-    async def ensure_resume_promoted_to_drive(self, user_id: int, job_folder_name: Optional[str] = None):
+    async def ensure_resume_promoted_to_drive(self, application_id: int, job_folder_name: Optional[str] = None):
         """
-        Promotes the candidate's resume from Cloudinary to Google Drive.
-        Called when a candidate is shortlisted.
+        Promotes the candidate's resume from Cloudinary to Google Drive, into this
+        application's job-specific subfolder. Called when a candidate is shortlisted.
+
+        Tracked per-application (not per-candidate): a candidate applying to multiple
+        jobs gets a resume copy uploaded into EACH job's folder, since the same
+        candidate can be shortlisted independently for job A and job B.
 
         The Google Drive client library is synchronous, so the blocking
         upload call is offloaded to a thread-pool via asyncio.to_thread()
@@ -434,31 +438,51 @@ class ApplicationService:
         """
         import asyncio
         from src.api.models.user import User
-        from src.api.models.candidate import CandidateProfile
 
-        # Load user and profile
+        # Load the application together with the candidate's profile
         result = await self.db.execute(
-            select(User)
-            .options(joinedload(User.candidate_profile))
-            .where(User.id == user_id)
+            select(Application)
+            .options(joinedload(Application.candidate).joinedload(User.candidate_profile))
+            .where(Application.id == application_id)
         )
-        user = result.scalars().first()
+        application = result.scalars().first()
+        if not application:
+            logger.warning(f"[DRIVE] Application {application_id} not found — skipping Drive promotion.")
+            return
+
+        # Idempotency guard is per-application now: re-shortlisting the same
+        # application should not re-upload, but a *different* application for the
+        # same candidate must still go through.
+        if application.resume_drive_link:
+            logger.info(f"[DRIVE] Resume already promoted for application {application_id} — skipping.")
+            return
+
+        user = application.candidate
         if not user or not user.candidate_profile:
-            logger.warning(f"[DRIVE] User or candidate profile not found for user ID: {user_id} — skipping Drive promotion.")
+            logger.warning(f"[DRIVE] User or candidate profile not found for application {application_id} — skipping Drive promotion.")
             return
 
         profile = user.candidate_profile
 
-        # Bug 3 fix: log explicitly when resume_url is absent so the skip is traceable.
-        if not profile.resume_url:
+        # Once a candidate has been promoted once, profile.resume_url is overwritten
+        # with that first job's Drive link — not fetchable via plain HTTP. Prefer the
+        # preserved original URL; if that's missing (candidates promoted before this
+        # column existed), fall back to re-downloading the existing Drive copy via the
+        # Drive API itself rather than trying to HTTP-GET a Drive "view" link (404s —
+        # it requires an authenticated session, not a bare request).
+        source_url = profile.resume_source_url
+        use_drive_download = False
+        if not source_url:
+            if profile.resume_storage_provider == "google_drive" and profile.resume_file_id:
+                use_drive_download = True
+            else:
+                source_url = profile.resume_url
+
+        if not source_url and not use_drive_download:
             logger.warning(
-                f"[DRIVE] Candidate {user.email} has no resume_url — "
+                f"[DRIVE] Candidate {user.email} has no resume source — "
                 "cannot promote to Drive. Ask candidate to upload a resume first."
             )
-            return
-
-        if profile.resume_storage_provider == "google_drive":
-            logger.info(f"[DRIVE] Resume for {user.email} is already on Google Drive — skipping.")
             return
 
         from src.api.core.config import settings as _settings
@@ -468,29 +492,38 @@ class ApplicationService:
             return
 
         try:
-            import httpx
-            from urllib.parse import urlparse
-            from pathlib import Path
-
-            logger.info(f"[DRIVE] Downloading resume from storage: {profile.resume_url}")
-            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-                response = await client.get(profile.resume_url)
-
-            # Bug 4 fix: raise explicitly on non-200 so the except block captures it.
-            if response.status_code != 200:
-                raise RuntimeError(
-                    f"Failed to download resume (HTTP {response.status_code}) from {profile.resume_url}"
-                )
-
-            content = response.content
-            parsed_url = urlparse(profile.resume_url)
-            original_filename = Path(parsed_url.path).name or "resume.pdf"
+            from datetime import datetime, timezone
 
             from src.api.services.google_drive_service import GoogleDriveService
             _drive = GoogleDriveService()
 
-            # Bug 1 fix: GoogleDriveService.upload_file is synchronous (uses the Google API
-            # client library which is blocking). Run it in a thread-pool so it doesn't stall
+            if use_drive_download:
+                logger.info(
+                    f"[DRIVE] No source URL on file — re-downloading existing Drive "
+                    f"copy (file_id={profile.resume_file_id}) via Drive API."
+                )
+                content = await asyncio.to_thread(_drive.download_file, profile.resume_file_id)
+                original_filename = "resume.pdf"
+            else:
+                import httpx
+                from urllib.parse import urlparse
+                from pathlib import Path
+
+                logger.info(f"[DRIVE] Downloading resume from storage: {source_url}")
+                async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                    response = await client.get(source_url)
+
+                if response.status_code != 200:
+                    raise RuntimeError(
+                        f"Failed to download resume (HTTP {response.status_code}) from {source_url}"
+                    )
+
+                content = response.content
+                parsed_url = urlparse(source_url)
+                original_filename = Path(parsed_url.path).name or "resume.pdf"
+
+            # GoogleDriveService.upload_file is synchronous (uses the Google API client
+            # library which is blocking). Run it in a thread-pool so it doesn't stall
             # the asyncio event loop and silently time-out / be abandoned.
             _meta = await asyncio.to_thread(
                 _drive.upload_file,
@@ -500,20 +533,33 @@ class ApplicationService:
                 job_folder_name,          # job-specific subfolder
             )
 
+            application.resume_drive_link = _meta.web_view_link
+            application.resume_drive_file_id = _meta.file_id
+            application.resume_promoted_at = datetime.now(timezone.utc)
+            self.db.add(application)
+
+            # Preserve the original source URL the first time so later promotions
+            # (for other jobs) can still fetch the file via plain HTTP, and keep the
+            # profile-level fields as a "most recent Drive copy" pointer for
+            # non-job-specific display. Skip this when we fell back to re-downloading
+            # an existing Drive copy — a Drive "view" link isn't HTTP-fetchable, so
+            # leaving resume_source_url unset keeps future promotions on the
+            # Drive-API-download path instead of reintroducing the 404 bug.
+            if not use_drive_download and not profile.resume_source_url:
+                profile.resume_source_url = source_url
             profile.resume_url = _meta.web_view_link
             profile.resume_file_id = _meta.file_id
             profile.resume_storage_provider = "google_drive"
-
             self.db.add(profile)
+
             await self.db.commit()
             logger.info(
-                f"[DRIVE] Resume promoted to Google Drive for {user.email}: "
+                f"[DRIVE] Resume promoted to Google Drive for {user.email} (application {application_id}): "
                 f"file_id={_meta.file_id}, link={_meta.web_view_link}"
             )
 
         except Exception as e:
-            # Bug 2 fix: log with exc_info so the full traceback appears in prod logs.
             logger.error(
-                f"[DRIVE] Error promoting resume to Google Drive for user {user_id}: {e}",
+                f"[DRIVE] Error promoting resume to Google Drive for application {application_id}: {e}",
                 exc_info=True,
             )
