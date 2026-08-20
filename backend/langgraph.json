@@ -3,10 +3,10 @@
     "."
   ],
   "graphs": {
-    "workflow": "./src/flow/main.py:graph"
+    "workflow": "./src/app/ai/flow/legacy_flow/main.py:graph"
   },
   "http": {
-    "app": "./src/api/main.py:app"
+    "app": "./src/app/asgi.py:app"
   },
   "image_distro": "wolfi",
   "pip_installer": "uv",
