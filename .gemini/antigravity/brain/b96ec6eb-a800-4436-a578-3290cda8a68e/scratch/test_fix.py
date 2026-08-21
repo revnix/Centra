@@ -20,7 +20,7 @@ async def test_partial_update():
             app_id = onboardings[0]['application_id']
             print(f"Testing with application_id: {app_id}")
             
-            # Test partial update: Only shift_timing
+            # Test partial upd ate: Only shift_timing
             data = {"shift_timing": "2nd Shift"}
             print(f"Sending partial update: {data}")
             
