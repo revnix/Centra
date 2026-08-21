@@ -12,7 +12,7 @@ from src.app.modules.platform.users.schemas.user import (
     UserRegisterResponse, UserLogin, 
     ForgotPasswordRequest, ResetPasswordRequest
 )
-from src.app.modules.platform.users.models.user import User
+from src.app.modules.platform.users.models.user import User, UserRole
 from src.app.core.security import create_access_token
 from src.app.core.dependencies import get_current_user
 from src.app.core.config import settings
@@ -37,6 +37,9 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
                 detail="This username is already taken.",
             )
             
+    # Force default role for self-registration
+    user_in.role = UserRole.CANDIDATE
+
     user = await auth_service.create_user(user_in)
     
     # Generate token for immediate login after registration

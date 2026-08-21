@@ -99,9 +99,15 @@ def cmd_reset(args: argparse.Namespace) -> None:
 
 
 def cmd_seed(_: argparse.Namespace) -> None:
-    from scripts.seed_db import seed_all
+    async def _run() -> None:
+        # Import inside the running event loop so async engines/sessions bind cleanly.
+        from scripts.seed_rbac import seed_roles_permissions
+        from scripts.seed_db import seed_all
 
-    asyncio.run(seed_all())
+        await seed_roles_permissions()
+        await seed_all()
+
+    asyncio.run(_run())
 
 
 def build_parser() -> argparse.ArgumentParser:
