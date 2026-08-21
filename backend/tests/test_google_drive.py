@@ -217,11 +217,12 @@ class TestMissingConfiguration:
             with pytest.raises(ValueError, match="GOOGLE_DRIVE_FOLDER_ID"):
                 GoogleDriveService()
 
-    def test_oauth_preferred_over_service_account(self):
-        """When both are set, OAuth should be used (_use_oauth=True)."""
+    def test_service_account_preferred_over_oauth(self):
+        """When both are set, the Service Account should be used (_use_oauth=False) —
+        it's the path that supports Shared Drive uploads without a personal quota."""
         ms = _mock_settings_oauth()
         ms.GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO = '{"type": "service_account"}'
         with patch("src.api.services.google_drive_service.settings", ms):
             from src.api.services.google_drive_service import GoogleDriveService
             drv = GoogleDriveService()
-        assert drv._use_oauth is True
+        assert drv._use_oauth is False

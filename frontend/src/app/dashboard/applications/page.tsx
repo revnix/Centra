@@ -28,6 +28,7 @@ interface Application {
   expected_salary?: number;
   salary_filter_status?: string;
   created_at?: string;
+  resume_drive_link?: string;
   candidate?: { full_name?: string; email?: string; candidate_profile?: { resume_url?: string } };
   job?: { title?: string };
 }
@@ -37,6 +38,12 @@ const getResumeExtension = (resumeUrl: string): string => {
   const m = resumeUrl.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
   return m ? `.${m[1].toLowerCase()}` : ".pdf";
 };
+
+// Prefer this application's own job-folder resume copy over the candidate's
+// shared profile link, since one candidate can have a different Drive copy
+// per job they applied to.
+const resumeUrlFor = (app: Application): string | undefined =>
+  app.resume_drive_link || app.candidate?.candidate_profile?.resume_url;
 
 export default function ApplicationsPage() {
   const queryClient = useQueryClient();
@@ -158,7 +165,7 @@ export default function ApplicationsPage() {
 
   const handleDownloadSingle = async (app: Application) => {
     try {
-      const url = app.candidate?.candidate_profile?.resume_url;
+      const url = resumeUrlFor(app);
       if (!url) return;
       const blob = await (await fetch(url)).blob();
       const name = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
@@ -169,7 +176,7 @@ export default function ApplicationsPage() {
   };
 
   const handleDownloadResumes = async () => {
-    const toDownload = applications.filter((a) => selectedIds.has(a.id) && a.candidate?.candidate_profile?.resume_url);
+    const toDownload = applications.filter((a) => selectedIds.has(a.id) && resumeUrlFor(a));
     if (toDownload.length === 0) { toast.error("No resumes for selected applications"); return; }
     setIsDownloading(true);
     try {
@@ -177,7 +184,7 @@ export default function ApplicationsPage() {
       const zip = new JSZip();
       await Promise.all(toDownload.map(async (app) => {
         try {
-          const url = app.candidate?.candidate_profile?.resume_url!;
+          const url = resumeUrlFor(app)!;
           const blob = await (await fetch(url)).blob();
           const n = (app.candidate?.full_name || "Unknown").replace(/\s+/g, "_");
           const j = (app.job?.title || "Job").replace(/\s+/g, "_");
@@ -528,7 +535,7 @@ export default function ApplicationsPage() {
 
                     <td className="py-4 text-right pr-6">
                       <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                        {app.candidate?.candidate_profile?.resume_url && (
+                        {resumeUrlFor(app) && (
                           <button onClick={() => handleDownloadSingle(app)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:shadow-sm transition-all" title="Download CV">
                             <Download className="w-4 h-4" />
                           </button>
