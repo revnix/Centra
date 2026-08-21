@@ -9,11 +9,17 @@ import { authApi } from './auth';
 import { jobsApi } from './jobs';
 import { interviewsApi } from './interviews';
 import { applicationsApi } from './applications';
+import { departmentsApi } from './departments';
+import { employeesApi } from './employees';
+import { attendanceApi } from './attendance';
 
 export { authApi };
 export { jobsApi };
 export { interviewsApi };
 export { applicationsApi };
+export { departmentsApi };
+export { employeesApi };
+export { attendanceApi };
 export { apiClient } from './client';
 export { candidatesApi } from './candidates';
 export { codingApi } from './coding';

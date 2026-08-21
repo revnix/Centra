@@ -54,7 +54,8 @@ export default function proxy(request: NextRequest) {
     // Role-based access control for protected routes
     if (token && userRole && !isPublicRoute) {
         const isCandidate = userRole === 'candidate';
-        const isStaff = userRole === 'admin' || userRole === 'reviewer';
+        const isEmployee = userRole === 'employee';
+        const isStaff = userRole === 'admin' || userRole === 'hr' || userRole === 'reviewer';
 
         // Candidates can view `/dashboard` but not staff-only dashboard sections
         if (pathname.startsWith('/dashboard') && isCandidate) {
@@ -76,8 +77,24 @@ export default function proxy(request: NextRequest) {
             }
         }
 
-        // Staff users should not use candidate portal routes (except onboarding public part)
-        if (pathname.startsWith('/portal') && isStaff) {
+        // Employees should not access staff-only areas.
+        // Lead pages are still under /dashboard (e.g. /dashboard/team).
+        if (pathname.startsWith('/dashboard') && isEmployee) {
+            const employeeAllowedPrefixes = [
+                '/dashboard',
+                '/dashboard/me',
+                '/dashboard/attendance',
+                '/dashboard/team',
+            ];
+
+            const allowed = employeeAllowedPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'));
+            if (!allowed) {
+                return NextResponse.redirect(new URL('/dashboard', request.url));
+            }
+        }
+
+        // Staff/employee users should not use candidate portal routes (except onboarding public part)
+        if (pathname.startsWith('/portal') && (isStaff || isEmployee)) {
             if (!pathname.startsWith('/portal/onboarding')) {
                 return NextResponse.redirect(new URL('/dashboard', request.url));
             }

@@ -11,7 +11,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     username: Optional[str] = None
     password: str
-    role: UserRole = UserRole.GUEST
+    role: UserRole = UserRole.CANDIDATE
 
     @field_validator("role", mode="before")
     @classmethod

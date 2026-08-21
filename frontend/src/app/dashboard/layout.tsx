@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -12,19 +12,20 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
+import { useMe } from "@/lib/hooks/useMe";
+import { useIsDepartmentLead } from "@/lib/hooks/useLeadStatus";
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<string>("");
+  const { data: me, isLoading } = useMe();
 
-  useEffect(() => {
-    setEmail(localStorage.getItem("userEmail") || "");
-    setRole((localStorage.getItem("userRole") || "candidate").toLowerCase());
-  }, []);
+  const role = (me?.role || "").toLowerCase();
+  const email = me?.email || "";
+  const isLead = useIsDepartmentLead(me?.id);
 
   const onLogout = () => {
     localStorage.removeItem("access_token");
@@ -39,15 +40,19 @@ export default function DashboardLayout({
 
   const headerTitle = useMemo(() => {
     if (!role) return "Dashboard";
-    return role === "candidate" ? "Candidate Portal" : "Dashboard";
-  }, [role]);
+    if (role === "candidate") return "Candidate Portal";
+    if (role === "employee") return isLead ? "Lead Dashboard" : "Employee Dashboard";
+    if (role === "hr") return "HR Dashboard";
+    if (role === "reviewer") return "Reviewer Dashboard";
+    return "Dashboard";
+  }, [role, isLead]);
 
-  // Avoid rendering sidebar before we know role (prevents flicker)
-  if (!role) return null;
+  if (isLoading) return null;
+  if (!me) return null;
 
   return (
     <SidebarProvider defaultOpen>
-      <AppSidebar role={role} email={email} onLogout={onLogout} />
+      <AppSidebar role={role} isLead={isLead} email={email} onLogout={onLogout} />
       <SidebarRail />
 
       <SidebarInset>
@@ -59,12 +64,16 @@ export default function DashboardLayout({
               <div className="min-w-0">
                 <div className="font-semibold leading-none truncate">{headerTitle}</div>
                 <div className="text-xs text-muted-foreground truncate">
-                  {role === "candidate" ? "Jobs & application status" : "Hiring & operations"}
+                  {role === "candidate"
+                    ? "Jobs & application status"
+                    : role === "employee"
+                      ? (isLead ? "Team & approvals" : "Your profile & attendance")
+                      : "Hiring & operations"}
                 </div>
               </div>
             </div>
 
-            <div className="text-xs text-muted-foreground truncate">{email || ""}</div>
+            <div className="text-xs text-muted-foreground truncate">{email}</div>
           </div>
         </header>
 

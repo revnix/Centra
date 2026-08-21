@@ -11,10 +11,20 @@ import {
   Users,
   Inbox,
   Plus,
+  Building2,
+  User,
+  CheckSquare,
+  Users2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type AppRole = "candidate" | "admin" | "reviewer" | string;
+export type AppRole =
+  | "candidate"
+  | "employee"
+  | "admin"
+  | "hr"
+  | "reviewer"
+  | string;
 
 export type NavItem =
   | {
@@ -30,7 +40,8 @@ export type NavItem =
       items: Array<{ label: string; href: string; icon: LucideIcon }>;
     };
 
-export const adminNav: NavItem[] = [
+// Admin/HR/Reviewer (staff)
+export const staffNav: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   {
     type: "group",
@@ -57,6 +68,20 @@ export const adminNav: NavItem[] = [
   { type: "item", href: "/dashboard/interviews", label: "Interviews", icon: Calendar },
   { type: "item", href: "/dashboard/integrations", label: "Integrations", icon: Share2 },
   { type: "item", href: "/dashboard/admin", label: "Settings", icon: Shield },
+  { type: "item", href: "/dashboard/admin/departments", label: "Departments", icon: Building2 },
+  { type: "item", href: "/dashboard/hr/shifts", label: "Shifts", icon: CheckSquare },
+];
+
+// Employee base
+export const employeeNav: NavItem[] = [
+  { type: "item", href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { type: "item", href: "/dashboard/me", label: "My Profile", icon: User },
+  { type: "item", href: "/dashboard/attendance", label: "Attendance", icon: CheckSquare },
+];
+
+// Lead extras (only when isLead=true)
+export const leadExtras: NavItem[] = [
+  { type: "item", href: "/dashboard/team", label: "My Team", icon: Users2 },
 ];
 
 export const candidateNav: NavItem[] = [
@@ -66,6 +91,15 @@ export const candidateNav: NavItem[] = [
   { type: "item", href: "/portal/onboarding", label: "Onboarding", icon: UserCheck },
 ];
 
-export function navForRole(role: AppRole): NavItem[] {
-  return role === "candidate" ? candidateNav : adminNav;
+export function navForUser(role: AppRole, opts?: { isLead?: boolean }): NavItem[] {
+  const r = String(role || "").toLowerCase();
+
+  if (r === "candidate") return candidateNav;
+
+  if (r === "employee") {
+    return opts?.isLead ? [...employeeNav, ...leadExtras] : employeeNav;
+  }
+
+  // hr/admin/reviewer -> staff nav for now
+  return staffNav;
 }

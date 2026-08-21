@@ -58,11 +58,17 @@ async def _bootstrap_schema_from_models() -> None:
     # Import models to register metadata
     import src.api.models  # noqa: F401
 
+    from src.app.core.config import settings
     from src.app.db.base import Base
-    from src.app.db.session import engine
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    finally:
+        await engine.dispose()
 
 
 def cmd_migrate(_: argparse.Namespace) -> None:
@@ -98,6 +104,29 @@ def cmd_reset(args: argparse.Namespace) -> None:
     alembic("upgrade", "head")
 
 
+def cmd_nuke(args: argparse.Namespace) -> None:
+    """Drop and recreate the public schema, then run migrations.
+
+    This is the most reliable way to get a fully clean local/dev database,
+    regardless of existing Alembic history.
+    """
+
+    if not args.yes:
+        raise SystemExit("Refusing to nuke without --yes")
+
+    async def _run() -> None:
+        from sqlalchemy import text
+
+        from src.app.db.session import engine
+
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+
+    asyncio.run(_run())
+    cmd_migrate(argparse.Namespace())
+
+
 def cmd_seed(_: argparse.Namespace) -> None:
     async def _run() -> None:
         # Import inside the running event loop so async engines/sessions bind cleanly.
@@ -120,6 +149,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset", help="Downgrade to base then upgrade head")
     p_reset.add_argument("--yes", action="store_true", help="Confirm destructive reset")
     p_reset.set_defaults(fn=cmd_reset)
+
+    p_nuke = sub.add_parser("nuke", help="Drop+recreate public schema then upgrade head")
+    p_nuke.add_argument("--yes", action="store_true", help="Confirm destructive nuke")
+    p_nuke.set_defaults(fn=cmd_nuke)
 
     p_seed = sub.add_parser("seed", help="Seed database with sample data")
     p_seed.set_defaults(fn=cmd_seed)
