@@ -19,6 +19,11 @@ import { attendanceApi, departmentsApi } from "@/lib/api";
 import { useDepartments } from "@/lib/hooks/useDepartments";
 import { useCreateEmployee, useEmployees } from "@/lib/hooks/useEmployees";
 
+function hhmmssToHhmm(v: string | null | undefined): string {
+  if (!v) return "";
+  return String(v).slice(0, 5);
+}
+
 export default function DepartmentDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -43,6 +48,31 @@ export default function DepartmentDetailPage() {
 
   const shiftOptions = useMemo(() => shiftsQ.data ?? [], [shiftsQ.data]);
 
+  const employeeProfileIdsKey = useMemo(
+    () => deptEmployees.map((e) => e.employee_profile_id).sort((a, b) => a - b).join(","),
+    [deptEmployees]
+  );
+
+  const employeeShiftsQ = useQuery({
+    queryKey: ["attendance", "employeeShifts", employeeProfileIdsKey],
+    queryFn: () =>
+      attendanceApi.employeeShifts(
+        employeeProfileIdsKey
+          ? employeeProfileIdsKey.split(",").map((x) => Number(x))
+          : []
+      ),
+    enabled: !!employeeProfileIdsKey,
+    staleTime: 10_000,
+  });
+
+  const shiftByEmployee = useMemo(() => {
+    const m = new Map<number, any>();
+    for (const s of employeeShiftsQ.data || []) {
+      m.set(s.employee_profile_id, s.shift);
+    }
+    return m;
+  }, [employeeShiftsQ.data]);
+
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignEmployeeProfileId, setAssignEmployeeProfileId] = useState<number | null>(null);
   const [assignShiftId, setAssignShiftId] = useState<string>("");
@@ -51,7 +81,7 @@ export default function DepartmentDetailPage() {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
-    return `--`;
+    return `${yyyy}-${mm}-${dd}`;
   });
   const [assignBusy, setAssignBusy] = useState(false);
 
@@ -335,7 +365,8 @@ export default function DepartmentDetailPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Joining date</TableHead>
-                  <TableHead className="w-[90px] text-right">Shift</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead className="w-[90px] text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -345,6 +376,15 @@ export default function DepartmentDetailPage() {
                     <TableCell className="text-muted-foreground">{e.email}</TableCell>
                     <TableCell className="text-muted-foreground">{e.job_title || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{e.joining_date || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {(() => {
+                        const s = shiftByEmployee.get(e.employee_profile_id);
+                        if (!s) return "—";
+                        const start = hhmmssToHhmm(s.start_time);
+                        const end = hhmmssToHhmm(s.end_time);
+                        return `${s.name}${start && end ? ` (${start}–${end})` : ""}`;
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"

@@ -91,6 +91,67 @@ async def assign_shift(
     return {"ok": True}
 
 
+@router.get("/employee-shifts", response_model=list[EmployeeShiftResponse])
+async def list_employee_shifts(
+    employee_profile_ids: str,
+    as_of: date | None = None,
+    _: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return effective shift assignment(s) for employees as of a date.
+
+    Query param employee_profile_ids is a comma-separated list (e.g. "1,2,3").
+    """
+
+    ids: list[int] = []
+    for raw in (employee_profile_ids or "").split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            ids.append(int(raw))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid employee_profile_ids")
+
+    if not ids:
+        return []
+
+    work_date = as_of or date.today()
+
+    res = await db.execute(
+        select(EmployeeShiftAssignment)
+        .options(selectinload(EmployeeShiftAssignment.shift))
+        .where(
+            and_(
+                EmployeeShiftAssignment.employee_profile_id.in_(ids),
+                EmployeeShiftAssignment.effective_from <= work_date,
+            )
+        )
+        .order_by(
+            EmployeeShiftAssignment.employee_profile_id.asc(),
+            EmployeeShiftAssignment.effective_from.desc(),
+        )
+    )
+
+    seen: set[int] = set()
+    out: list[EmployeeShiftResponse] = []
+    for a in res.scalars().all():
+        if a.employee_profile_id in seen:
+            continue
+        if not a.shift:
+            continue
+        seen.add(a.employee_profile_id)
+        out.append(
+            EmployeeShiftResponse(
+                employee_profile_id=a.employee_profile_id,
+                effective_from=a.effective_from,
+                shift=a.shift,
+            )
+        )
+
+    return out
+
+
 @router.post("/in", response_model=AttendanceActionResponse)
 async def attendance_in(
     current_user: User = Depends(get_current_user),

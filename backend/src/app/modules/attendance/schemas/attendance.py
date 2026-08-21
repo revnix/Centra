@@ -27,6 +27,11 @@ class ShiftTemplateResponse(BaseModel):
         from_attributes = True
 
 
+class AssignShiftRequest(BaseModel):
+    shift_id: int
+    effective_from: date
+
+
 class EmployeeShiftResponse(BaseModel):
     employee_profile_id: int
     effective_from: date

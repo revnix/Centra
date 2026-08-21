@@ -42,7 +42,13 @@ export type ShiftTemplateCreate = {
 
 export type AssignShiftRequest = {
   shift_id: number;
-  effective_from: string; // YYYY-MM-DD
+  effective_from: string;// YYYY-MM-DD
+};
+
+export type EmployeeShift = {
+  employee_profile_id: number;
+  effective_from: string;
+  shift: ShiftTemplate;
 };
 
 export const attendanceApi = {
@@ -62,8 +68,13 @@ export const attendanceApi = {
   createShift: (payload: ShiftTemplateCreate) =>
     apiClient.post<ShiftTemplate>("/attendance/shifts", payload),
   assignShift: (employeeProfileId: number, payload: AssignShiftRequest) =>
-    apiClient.post<{ ok: true }>(
-      `/attendance/employees/${employeeProfileId}/shift`,
-      payload
-    ),
+    apiClient.post<{ ok: true }>(`/attendance/employees//shift`, payload),
+
+  employeeShifts: (employeeProfileIds: number[], asOf?: string) =>
+    apiClient.get<EmployeeShift[]>("/attendance/employee-shifts", {
+      params: {
+        employee_profile_ids: employeeProfileIds.join(","),
+        ...(asOf ? { as_of: asOf } : {}),
+      },
+    }),
 };
