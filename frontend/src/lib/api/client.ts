@@ -16,7 +16,12 @@ const API_URL = (!_envUrl || _envUrl.includes('localhost') || _envUrl.includes('
  * The backend base URL (FastAPI) — used to resolve relative /uploads/... URLs.
  * NEXT_PUBLIC_API_BASE_URL already includes /api/v1, so strip that suffix.
  */
-export const BACKEND_BASE_URL = '';
+const _backendEnv = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+
+export const BACKEND_BASE_URL =
+    (_envUrl && !(_envUrl.includes("localhost") || _envUrl.includes("127.0.0.1")))
+        ? _envUrl.replace(/\/api\/v1\/?$/, "")
+        : (_backendEnv && !(_backendEnv.includes("localhost") || _backendEnv.includes("127.0.0.1")) ? _backendEnv : "");
 
 /**
  * Resolves a relative URL (like /uploads/...) to a full backend URL.

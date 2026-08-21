@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SqlEn
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.app.db.base import Base
+from src.app.integrations.shared.models.integration import UserIntegration
 import enum
 
 class UserRole(str, enum.Enum):
@@ -23,7 +24,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # Relationship with integrations (social media accounts)
     integrations = relationship(
-        "UserIntegration", 
+        UserIntegration, 
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="select"
