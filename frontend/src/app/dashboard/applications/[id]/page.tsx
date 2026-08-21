@@ -354,8 +354,8 @@ export default function ApplicationReviewPage({ params }: { params: Promise<{ id
 
             {/* Action Bar */}
             <div className="panel-elevated p-3 flex flex-wrap items-center gap-2 bg-white">
-                {profile?.resume_url && (
-                    <a href={getViewableResumeUrl(resolveUrl(profile.resume_url))} target="_blank" rel="noopener noreferrer" className="btn-glass border-slate-200 hover:border-indigo-300 hover:text-indigo-600 flex items-center gap-1.5 text-xs h-9 px-4">
+                {(app.resume_drive_link || profile?.resume_url) && (
+                    <a href={getViewableResumeUrl(resolveUrl(app.resume_drive_link || profile.resume_url))} target="_blank" rel="noopener noreferrer" className="btn-glass border-slate-200 hover:border-indigo-300 hover:text-indigo-600 flex items-center gap-1.5 text-xs h-9 px-4">
                         <Eye className="w-4 h-4" /> View Resume
                     </a>
                 )}
