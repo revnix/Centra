@@ -11,6 +11,7 @@ import { interviewsApi } from './interviews';
 import { applicationsApi } from './applications';
 import { departmentsApi } from './departments';
 import { employeesApi } from './employees';
+import { dashboardApi } from './dashboard';
 import { attendanceApi } from './attendance';
 
 export { authApi };
@@ -19,6 +20,7 @@ export { interviewsApi };
 export { applicationsApi };
 export { departmentsApi };
 export { employeesApi };
+export { dashboardApi };
 export { attendanceApi };
 export { apiClient } from './client';
 export { candidatesApi } from './candidates';

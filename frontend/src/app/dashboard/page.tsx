@@ -1,64 +1,110 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import AdminDashboardHome from '@/app/dashboard/_admin-home';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Briefcase, Users } from 'lucide-react';
+import { dashboardApi } from "@/lib/api";
+import { useMe } from "@/lib/hooks/useMe";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import { EmployeeDashboard } from "@/components/dashboard/employee-dashboard";
+import { LeadDashboard } from "@/components/dashboard/lead-dashboard";
+import { HrAdminDashboard } from "@/components/dashboard/hr-admin-dashboard";
 
 export default function DashboardHome() {
-  const [role, setRole] = useState<string>('');
+  const { data: me, isLoading: meLoading } = useMe();
+  const role = useMemo(() => String(me?.role || "").toLowerCase(), [me?.role]);
 
-  useEffect(() => {
-    setRole((localStorage.getItem('userRole') || '').toLowerCase());
-  }, []);
+  const [range, setRange] = useState<"today" | "7d" | "14d" | "30d">("14d");
 
-  const isCandidate = useMemo(() => role === 'candidate', [role]);
+  const summaryQ = useQuery({
+    queryKey: ["dashboard", "summary", range],
+    queryFn: () => dashboardApi.summary(range),
+    enabled: !!role,
+    staleTime: 10_000,
+  });
 
-  if (!role) return null;
+  if (meLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
+  if (!me) return <div className="text-sm text-destructive">Not logged in</div>;
 
-  if (!isCandidate) {
-    return <AdminDashboardHome />;
-  }
+  const isCandidate = role === "candidate";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
-        <p className="text-slate-500 mt-1">Track your applications and explore open roles.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {role === "employee"
+              ? "Your day and attendance overview."
+              : role === "hr"
+              ? "Workforce and hiring overview."
+              : role === "admin"
+              ? "Organization overview."
+              : role === "reviewer"
+              ? "Review queue overview."
+              : isCandidate
+              ? "Your applications and onboarding."
+              : "Overview."}
+          </p>
+        </div>
+
+        <Tabs value={range} onValueChange={(v) => setRange(v as any)}>
+          <TabsList>
+            <TabsTrigger value="today">Today</TabsTrigger>
+            <TabsTrigger value="7d">7d</TabsTrigger>
+            <TabsTrigger value="14d">14d</TabsTrigger>
+            <TabsTrigger value="30d">30d</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {summaryQ.isLoading ? (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-blue-600" /> Available Jobs
-            </CardTitle>
+            <CardTitle className="text-base">Loading</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600 mb-4">Browse all open positions.</p>
-            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Link href="/jobs">View Jobs</Link>
-            </Button>
+          <CardContent className="text-sm text-muted-foreground">Fetching dashboard…</CardContent>
+        </Card>
+      ) : summaryQ.error ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Error</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-destructive">
+            {(summaryQ.error as any)?.message || "Failed to load"}
           </CardContent>
         </Card>
+      ) : !summaryQ.data ? null : (
+        <>
+          {/* Employee + Lead */}
+          {(role === "employee" || role === "hr" || role === "admin") && summaryQ.data.employee ? (
+            <EmployeeDashboard summary={summaryQ.data.employee} />
+          ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-indigo-600" /> My Applications
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600 mb-4">See applied, rejected, and selected statuses.</p>
-            <Button asChild variant="secondary">
-              <Link href="/portal/status">Open Status</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          {summaryQ.data.is_lead && summaryQ.data.lead ? (
+            <LeadDashboard summary={summaryQ.data.lead} />
+          ) : null}
+
+          {(role === "hr" || role === "admin") && summaryQ.data.hr_admin ? (
+            <HrAdminDashboard summary={summaryQ.data.hr_admin} />
+          ) : null}
+
+          {/* Candidate placeholder (next) */}
+          {isCandidate ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Candidate overview</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Candidate dashboard widgets will be added next.
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
