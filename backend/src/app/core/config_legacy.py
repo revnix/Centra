@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from typing import List
 import os
 from dotenv import load_dotenv
@@ -14,6 +14,20 @@ class Settings(BaseSettings):
     APP_NAME: str = "Evalyn"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def _coerce_debug(cls, v):
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = str(v).strip().lower()
+        if s in {"1", "true", "yes", "on"}:
+            return True
+        if s in {"0", "false", "no", "off"}:
+            return False
+        return False
     API_V1_PREFIX: str = "/api/v1"
     LOG_LEVEL: str = "INFO"   
     UPLOAD_DIR: str = "uploads"

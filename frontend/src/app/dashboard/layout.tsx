@@ -166,7 +166,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
 
-            <div className="text-xs text-muted-foreground truncate">{email || ""}</div>
+            <div className="text-xs text-muted-foreground truncate">{email}</div>
           </div>
         </header>
 

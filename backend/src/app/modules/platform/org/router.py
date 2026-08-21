@@ -1,4 +1,9 @@
 from fastapi import APIRouter
 
-# Phase 1: no legacy org module exists yet.
+from src.app.modules.platform.org.routes import departments, team
+
+
 router = APIRouter(prefix="/org", tags=["org"])
+
+router.include_router(departments.router)
+router.include_router(team.router)

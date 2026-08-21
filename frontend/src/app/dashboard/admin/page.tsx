@@ -73,15 +73,18 @@ export default function AdminDashboardPage() {
     const getRoleLabel = (role: string) => {
         const r = role.toLowerCase();
         if (r === 'admin') return 'Super Admin';
-        if (r === 'hr' || r === 'hr_lead' || r === 'reviewer') return 'Reviewer';
-        if (r === 'guest') return 'Guest';
+        if (r === 'hr') return 'HR';
+        if (r === 'reviewer') return 'Reviewer';
+        if (r === 'employee') return 'Employee';
         return role.charAt(0).toUpperCase() + role.slice(1);
     };
 
     const getRoleBadgeClass = (role: string) => {
         const r = role.toLowerCase();
         if (r === 'admin') return 'bg-purple-50 text-purple-700 border border-purple-200';
-        if (r === 'reviewer' || r === 'hr') return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+        if (r === 'hr') return 'bg-slate-100 text-slate-700 border border-slate-200';
+        if (r === 'reviewer') return 'bg-slate-100 text-slate-700 border border-slate-200';
+        if (r === 'employee') return 'bg-slate-100 text-slate-700 border border-slate-200';
         return 'bg-slate-100 text-slate-700 border border-slate-200';
     };
 
