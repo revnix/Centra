@@ -42,16 +42,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <SidebarRail />
 
       <SidebarInset>
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b">
-          <div className="h-14 flex items-center gap-3 px-4">
-            <SidebarTrigger />
-            <Separator orientation="vertical" className="h-5" />
-            <div className="min-w-0">
-              <div className="font-semibold leading-none truncate">Candidate Portal</div>
-              <div className="text-xs text-muted-foreground truncate">
-                Jobs & application status
+        <header className="sticky top-0 z-30 w-full border-b bg-background">
+          <div className="flex h-16 items-center justify-between gap-3 px-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <SidebarTrigger />
+              <Separator orientation="vertical" className="h-5" />
+              <div className="min-w-0">
+                <div className="font-semibold leading-none truncate">Candidate Portal</div>
+                <div className="text-xs text-muted-foreground truncate">Jobs & application status</div>
               </div>
             </div>
+
+            <div className="text-xs text-muted-foreground truncate">{email || ""}</div>
           </div>
         </header>
 

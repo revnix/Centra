@@ -12,6 +12,7 @@ import {
   Inbox,
   Plus,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export type AppRole = "candidate" | "admin" | "reviewer" | string;
 
@@ -20,13 +21,13 @@ export type NavItem =
       type: "item";
       label: string;
       href: string;
-      icon: any;
+      icon: LucideIcon;
     }
   | {
       type: "group";
       label: string;
-      icon: any;
-      items: Array<{ label: string; href: string; icon: any }>;
+      icon: LucideIcon;
+      items: Array<{ label: string; href: string; icon: LucideIcon }>;
     };
 
 export const adminNav: NavItem[] = [

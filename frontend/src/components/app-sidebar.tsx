@@ -39,7 +39,7 @@ export function AppSidebar({
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader className="px-3 py-4">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.45)]">
+          <div className="h-9 w-9 rounded-xl bg-foreground flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.2)]">
             <Zap className="h-5 w-5 text-white fill-white" />
           </div>
           <div className="min-w-0">
