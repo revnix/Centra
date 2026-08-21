@@ -8,28 +8,23 @@ import { Badge } from "@/components/ui/badge";
 
 import { useMe } from "@/lib/hooks/useMe";
 import { useDepartments } from "@/lib/hooks/useDepartments";
-import { useEmployees } from "@/lib/hooks/useEmployees";
+import { useTeamMembers } from "@/lib/hooks/useTeamMembers";
 
 export default function TeamPage() {
   const { data: me, isLoading: meLoading } = useMe();
   const { data: departments } = useDepartments();
-  const { data: employees, isLoading: empLoading } = useEmployees();
-
   const myLeadDeptIds = useMemo(() => {
     const id = me?.id;
     if (!id) return [];
     return (departments ?? []).filter((d) => d.lead_user_id === id).map((d) => d.id);
   }, [departments, me?.id]);
 
-  const teamMembers = useMemo(() => {
-    if (myLeadDeptIds.length === 0) return [];
-    return (employees ?? []).filter((e) => e.department_id && myLeadDeptIds.includes(e.department_id));
-  }, [employees, myLeadDeptIds]);
+  const isLead = myLeadDeptIds.length > 0;
+  const { data: teamMembers = [], isLoading: empLoading } = useTeamMembers(isLead);
 
   if (meLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
   if (!me) return <div className="text-sm text-destructive">Not logged in</div>;
 
-  const isLead = myLeadDeptIds.length > 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

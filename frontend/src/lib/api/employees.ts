@@ -43,7 +43,8 @@ export interface EmployeeUpdate {
 }
 
 export const employeesApi = {
-  list: () => apiClient.get<Employee[]>('/hr/employees'),
+  list: () => apiClient.get<Employee[]>("/hr/employees"),
+  myTeam: () => apiClient.get<Employee[]>("/org/team/members"),
   create: (payload: EmployeeCreate) => apiClient.post<EmployeeCreateResponse>('/hr/employees', payload),
   update: (employeeProfileId: number, payload: EmployeeUpdate) =>
     apiClient.patch<Employee>(`/hr/employees/${employeeProfileId}`, payload),

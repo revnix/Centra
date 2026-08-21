@@ -60,3 +60,8 @@ class User(Base):
         lazy="selectin",
         foreign_keys="EmployeeProfile.user_id",
     )
+
+
+# Ensure related models are registered for SQLAlchemy relationship resolution
+# (avoids InvalidRequestError when only User is imported).
+from src.app.modules.recruiting.models.job import Posts  # noqa: F401

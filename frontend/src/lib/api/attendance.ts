@@ -68,7 +68,7 @@ export const attendanceApi = {
   createShift: (payload: ShiftTemplateCreate) =>
     apiClient.post<ShiftTemplate>("/attendance/shifts", payload),
   assignShift: (employeeProfileId: number, payload: AssignShiftRequest) =>
-    apiClient.post<{ ok: true }>(`/attendance/employees//shift`, payload),
+    apiClient.post<{ ok: true }>(`/attendance/employees/${employeeProfileId}/shift`, payload),
 
   employeeShifts: (employeeProfileIds: number[], asOf?: string) =>
     apiClient.get<EmployeeShift[]>("/attendance/employee-shifts", {

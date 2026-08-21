@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
+import { toast } from "sonner";
 
 import { attendanceApi, type AttendanceSession } from "@/lib/api";
 
@@ -21,8 +22,24 @@ function fmtTs(ts: string | null): string {
   return format(dt, "PP p");
 }
 
+function friendlyAttendanceError(raw: unknown): string {
+  const msg = (raw as any)?.message || String(raw || "");
+  const m = String(msg || "").trim();
+
+  if (!m) return "Something went wrong";
+  if (m === "Already on break") return "You are already on break. Click Back to end your break.";
+  if (m === "No active break") return "You are not on a break. Click Break to start one.";
+  if (m === "Check-in required") return "You must check in first.";
+  if (m === "Already checked out") return "You are already checked out.";
+  if (m === "End break before check-out") return "End your break first (click Back), then check out.";
+  if (m === "No shift assigned") return "No shift is assigned to you yet. Ask HR/Admin to assign a shift.";
+
+  return m;
+}
+
 export default function AttendancePage() {
   const qc = useQueryClient();
+  const [lastMessage, setLastMessage] = useState<string>("");
 
   const today = useMemo(() => new Date(), []);
   const from = useMemo(() => subDays(today, 14), [today]);
@@ -45,22 +62,25 @@ export default function AttendancePage() {
     await qc.invalidateQueries({ queryKey: ["attendance"] });
   };
 
-  const inM = useMutation({
-    mutationFn: () => attendanceApi.in(),
-    onSuccess: invalidate,
-  });
-  const breakM = useMutation({
-    mutationFn: () => attendanceApi.break(),
-    onSuccess: invalidate,
-  });
-  const backM = useMutation({
-    mutationFn: () => attendanceApi.back(),
-    onSuccess: invalidate,
-  });
-  const outM = useMutation({
-    mutationFn: () => attendanceApi.out(),
-    onSuccess: invalidate,
-  });
+  const makeAction = (label: string, fn: () => Promise<any>) =>
+    useMutation({
+      mutationFn: fn,
+      onSuccess: async () => {
+        setLastMessage("");
+        await invalidate();
+        toast.success(`${label} saved`);
+      },
+      onError: (e: any) => {
+        const msg = friendlyAttendanceError(e);
+        setLastMessage(msg);
+        toast.error(msg);
+      },
+    });
+
+  const inM = makeAction("Check-in", () => attendanceApi.in());
+  const breakM = makeAction("Break", () => attendanceApi.break());
+  const backM = makeAction("Back", () => attendanceApi.back());
+  const outM = makeAction("Check-out", () => attendanceApi.out());
 
   const busy =
     sessionsQ.isFetching ||
@@ -106,14 +126,9 @@ export default function AttendancePage() {
             </Button>
           </div>
 
-          {(inM.error || breakM.error || backM.error || outM.error) && (
-            <div className="text-sm text-foreground">
-              {(inM.error as any)?.message ||
-                (breakM.error as any)?.message ||
-                (backM.error as any)?.message ||
-                (outM.error as any)?.message}
-            </div>
-          )}
+          {lastMessage ? (
+            <div className="text-sm text-foreground">{lastMessage}</div>
+          ) : null}
 
           <Separator />
 
@@ -176,7 +191,7 @@ export default function AttendancePage() {
           {sessionsQ.isLoading ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : sessionsQ.error ? (
-            <div className="text-sm">{(sessionsQ.error as any)?.message || "Failed to load"}</div>
+            <div className="text-sm">{friendlyAttendanceError(sessionsQ.error)}</div>
           ) : (sessionsQ.data || []).length === 0 ? (
             <div className="text-sm text-muted-foreground">No attendance yet.</div>
           ) : (
