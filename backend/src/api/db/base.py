@@ -1,4 +1,1 @@
-from sqlalchemy.orm import DeclarativeBase
-
-class Base(DeclarativeBase):
-    pass
+from src.app.db.base import *  # noqa

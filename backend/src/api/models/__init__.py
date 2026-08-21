@@ -1,14 +1,19 @@
-# Import all models to ensure SQLAlchemy relationships are properly resolved
-from src.api.models.user import User, UserRole
-from src.api.models.integration import UserIntegration
-from src.api.models.job import Posts, JobType, JobStatus, ExperienceLevel
-from src.api.models.candidate import CandidateProfile
-from src.api.models.application import Application, ApplicationStatus
-from src.api.models.interview import InterviewSession, InterviewStatus
-from src.api.models.password_reset import PasswordResetToken
-from src.api.models.onboarding import Onboarding
-from src.api.models.screening import ScreeningTest
-from src.api.models.interview_schedule import (
+"""Legacy model exports (deprecated).
+
+The codebase has moved to `src/app`. This module re-exports the public model
+symbols for backwards compatibility.
+"""
+
+from src.app.modules.platform.users.models.user import User, UserRole
+from src.app.integrations.shared.models.integration import UserIntegration
+from src.app.modules.recruiting.models.job import Posts, JobType, JobStatus, ExperienceLevel
+from src.app.modules.recruiting.models.candidate import CandidateProfile
+from src.app.modules.recruiting.models.application import Application, ApplicationStatus
+from src.app.modules.recruiting.models.interview import InterviewSession, InterviewStatus
+from src.app.modules.platform.users.models.password_reset import PasswordResetToken
+from src.app.modules.recruiting.models.onboarding import Onboarding
+from src.app.modules.recruiting.models.screening import ScreeningTest
+from src.app.modules.recruiting.models.interview_schedule import (
     InterviewSchedule,
     InterviewPanelist,
     InterviewFeedback,
@@ -19,7 +24,7 @@ from src.api.models.interview_schedule import (
 __all__ = [
     "User",
     "UserRole",
-    "UserIntegration", 
+    "UserIntegration",
     "Posts",
     "JobType",
     "JobStatus",
