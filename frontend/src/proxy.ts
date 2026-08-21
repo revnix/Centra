@@ -33,8 +33,8 @@ export default function proxy(request: NextRequest) {
             (route) => route !== '/' && (pathname === route || pathname.startsWith(route + '/'))
         );
 
-    const token = request.cookies.get('access_token')?.value;
-    const userRole = (request.cookies.get('user_role')?.value || '').toLowerCase();
+    // Get token from cookie
+    const token = request.cookies.get('user_role')?.value;
 
     // Redirect to login if accessing protected route without token
     if (!isPublicRoute && !token) {
@@ -48,36 +48,23 @@ export default function proxy(request: NextRequest) {
     const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
 
     if (token && authRoutes.includes(pathname) && !skipRedirect) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        if (token === 'candidate') {
+            return NextResponse.redirect(new URL('/portal/status', request.url));
+        }
+        if (token === 'admin' || token === 'reviewer') {
+            return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
     }
 
     // Role-based access control for protected routes
-    if (token && userRole && !isPublicRoute) {
-        const isCandidate = userRole === 'candidate';
-        const isStaff = userRole === 'admin' || userRole === 'reviewer';
-
-        // Candidates can view `/dashboard` but not staff-only dashboard sections
-        if (pathname.startsWith('/dashboard') && isCandidate) {
-            const staffOnlyPrefixes = [
-                '/dashboard/jobs/new',
-                '/dashboard/generated-jobs',
-                '/dashboard/applications',
-                '/dashboard/inbox',
-                '/dashboard/candidates',
-                '/dashboard/pipeline',
-                '/dashboard/integrations',
-                '/dashboard/admin',
-                '/dashboard/interviews',
-                '/dashboard/onboarding',
-            ];
-
-            if (staffOnlyPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
-                return NextResponse.redirect(new URL('/dashboard', request.url));
-            }
+    if (token && !isPublicRoute) {
+        // Candidates should not access admin dashboard
+        if (pathname.startsWith('/dashboard') && token === 'candidate') {
+            return NextResponse.redirect(new URL('/portal/status', request.url));
         }
 
-        // Staff users should not use candidate portal routes (except onboarding public part)
-        if (pathname.startsWith('/portal') && isStaff) {
+        // Admins/Reviewers should not access candidate portal (except public parts)
+        if (pathname.startsWith('/portal') && (token === 'admin' || token === 'reviewer')) {
             if (!pathname.startsWith('/portal/onboarding')) {
                 return NextResponse.redirect(new URL('/dashboard', request.url));
             }
