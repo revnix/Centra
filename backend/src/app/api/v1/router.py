@@ -7,6 +7,7 @@ from src.app.modules.platform.org import router as org_router
 from src.app.modules.people import router as people_router
 from src.app.modules.recruiting import router as recruiting_router
 from src.app.modules.attendance import router as attendance_router
+from src.app.modules.dashboard import router as dashboard_router
 
 
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -20,3 +21,4 @@ api_v1_router.include_router(org_router.router)
 api_v1_router.include_router(people_router.router)
 api_v1_router.include_router(recruiting_router.router)
 api_v1_router.include_router(attendance_router.router)
+api_v1_router.include_router(dashboard_router.router)
