@@ -14,8 +14,8 @@ from src.app.modules.recruiting.models.interview import InterviewStatus
 from src.app.modules.recruiting.models.screening import ScreeningTest
 from src.app.modules.recruiting.services.interview_service import InterviewService
 from src.app.integrations.email.services.service import EmailService
-from src.flow.model.llm_manager import get_llm
-from src.flow.interview.prompts import SCREENING_PROMPT
+from src.app.ai.flow.legacy_flow.model.llm_manager import get_llm
+from src.app.ai.flow.legacy_flow.interview.prompts import SCREENING_PROMPT
 
 logger = logging.getLogger(__name__)
 

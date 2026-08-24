@@ -2,7 +2,7 @@
 Save Job Post Node - Saves generated job posts to the database.
 """
 
-from src.flow.states.evelyn import EVALN
+from src.app.ai.flow.legacy_flow.states.evelyn import EVALN
 from typing import Optional, List, Dict, Any
 # Import from models package to ensure all models are loaded for relationship resolution
 from src.app.modules.recruiting.models.job import Posts, JobType, JobStatus, ExperienceLevel

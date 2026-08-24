@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, END
-from src.flow.states.interview import InterviewState
-from src.flow.interview.nodes import extract_skills_node, interviewer_node, analyzer_node
+from src.app.ai.flow.legacy_flow.states.interview import InterviewState
+from src.app.ai.flow.legacy_flow.interview.nodes import extract_skills_node, interviewer_node, analyzer_node
 
 # Internal cache for compiled workflows
 _interview_workflow = None

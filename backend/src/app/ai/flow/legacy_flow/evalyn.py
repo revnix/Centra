@@ -4,12 +4,12 @@ Integrates all agents, models, and state management.
 """
 
 from langgraph.graph import StateGraph, END
-from src.flow.states.evelyn import EVALN
-from src.flow.post_creation.create_post import create_post
-from src.flow.post_creation.human_review import human_review
-# from src.flow.post_creation.publish_post import publish_post  # Commented out - replaced with save_job_post
-from src.flow.post_creation.save_job_post import save_job_post
-from src.flow.router.jd_router import router
+from src.app.ai.flow.legacy_flow.states.evelyn import EVALN
+from src.app.ai.flow.legacy_flow.post_creation.create_post import create_post
+from src.app.ai.flow.legacy_flow.post_creation.human_review import human_review
+# from src.app.ai.flow.legacy_flow.post_creation.publish_post import publish_post  # Commented out - replaced with save_job_post
+from src.app.ai.flow.legacy_flow.post_creation.save_job_post import save_job_post
+from src.app.ai.flow.legacy_flow.router.jd_router import router
 
 def build_workflow():
     """

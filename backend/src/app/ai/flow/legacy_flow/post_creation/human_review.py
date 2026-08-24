@@ -1,6 +1,6 @@
 import json
 from langgraph.types import interrupt
-from src.flow.states.evelyn import EVALN
+from src.app.ai.flow.legacy_flow.states.evelyn import EVALN
 
 
 def human_review(state: EVALN) -> dict:

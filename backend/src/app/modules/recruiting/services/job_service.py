@@ -90,9 +90,9 @@ class JobService:
 
     async def improve_job(self, job_id: int, feedback: str):
         import asyncio
-        from src.flow.prompts.human.jd_prompt import JD_IMPROVE_PROMPT
-        from src.flow.model.llm_manager import get_llm
-        from src.flow.model.structure.jd import JobPost
+        from src.app.ai.flow.legacy_flow.prompts.human.jd_prompt import JD_IMPROVE_PROMPT
+        from src.app.ai.flow.legacy_flow.model.llm_manager import get_llm
+        from src.app.ai.flow.legacy_flow.model.structure.jd import JobPost
         from datetime import datetime, timezone
         from fastapi.concurrency import run_in_threadpool
 

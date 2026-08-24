@@ -17,9 +17,9 @@ class JDGeneratorService:
         job_data: dict,
         prompt: Optional[str] = None,
     ) -> Any:
-        from src.flow.prompts.human.jd_prompt import JD_CUSTOM_PROMPT, JD_GENERATION_PROMPT
-        from src.flow.model.llm_manager import get_llm
-        from src.flow.model.structure.jd import JobPost
+        from src.app.ai.flow.legacy_flow.prompts.human.jd_prompt import JD_CUSTOM_PROMPT, JD_GENERATION_PROMPT
+        from src.app.ai.flow.legacy_flow.model.llm_manager import get_llm
+        from src.app.ai.flow.legacy_flow.model.structure.jd import JobPost
         from fastapi.concurrency import run_in_threadpool
 
         # "Unspecified" signals the LLM to infer the title from the custom prompt
