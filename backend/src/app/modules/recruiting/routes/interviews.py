@@ -13,10 +13,10 @@ from src.app.db.session import get_db
 from src.app.modules.recruiting.services.interview_service import InterviewService
 from src.app.modules.recruiting.schemas.interview import InterviewSessionResponse
 from src.app.modules.recruiting.models.interview import InterviewStatus
-from src.flow.interview.graph import build_interview_workflow, build_analyzer_workflow
+from src.app.ai.flow.legacy_flow.interview.graph import build_interview_workflow, build_analyzer_workflow
 from langchain_core.messages import HumanMessage, AIMessage
-from src.flow.model.llm_manager import get_llm
-from src.flow.interview.prompts import CODING_CHALLENGE_PROMPT, EVALUATION_PROMPT
+from src.app.ai.flow.legacy_flow.model.llm_manager import get_llm
+from src.app.ai.flow.legacy_flow.interview.prompts import CODING_CHALLENGE_PROMPT, EVALUATION_PROMPT
 
 router = APIRouter()
 

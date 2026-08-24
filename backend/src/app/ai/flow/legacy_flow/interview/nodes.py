@@ -1,9 +1,9 @@
 import time
 from typing import Dict, Any, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from src.flow.model.llm_manager import get_llm
-from src.flow.states.interview import InterviewState
-from src.flow.interview.prompts import (
+from src.app.ai.flow.legacy_flow.model.llm_manager import get_llm
+from src.app.ai.flow.legacy_flow.states.interview import InterviewState
+from src.app.ai.flow.legacy_flow.interview.prompts import (
     SKILL_EXTRACTION_PROMPT,
     INTERVIEWER_SYSTEM_PROMPT,
     ASSESSMENT_PROMPT
@@ -31,7 +31,7 @@ async def extract_skills_node(state: InterviewState):
         experience=experience
     )
     
-    from src.flow.model.llm_manager import get_fast_llm
+    from src.app.ai.flow.legacy_flow.model.llm_manager import get_fast_llm
     fast_llm = get_fast_llm()
     response = await fast_llm.ainvoke([HumanMessage(content=prompt)])
     skills = [s.strip() for s in response.content.split(",")]

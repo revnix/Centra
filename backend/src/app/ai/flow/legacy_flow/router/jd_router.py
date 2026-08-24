@@ -1,5 +1,5 @@
 from langgraph.graph import END
-from src.flow.states.evelyn import EVALN
+from src.app.ai.flow.legacy_flow.states.evelyn import EVALN
 
 
 def router(state: EVALN):

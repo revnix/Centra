@@ -1,7 +1,7 @@
-from src.flow.states.evelyn import EVALN
-from src.flow.prompts.human.jd_prompt import JD_GENERATION_PROMPT
-from src.flow.model.llm_manager import get_llm
-from src.flow.model.structure.jd import JobPost
+from src.app.ai.flow.legacy_flow.states.evelyn import EVALN
+from src.app.ai.flow.legacy_flow.prompts.human.jd_prompt import JD_GENERATION_PROMPT
+from src.app.ai.flow.legacy_flow.model.llm_manager import get_llm
+from src.app.ai.flow.legacy_flow.model.structure.jd import JobPost
 
 
 def create_post(state: EVALN) -> dict:

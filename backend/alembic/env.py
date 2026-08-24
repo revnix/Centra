@@ -35,8 +35,31 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from src.api.db.base import Base
-import src.api.models  # ensure models are imported
+from src.app.db.base import Base
+
+# Ensure all model modules are imported so their tables register on Base.metadata
+import src.app.modules.platform.users.models.user  # noqa: F401
+import src.app.modules.platform.users.models.password_reset  # noqa: F401
+import src.app.modules.platform.org.models.department  # noqa: F401
+import src.app.modules.people.models.employee_profile  # noqa: F401
+import src.app.modules.recruiting.models.job  # noqa: F401
+import src.app.modules.recruiting.models.application  # noqa: F401
+import src.app.modules.recruiting.models.candidate  # noqa: F401
+import src.app.modules.recruiting.models.interview  # noqa: F401
+import src.app.modules.recruiting.models.interview_schedule  # noqa: F401
+import src.app.modules.recruiting.models.onboarding  # noqa: F401
+import src.app.modules.recruiting.models.permission  # noqa: F401
+import src.app.modules.recruiting.models.role  # noqa: F401
+import src.app.modules.recruiting.models.role_permission  # noqa: F401
+import src.app.modules.recruiting.models.screening  # noqa: F401
+import src.app.modules.recruiting.models.user  # noqa: F401
+import src.app.modules.recruiting.models.user_role  # noqa: F401
+import src.app.modules.attendance.models.breaks  # noqa: F401
+import src.app.modules.attendance.models.employee_shift  # noqa: F401
+import src.app.modules.attendance.models.session  # noqa: F401
+import src.app.modules.attendance.models.shift  # noqa: F401
+import src.app.integrations.shared.models.integration  # noqa: F401
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
