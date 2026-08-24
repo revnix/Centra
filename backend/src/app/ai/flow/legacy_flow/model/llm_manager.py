@@ -15,7 +15,7 @@ def get_llm():
         raise ValueError("GROQ_API_KEY not set in .env!")
 
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         temperature=0.7,
         api_key=api_key
     )
@@ -29,7 +29,7 @@ def get_fast_llm():
         raise ValueError("GROQ_API_KEY not set in .env!")
 
     return ChatGroq(
-        model="llama-3.1-8b-instant",
+        model="openai/gpt-oss-20b",
         temperature=0.1,
         api_key=api_key
     )

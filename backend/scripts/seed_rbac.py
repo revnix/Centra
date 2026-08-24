@@ -1,6 +1,7 @@
 import asyncio
 from sqlalchemy import select
 
+import src.app.db.all_models  # noqa: F401 - registers all models before mapper configuration
 from src.app.db.session import AsyncSessionLocal, engine
 from src.app.db.base import Base
 

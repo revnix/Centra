@@ -2,14 +2,15 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.future import select
-from src.api.db.session import AsyncSessionLocal
-from src.api.models.user import User, UserRole
-from src.api.models.job import Posts, JobStatus, JobType, ExperienceLevel
-from src.api.models.candidate import CandidateProfile
-from src.api.models.application import Application, ApplicationStatus
-from src.api.models.interview import InterviewSession, InterviewStatus
-from src.api.models.onboarding import Onboarding, OnboardingStatus
-from src.api.core.security import get_password_hash
+import src.app.db.all_models  # noqa: F401 - registers all models before mapper configuration
+from src.app.db.session import AsyncSessionLocal
+from src.app.modules.platform.users.models.user import User, UserRole
+from src.app.modules.recruiting.models.job import Posts, JobStatus, JobType, ExperienceLevel
+from src.app.modules.recruiting.models.candidate import CandidateProfile
+from src.app.modules.recruiting.models.application import Application, ApplicationStatus
+from src.app.modules.recruiting.models.interview import InterviewSession, InterviewStatus
+from src.app.modules.recruiting.models.onboarding import Onboarding, OnboardingStatus
+from src.app.core.security import get_password_hash
 
 async def seed_all():
     async with AsyncSessionLocal() as db:
@@ -144,7 +145,7 @@ async def seed_all():
             await db.refresh(application)
             
             # Integrated Centralized Handler (Automation Agent / Script Example)
-            from src.api.utils.application_handler import handle_new_application
+            from src.app.modules.platform.files.utils.application_handler import handle_new_application
             await handle_new_application(db, application.id)
 
         # 5. Seed Interview Session

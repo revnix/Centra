@@ -56,7 +56,7 @@ def alembic(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 
 async def _bootstrap_schema_from_models() -> None:
     # Import models to register metadata
-    import src.api.models  # noqa: F401
+    import src.app.db.all_models  # noqa: F401
 
     from src.app.core.config import settings
     from src.app.db.base import Base
