@@ -19,6 +19,9 @@ jobs:
   deploy:
     # Skip if this was a PR close without merge
     if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    permissions:
+      contents: read
+      packages: write
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: production
