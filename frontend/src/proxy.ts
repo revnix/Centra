@@ -51,9 +51,7 @@ export default function proxy(request: NextRequest) {
         if (token === 'candidate') {
             return NextResponse.redirect(new URL('/portal/status', request.url));
         }
-        if (token === 'admin' || token === 'reviewer') {
-            return NextResponse.redirect(new URL('/dashboard', request.url));
-        }
+        return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
     // Role-based access control for protected routes
@@ -63,8 +61,8 @@ export default function proxy(request: NextRequest) {
             return NextResponse.redirect(new URL('/portal/status', request.url));
         }
 
-        // Admins/Reviewers should not access candidate portal (except public parts)
-        if (pathname.startsWith('/portal') && (token === 'admin' || token === 'reviewer')) {
+        // Non-candidates should not access candidate portal (except public parts)
+        if (pathname.startsWith('/portal') && token !== 'candidate') {
             if (!pathname.startsWith('/portal/onboarding')) {
                 return NextResponse.redirect(new URL('/dashboard', request.url));
             }
