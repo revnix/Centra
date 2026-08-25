@@ -2,19 +2,39 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Middleware for route protection and role-based access control
+ * Middleware for route protection and role-based access control.
+ *
+ * Unified dashboard:
+ * - All authenticated users land on `/dashboard`.
+ * - Candidate-specific pages still live under `/portal/*` for now, but the
+ *   sidebar and routing are role-gated.
  */
 
 export default function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login', '/signup', '/jobs', '/interview', '/interview-feedback', '/screening', '/portal/onboarding', '/review-job', '/forgot-password', '/reset-password', '/'];
-    const isPublicRoute = pathname === '/' || publicRoutes.some(route => route !== '/' && (pathname === route || pathname.startsWith(route + '/')));
+    const publicRoutes = [
+        '/login',
+        '/signup',
+        '/jobs',
+        '/interview',
+        '/interview-feedback',
+        '/screening',
+        '/portal/onboarding',
+        '/review-job',
+        '/forgot-password',
+        '/reset-password',
+        '/',
+    ];
+    const isPublicRoute =
+        pathname === '/' ||
+        publicRoutes.some(
+            (route) => route !== '/' && (pathname === route || pathname.startsWith(route + '/'))
+        );
 
     // Get token from cookie
-    const token = request.cookies.get('access_token')?.value;
-    const userRole = request.cookies.get('user_role')?.value;
+    const token = request.cookies.get('user_role')?.value;
 
     // Redirect to login if accessing protected route without token
     if (!isPublicRoute && !token) {
@@ -23,28 +43,26 @@ export default function proxy(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Redirect to appropriate dashboard if already logged in (only from auth pages)
+    // Redirect to dashboard if already logged in (only from auth pages)
     const authRoutes = ['/login', '/signup'];
     const skipRedirect = request.nextUrl.searchParams.get('no_redirect') === 'true';
 
     if (token && authRoutes.includes(pathname) && !skipRedirect) {
-        if (userRole === 'candidate') {
+        if (token === 'candidate') {
             return NextResponse.redirect(new URL('/portal/status', request.url));
         }
-        if (userRole === 'admin' || userRole === 'reviewer') {
-            return NextResponse.redirect(new URL('/dashboard', request.url));
-        }
+        return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
     // Role-based access control for protected routes
-    if (token && userRole && !isPublicRoute) {
+    if (token && !isPublicRoute) {
         // Candidates should not access admin dashboard
-        if (pathname.startsWith('/dashboard') && userRole === 'candidate') {
+        if (pathname.startsWith('/dashboard') && token === 'candidate') {
             return NextResponse.redirect(new URL('/portal/status', request.url));
         }
-        
-        // Admins/Reviewers should not access candidate portal (except public parts)
-        if (pathname.startsWith('/portal') && (userRole === 'admin' || userRole === 'reviewer')) {
+
+        // Non-candidates should not access candidate portal (except public parts)
+        if (pathname.startsWith('/portal') && token !== 'candidate') {
             if (!pathname.startsWith('/portal/onboarding')) {
                 return NextResponse.redirect(new URL('/dashboard', request.url));
             }
@@ -54,17 +72,8 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next();
 }
 
-// Configure which routes to run middleware on
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except:
-         * - api routes (handled separately)
-         * - _next/static (static files)
-         * - _next/image (image optimization)
-         * - favicon.ico
-         * - public files
-         */
         '/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$).*)',
     ],
 };

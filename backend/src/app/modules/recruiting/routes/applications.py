@@ -1,0 +1,868 @@
+import asyncio
+import json
+from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, BackgroundTasks
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload, noload, selectinload
+from sqlalchemy.sql import func
+
+from src.app.core.dependencies import get_current_user
+from src.app.db.session import get_db, AsyncSessionLocal
+from src.app.modules.recruiting.models.application import Application, ApplicationStatus
+from src.app.modules.platform.users.models.user import User, UserRole
+from src.app.modules.recruiting.schemas.application import ApplicationCreate, ApplicationResponse
+from src.app.modules.recruiting.schemas.candidate import CandidateProfileCreate
+from src.app.modules.platform.users.schemas.user import UserCreate
+from src.app.modules.recruiting.services.application_service import ApplicationService
+from src.app.modules.platform.users.services.auth_service import AuthService
+from src.app.modules.recruiting.services.candidate_service import CandidateService
+from src.app.integrations.email.services.service import send_email, EmailService
+from src.app.modules.recruiting.services.screening_service import ScreeningService
+from src.app.core.config import settings
+
+router = APIRouter()
+
+
+async def run_screening(application_id: int):
+    """Background task to run AI screening."""
+    async with AsyncSessionLocal() as db:
+        service = ScreeningService(db)
+        await service.evaluate_and_invite(application_id)
+
+
+async def run_resume_promotion(candidate_id: int, job_folder_name: Optional[str]):
+    """Background task: promote a shortlisted candidate's resume to Google Drive.
+
+    Runs off the request path — the Drive upload (network call + synchronous
+    client library on a thread) previously blocked the HR-facing status-update
+    response for several seconds on every SHORTLISTED transition.
+    """
+    async with AsyncSessionLocal() as db:
+        service = ApplicationService(db)
+        try:
+            await service.ensure_resume_promoted_to_drive(candidate_id, job_folder_name=job_folder_name)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Background resume promotion failed for candidate %s", candidate_id
+            )
+
+
+@router.post("/guest", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def guest_apply(
+    background_tasks: BackgroundTasks,
+    job_id: int = Form(...),
+    email: str = Form(...),
+    full_name: str = Form(...),
+    phone_number: Optional[str] = Form(None),
+    linkedin_url: Optional[str] = Form(None),
+    skills: str = Form("[]"),
+    experience_years: int = Form(0),
+    cover_letter: Optional[str] = Form(None),
+    expected_salary: Optional[str] = Form(None),
+    city: str = Form(...),
+    qualification: str = Form(...),
+    resume_file: Optional[UploadFile] = File(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Guest Application Flow:
+    1. Handle Resume File Upload
+    2. Check if user exists (or create shadow user)
+    3. Create/Update Profile
+    4. Create Application
+    5. Trigger AI Screening
+    """
+    auth_service = AuthService(db)
+    app_service = ApplicationService(db)
+    cand_service = CandidateService(db)
+
+    resume_url = None
+    resume_file_id = None
+    resume_storage_provider = None
+
+    if resume_file:
+        content = await resume_file.read()
+
+        # ── Validation ───────────────────────────────────────────────────────
+        from pathlib import Path
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+
+        ALLOWED_RESUME_EXTS = {".pdf", ".doc", ".docx"}
+        MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
+
+        ext = Path(resume_file.filename or "").suffix.lower()
+        if ext not in ALLOWED_RESUME_EXTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '{ext}' is not allowed. Supported formats: {', '.join(sorted(ALLOWED_RESUME_EXTS))}",
+            )
+        if len(content) > MAX_RESUME_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File is too large ({len(content) // (1024 * 1024)} MB). Maximum allowed size is 10 MB.",
+            )
+
+        # ── Upload to Cloudinary concurrently with the DB user lookup below —
+        # neither depends on the other's result, and the upload never touches
+        # `db`, so running them in parallel is safe and saves a full Cloudinary
+        # round trip (previously done strictly before any DB work started).
+        from src.app.modules.platform.files.utils.cloudinary_upload import upload_file
+        safe_email = email.replace("@", "_at_").replace("+", "_")
+        resume_url, user = await asyncio.gather(
+            upload_file(content, resume_file.filename or "resume", folder=f"evalyn/resumes/{safe_email}"),
+            auth_service.get_user_by_email(email),
+        )
+        resume_storage_provider = "cloudinary"
+    else:
+        user = await auth_service.get_user_by_email(email)
+
+    try:
+        skills_list = json.loads(skills)
+    except (json.JSONDecodeError, ValueError):
+        skills_list = []
+
+    if not user:
+        import secrets
+        user_in = UserCreate(
+            email=email,
+            password=secrets.token_urlsafe(16),
+            full_name=full_name,
+            role=UserRole.CANDIDATE,
+        )
+        user = await auth_service.create_user(user_in)
+
+    profile = await cand_service.get_profile_by_user_id(user.id)
+    if not profile:
+        profile_in = CandidateProfileCreate(
+            resume_url=resume_url,
+            linkedin_url=linkedin_url,
+            skills=skills_list,
+            experience_years=experience_years,
+        )
+        created_profile = await cand_service.create_profile(user.id, profile_in)
+        # Persist new storage metadata columns
+        if resume_file_id:
+            created_profile.resume_file_id = resume_file_id
+        if resume_storage_provider:
+            created_profile.resume_storage_provider = resume_storage_provider
+        db.add(created_profile)
+    else:
+        if resume_url:
+            profile.resume_url = resume_url
+        if resume_file_id:
+            profile.resume_file_id = resume_file_id
+        if resume_storage_provider:
+            profile.resume_storage_provider = resume_storage_provider
+        if linkedin_url:
+            profile.linkedin_url = linkedin_url
+        if skills_list:
+            profile.skills = skills_list
+        if experience_years > 0:
+            profile.experience_years = experience_years
+        db.add(profile)
+        await db.commit()
+
+    try:
+        application = await app_service.create_application(
+            user.id,
+            job_id,
+            phone_number=phone_number,
+            cover_letter=cover_letter,
+            source="guest_web",
+            background_tasks=background_tasks,
+            expected_salary=expected_salary,
+            city=city,
+            qualification=qualification,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("guest_apply: unexpected error after saving application: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    background_tasks.add_task(run_screening, application.id)
+
+    return {
+        "message": "Application submitted successfully. Our AI system will review your profile and send an interview invitation via email if you are shortlisted.",
+        "status": "review_pending",
+    }
+
+
+@router.post("", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
+async def apply(
+    apply_data: ApplicationCreate,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    application = await app_service.create_application(
+        current_user.id,
+        apply_data.job_id,
+        cover_letter=apply_data.cover_letter,
+        phone_number=apply_data.phone_number,
+        source=apply_data.source or "web",
+        background_tasks=background_tasks,
+        expected_salary=apply_data.expected_salary,
+        city=apply_data.city,
+        qualification=apply_data.qualification,
+    )
+    background_tasks.add_task(run_screening, application.id)
+    # This route serializes via ApplicationResponse (candidate/job/screening_test
+    # relationships), so it needs the eager-loaded reload create_application skips.
+    return await app_service.get_application_by_id(application.id) or application
+
+
+class PoolShortlistRequest(BaseModel):
+    candidate_user_id: int
+    job_id: int
+
+
+@router.post("/pool-shortlist", response_model=dict)
+async def pool_shortlist_candidate(
+    body: PoolShortlistRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Shortlist a candidate discovered via Resume Pooling for a specific job.
+    Finds the existing application (or creates one) and sets status to SHORTLISTED.
+    """
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Try to find existing application for this candidate + job
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            noload(Application.interview_session),
+            noload(Application.interview_schedule),
+        )
+        .where(
+            Application.candidate_id == body.candidate_user_id,
+            Application.job_id == body.job_id,
+        )
+        .order_by(Application.created_at.desc())
+        .limit(1)
+    )
+    application = result.scalars().first()
+
+    if not application:
+        # Candidate never applied for this exact job — create a bridge application
+        application = Application(
+            candidate_id=body.candidate_user_id,
+            job_id=body.job_id,
+            status=ApplicationStatus.APPLIED,
+            source="resume_pool",
+        )
+        db.add(application)
+        await db.flush()  # get id without committing
+
+    application.status = ApplicationStatus.SHORTLISTED
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+
+    return {
+        "success": True,
+        "application_id": application.id,
+        "status": application.status.value if hasattr(application.status, "value") else application.status,
+        "message": "Candidate shortlisted successfully.",
+    }
+
+
+@router.get("/me", response_model=List[ApplicationResponse])
+async def list_my_applications(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    return await app_service.get_applications_by_user_id(current_user.id)
+
+
+@router.get("/by-job/{job_id}", response_model=List[ApplicationResponse])
+async def list_applications_by_job(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from src.app.modules.recruiting.models.interview_schedule import InterviewSchedule
+    result = await db.execute(
+        select(Application)
+        .where(Application.job_id == job_id)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+            noload(Application.interview_session),
+        )
+        .order_by(Application.match_score.desc().nullslast())
+    )
+    return result.scalars().all()
+
+
+@router.get("", response_model=List[ApplicationResponse])
+async def list_applications(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    return await app_service.list_applications(skip, min(limit, 200))
+
+
+@router.get("/{application_id}", response_model=ApplicationResponse)
+async def get_application(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    application = await app_service.get_application_by_id(application_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return application
+
+
+@router.post("/{application_id}/hire", response_model=ApplicationResponse)
+async def hire_application(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    try:
+        return await app_service.hire_candidate(application_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{application_id}/reject", response_model=ApplicationResponse)
+async def reject_application_route(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    try:
+        return await app_service.reject_application(application_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_application(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized to delete applications")
+
+    app_service = ApplicationService(db)
+    success = await app_service.delete_application(application_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return None
+
+
+@router.post("/{application_id}/analyze", response_model=ApplicationResponse)
+async def analyze_application_route(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_service = ApplicationService(db)
+    try:
+        return await app_service.analyze_application(application_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{application_id}/shortlist", response_model=ApplicationResponse)
+async def shortlist_application_route(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    app_service = ApplicationService(db)
+    try:
+        return await app_service.shortlist_candidate(application_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{application_id}/invite")
+async def send_interview_invite(
+    application_id: int,
+    subject: str = Form(...),
+    message: str = Form(...),
+    attachments: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """HR manually sends a custom interview invitation email to the candidate, with optional file attachments."""
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate), joinedload(Application.job))
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    candidate = application.candidate
+    job = application.job
+
+    # Process file attachments
+    email_attachments = []
+    for f in (attachments or []):
+        content = await f.read()
+        email_attachments.append({"filename": f.filename, "content": list(content)})
+
+    html_body = f"""
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px;
+                margin: auto; padding: 30px; border: 1px solid #e2e8f0;
+                border-radius: 12px; color: #2d3748; line-height: 1.7;">
+        <div style="text-align: center; margin-bottom: 28px;">
+            <h1 style="color: #2b6cb0; font-size: 24px; margin: 0;">Interview Invitation</h1>
+        </div>
+        <p>Dear <strong>{candidate.full_name or 'Candidate'}</strong>,</p>
+        <div style="white-space: pre-wrap; margin: 20px 0;">{message}</div>
+        <p style="margin-top: 30px;">Best regards,<br/>
+        <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
+        Evalyn AI</p>
+        <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
+        <p style="font-size: 12px; color: #a0aec0; text-align: center;">
+            This email was sent regarding your application for
+            <strong>{job.title if job else 'our open position'}</strong>.
+        </p>
+    </div>
+    """
+
+    sent = await send_email(candidate.email, subject, html_body, attachments=email_attachments if email_attachments else None)
+
+    if sent:
+        application.email_delivery_status = "SENT"
+        application.status = ApplicationStatus.INTERVIEW_INVITED
+        application.interview_invitation_status = "SENT"
+        application.last_interview_invite_id = sent
+        application.interview_invite_sent_at = func.now()
+        attach_note = f" | {len(email_attachments)} attachment(s)" if email_attachments else ""
+        application.email_logs = f"Manual invite sent by HR. Subject: {subject}{attach_note}"
+    else:
+        application.email_delivery_status = "FAILED"
+        application.interview_invitation_status = "FAILED"
+        application.email_logs = f"Manual invite failed. Subject: {subject}"
+
+    db.add(application)
+    await db.commit()
+
+    if sent:
+        # Promote resume to Google Drive now that candidate has been invited
+        try:
+            _job = application.job
+            _job_folder = None
+            if _job:
+                _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
+                _job_folder = f"{_job.title} - {_jdate}"
+            app_service = ApplicationService(db)
+            await app_service.ensure_resume_promoted_to_drive(application.candidate_id, job_folder_name=_job_folder)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Resume promotion failed for candidate {application.candidate_id}: {e}")
+
+    if not sent:
+        raise HTTPException(status_code=500, detail="Email delivery failed. Please try again.")
+
+    return {
+        "success": True,
+        "message": f"Interview invitation sent to {candidate.email}",
+        "status": application.status,
+    }
+
+
+@router.post("/{application_id}/send-email")
+async def send_candidate_email(
+    application_id: int,
+    subject: str = Form(...),
+    message: str = Form(...),
+    cc: str = Form(default=""),
+    bcc: str = Form(default=""),
+    attachments: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """HR sends a free-form email to the candidate from the pipeline board (e.g. Offer
+    Extended / Offer Accepted). Purely a communication tool — it never changes the
+    application's pipeline stage, unlike /invite."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate))
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    candidate = application.candidate
+    if not candidate or not candidate.email:
+        raise HTTPException(status_code=404, detail="Candidate has no email on file")
+
+    if not subject.strip():
+        raise HTTPException(status_code=400, detail="Subject is required")
+    if not message.strip():
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    def parse_recipients(raw: str) -> list[str]:
+        return [addr.strip() for addr in raw.replace(";", ",").split(",") if addr.strip()]
+
+    cc_list = parse_recipients(cc)
+    bcc_list = parse_recipients(bcc)
+
+    email_attachments = []
+    for f in (attachments or []):
+        if f.filename:
+            content = await f.read()
+            email_attachments.append({"filename": f.filename, "content": list(content)})
+
+    import html as html_lib
+    escaped_body = html_lib.escape(message).replace("\n", "<br/>")
+    html_body = f"""
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px;
+                margin: auto; padding: 30px; border: 1px solid #e2e8f0;
+                border-radius: 12px; color: #2d3748; line-height: 1.7;">
+        {escaped_body}
+    </div>
+    """
+
+    sent = await send_email(
+        candidate.email,
+        subject,
+        html_body,
+        attachments=email_attachments if email_attachments else None,
+        cc=cc_list or None,
+        bcc=bcc_list or None,
+    )
+
+    if sent:
+        application.email_delivery_status = "SENT"
+        attach_note = f" | {len(email_attachments)} attachment(s)" if email_attachments else ""
+        cc_note = f" | cc: {', '.join(cc_list)}" if cc_list else ""
+        application.email_logs = f"Custom email sent by HR. Subject: {subject}{attach_note}{cc_note}"
+    else:
+        application.email_delivery_status = "FAILED"
+        application.email_logs = f"Custom email failed. Subject: {subject}"
+
+    db.add(application)
+    await db.commit()
+
+    if not sent:
+        raise HTTPException(status_code=500, detail="Email delivery failed. Please try again.")
+
+    return {"success": True, "message": f"Email sent to {candidate.email}"}
+
+
+class UpdateStatusRequest(BaseModel):
+    status: str
+
+
+@router.patch("/{application_id}/status", response_model=ApplicationResponse)
+async def update_application_status(
+    application_id: int,
+    body: UpdateStatusRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Move an application to any pipeline stage."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        new_status = ApplicationStatus(body.status.upper())
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}")
+
+    from src.app.modules.recruiting.models.interview_schedule import InterviewSchedule
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            joinedload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+        )
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.status = new_status
+
+    # Promote resume to Google Drive if the new status is SHORTLISTED.
+    # Runs in the background — the Drive upload is a multi-second network call
+    # that shouldn't block the HR-facing status-update response.
+    if new_status == ApplicationStatus.SHORTLISTED:
+        _job = application.job
+        _job_folder = None
+        if _job:
+            _jdate = (_job.published_at or _job.created_at).strftime("%Y-%m-%d") if (_job.published_at or _job.created_at) else "undated"
+            _job_folder = f"{_job.title} - {_jdate}"
+        background_tasks.add_task(run_resume_promotion, int(application.candidate_id), _job_folder)
+
+    # Sync with interview tracking status
+    if new_status == ApplicationStatus.INTERVIEW_SCHEDULED:
+        if application.interview_invitation_status not in ["ACCEPTED", "DECLINED"]:
+            application.interview_invitation_status = "ACCEPTED"
+            application.email_logs = "Application status moved to INTERVIEW_SCHEDULED."
+
+    elif new_status == ApplicationStatus.SCREENING_TEST:
+        try:
+            screening_service = ScreeningService(db)
+            test = await screening_service.create_screening_test(application.id)
+            test_url = f"{settings.FRONTEND_URL}/screening/{test.token}"
+
+            candidate_name = application.candidate.full_name or "Candidate"
+            job_title = application.job.title if application.job else "the position"
+
+            await EmailService.send_screening_test_email(
+                candidate_email=application.candidate.email,
+                candidate_name=candidate_name,
+                job_title=job_title,
+                test_url=test_url,
+                expires_hours=72,
+            )
+            application.email_delivery_status = "SENT"
+            application.email_logs = f"Screening test email sent. URL: {test_url}"
+        except Exception as exc:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.exception("Failed to create/send screening test email for application %s", application.id)
+            application.email_delivery_status = "FAILED"
+            application.email_logs = f"Failed to send screening test: {str(exc)}"
+
+    db.add(application)
+    await db.commit()
+
+    # Re-fetch with all relations eagerly loaded so the response serializer
+    # doesn't trigger lazy-loads outside an async greenlet context.
+    fresh = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            joinedload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+        )
+        .where(Application.id == application_id)
+    )
+    return fresh.scalars().first()
+
+
+@router.post("/{application_id}/reset-email-status", response_model=ApplicationResponse)
+async def reset_email_status(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset email tracking so HR can resend any email for this application."""
+    from src.app.modules.recruiting.models.interview_schedule import InterviewSchedule
+    result = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            noload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+        )
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.email_delivery_status = "PENDING"
+    application.interview_invitation_status = "NOT_SENT"
+    application.last_interview_invite_id = None
+    application.interview_invite_sent_at = None
+    application.email_logs = None
+
+    # Reset status so email buttons become active again
+    if application.status == ApplicationStatus.HIRED:
+        application.status = ApplicationStatus.RESPONDED  # type: ignore[assignment]
+    elif application.status == ApplicationStatus.REJECTED:
+        application.status = ApplicationStatus.SHORTLISTED  # type: ignore[assignment]
+
+    db.add(application)
+    await db.commit()
+
+    # Re-fetch with all relations to avoid MissingGreenlet on lazy interview_schedule access
+    fresh = await db.execute(
+        select(Application)
+        .options(
+            joinedload(Application.candidate),
+            joinedload(Application.job),
+            joinedload(Application.screening_test),
+            noload(Application.interview_session),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.panelists),
+            selectinload(Application.interview_schedule).selectinload(InterviewSchedule.feedback_entries),
+        )
+        .where(Application.id == application_id)
+    )
+    return fresh.scalars().first()
+
+
+@router.post("/{application_id}/send-documents")
+async def send_onboarding_documents(
+    application_id: int,
+    subject: str = Form(default="Welcome to the Team – Onboarding Resources & Documents"),
+    message: Optional[str] = Form(default=None),
+    attachments: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send the onboarding documents / resource links email to the candidate.
+    The HR can provide a custom subject and intro message; the document links are appended automatically.
+    """
+    if current_user.role not in [UserRole.ADMIN, UserRole.REVIEWER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.candidate), joinedload(Application.job))
+        .where(Application.id == application_id)
+    )
+    application = result.scalars().first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    candidate = application.candidate
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Helper to convert basic markdown (lists, bold, links) style to HTML email format
+    def markdown_to_html(text: str) -> str:
+        import re
+        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        # Convert bold markers **text** -> <strong>text</strong>
+        escaped = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', escaped)
+
+        # Convert markdown links [text](url) -> formatted anchor tag
+        escaped = re.sub(
+            r'\[([^\]]+)\]\((https?://[^\s<>"]+)\)',
+            r'<a href="\2" style="color: #1155cc; text-decoration: underline;">\1</a>',
+            escaped
+        )
+
+        # Convert remaining raw URLs (not inside an href tag) to linked text
+        escaped = re.sub(
+            r'(?<!href=")(?<!href=\')(https?://[^\s<>"\']+)(?![^<]*>)',
+            r'<a href="\1" style="color: #1155cc; text-decoration: underline;">\1</a>',
+            escaped
+        )
+
+        # Convert list structure and regular paragraphs line by line
+        lines = escaped.split("\n")
+        html_lines = []
+        current_list_level = 0
+
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                while current_list_level > 0:
+                    html_lines.append("</ul>")
+                    current_list_level -= 1
+                html_lines.append("<br/>")
+                continue
+
+            # Check for list bullets (either "*" or "-")
+            list_match = re.match(r'^(\s*)([\*\-])\s+(.*)$', line)
+            if list_match:
+                indent = len(list_match.group(1))
+                content = list_match.group(3)
+                target_level = 1 if indent == 0 else 2
+
+                while current_list_level < target_level:
+                    html_lines.append("<ul style='margin-top: 4px; margin-bottom: 4px; padding-left: 20px;'>")
+                    current_list_level += 1
+                while current_list_level > target_level:
+                    html_lines.append("</ul>")
+                    current_list_level -= 1
+
+                html_lines.append(f"<li style='margin-bottom: 4px;'>{content}</li>")
+            else:
+                while current_list_level > 0:
+                    html_lines.append("</ul>")
+                    current_list_level -= 1
+                html_lines.append(line_stripped + "<br/>")
+
+        while current_list_level > 0:
+            html_lines.append("</ul>")
+            current_list_level -= 1
+
+        return "\n".join(html_lines)
+
+    html_body = ""
+    if message and message.strip():
+        msg_str = message.strip()
+        # If the email content already looks like formatted HTML, bypass markdown parsed conversion
+        if "</a>" in msg_str or "<ul" in msg_str or "<li" in msg_str or "<br" in msg_str or "href=" in msg_str:
+            formatted_message = msg_str
+        else:
+            formatted_message = markdown_to_html(msg_str)
+        html_body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; color: #222; line-height: 1.7; font-size: 14px;">
+            {formatted_message}
+        </div>
+        """
+    else:
+        html_body = """
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; color: #222; line-height: 1.7; font-size: 14px;">
+            <p>Welcome to the team! Onboarding documents will be shared with you.</p>
+        </div>
+        """
+
+    # Build attachments list
+    email_attachments = []
+    for f in (attachments or []):
+        if f.filename:
+            content = await f.read()
+            email_attachments.append({"filename": f.filename, "content": list(content)})
+
+    sent = await send_email(
+        candidate.email,
+        subject,
+        html_body,
+        attachments=email_attachments if email_attachments else None,
+    )
+
+    if not sent:
+        raise HTTPException(status_code=500, detail="Failed to send documents email. Please try again.")
+
+    return {"success": True, "message": f"Documents email sent to {candidate.email}"}

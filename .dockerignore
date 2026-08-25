@@ -1,7 +1,7 @@
 # Exclude backend virtual envs & caches
 backend/venv/
 backend/.venv/
-backend/__pycache__/
+backend/__ pycache__/
 backend/**/__pycache__/
 backend/*.pyc
 backend/*.pyo

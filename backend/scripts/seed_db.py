@@ -2,21 +2,24 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.future import select
-from src.api.db.session import AsyncSessionLocal
-from src.api.models.user import User, UserRole
-from src.api.models.job import Posts, JobStatus, JobType, ExperienceLevel
-from src.api.models.candidate import CandidateProfile
-from src.api.models.application import Application, ApplicationStatus
-from src.api.models.interview import InterviewSession, InterviewStatus
-from src.api.models.onboarding import Onboarding, OnboardingStatus
-from src.api.core.security import get_password_hash
+import src.app.db.all_models  # noqa: F401 - registers all models before mapper configuration
+from src.app.db.session import AsyncSessionLocal
+from src.app.modules.platform.users.models.user import User, UserRole
+from src.app.modules.recruiting.models.job import Posts, JobStatus, JobType, ExperienceLevel
+from src.app.modules.recruiting.models.candidate import CandidateProfile
+from src.app.modules.recruiting.models.application import Application, ApplicationStatus
+from src.app.modules.recruiting.models.interview import InterviewSession, InterviewStatus
+from src.app.modules.recruiting.models.onboarding import Onboarding, OnboardingStatus
+from src.app.core.security import get_password_hash
 
 async def seed_all():
     async with AsyncSessionLocal() as db:
         print("Starting comprehensive database seeding...")
 
-        # 1. Seed Users (Admin and Candidate)
-        hashed_password = get_password_hash("secret")
+        # 1. Seed Users (Admin, HR, Finance, Leads, Candidate)
+        import os
+        default_password = os.getenv("SEED_DEFAULT_PASSWORD", "secret")
+        hashed_password = get_password_hash(default_password)
         
         # Check for existing admin
         result = await db.execute(select(User).where(User.username == "admin"))
@@ -55,6 +58,34 @@ async def seed_all():
         await db.commit()
         await db.refresh(admin)
         await db.refresh(candidate_user)
+
+        # Seed HR/Finance/Leads as admin/reviewer users for now (fine-grained ERP roles will be RBAC)
+        extra_users = [
+            {"username": "org_admin", "email": "org.admin@evalyn.com", "full_name": "Org Admin", "role": UserRole.ADMIN},
+            {"username": "hr_admin", "email": "hr.admin@evalyn.com", "full_name": "HR Admin", "role": UserRole.ADMIN},
+            {"username": "finance_admin", "email": "finance.admin@evalyn.com", "full_name": "Finance Admin", "role": UserRole.ADMIN},
+            {"username": "lead_ai", "email": "lead.ai@evalyn.com", "full_name": "AI Lead", "role": UserRole.REVIEWER},
+            {"username": "lead_web", "email": "lead.web@evalyn.com", "full_name": "Web Lead", "role": UserRole.REVIEWER},
+            {"username": "lead_shopify", "email": "lead.shopify@evalyn.com", "full_name": "Shopify Lead", "role": UserRole.REVIEWER},
+            {"username": "lead_uiux", "email": "lead.uiux@evalyn.com", "full_name": "UI/UX Lead", "role": UserRole.REVIEWER},
+        ]
+
+        for u in extra_users:
+            res = await db.execute(select(User).where(User.username == u["username"]))
+            existing = res.scalars().first()
+            if existing:
+                continue
+            db.add(User(
+                email=u["email"],
+                username=u["username"],
+                full_name=u["full_name"],
+                hashed_password=hashed_password,
+                role=u["role"],
+                is_active=True
+            ))
+            print(f"Added user: {u['username']} ({u['email']})")
+
+        await db.commit()
 
         # 2. Seed Candidate Profile
         result = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == candidate_user.id))
@@ -114,7 +145,7 @@ async def seed_all():
             await db.refresh(application)
             
             # Integrated Centralized Handler (Automation Agent / Script Example)
-            from src.api.utils.application_handler import handle_new_application
+            from src.app.modules.platform.files.utils.application_handler import handle_new_application
             await handle_new_application(db, application.id)
 
         # 5. Seed Interview Session

@@ -90,7 +90,7 @@ export default function ScreeningTestPage() {
                 try {
                     // Step 1: get a short-lived Cloudinary signed-upload credential from backend.
                     // This is a tiny JSON request — backend restarts don't affect the large upload.
-                    const backendBase = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
+                    const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:8123";
                     const sigRes = await fetch(`${backendBase}/api/v1/uploads/cloudinary-signature`);
                     if (!sigRes.ok) throw new Error("Failed to get upload signature");
                     const sig = await sigRes.json();

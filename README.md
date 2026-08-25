@@ -1,7 +1,6 @@
-<<<<<<< HEAD
 # Evalyn — AI-Powered HR Automation Platform
 
-Evalyn automates the end-to-end hiring workflow: job generation, candidate screening, shortlisting, email notifications, and onboarding — powered by LangGraph and Groq AI.
+Evalyn automates the end-to-end hiring workflow: job generation, candidate screening, shortlisting, email notifications, onboarding, and HR operations (departments, employees, shifts, attendance) — powered by LangGraph and LLM providers.
 
 ---
 
@@ -11,9 +10,8 @@ Evalyn automates the end-to-end hiring workflow: job generation, candidate scree
 |---|---|
 | Frontend | Next.js 16, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | FastAPI (Python 3.11), SQLAlchemy, asyncpg |
-| Database | PostgreSQL (Neon cloud) |
-| AI / LLM | LangGraph, LangChain, Groq (Llama 3) |
-| Email | Resend |
+| Database | PostgreSQL |
+| AI / LLM | LangGraph, LangChain, Groq / OpenAI (optional) |
 | Auth | JWT (PyJWT + bcrypt) |
 
 ---
@@ -21,336 +19,140 @@ Evalyn automates the end-to-end hiring workflow: job generation, candidate scree
 ## Project Structure
 
 ```
-Evalyn/
-├── backend/              # FastAPI application
+Evalyn-HR--Agent/
+├── backend/                 # FastAPI + LangGraph server
 │   ├── src/
-│   │   ├── api/          # Routes, services, models, schemas
-│   │   └── flow/         # LangGraph AI workflows
-│   ├── uploads/          # Resume and recording file storage
-│   ├── .env              # Backend environment variables
-│   └── requirements.txt
-├── frontend/             # Next.js application
-│   ├── src/
-│   │   ├── app/          # Pages (App Router)
-│   │   ├── components/   # Reusable UI components
-│   │   └── lib/          # API clients, hooks, utilities
-│   └── .env.local        # Frontend environment variables
-├── .env.local            # Master credentials template (all keys, empty values)
-└── _archived/            # Archived unused files
+│   ├── alembic/
+│   ├── scripts/             # db.py migrate/reset/seed helpers
+│   ├── .env                 # Local env (do not commit)
+│   └── .env.example         # Env template (safe)
+└── frontend/                # Next.js app
+    ├── src/
+    ├── .env.local           # Local env (do not commit)
+    └── .env.example         # Env template (safe)
 ```
 
 ---
 
 ## Prerequisites
 
-Ensure the following are installed before starting:
-
-- **Python 3.11** — [python.org](https://www.python.org/downloads/)
-- **Node.js 18+** — [nodejs.org](https://nodejs.org/)
-- **npm** (bundled with Node.js)
-- **Git**
+- Python 3.11+
+- Node.js 18+
+- npm
+- PostgreSQL (local) or any Postgres URL
 
 ---
 
-## Step 1 — Clone the Repository
+## Setup (Local Development)
+
+### 1) Clone
 
 ```bash
 git clone <repository-url>
-cd Evalyn
+cd Centra
 ```
 
----
-
-## Step 2 — Configure Environment Variables
-
-All required credential keys are listed in `.env.local` at the project root with empty values.
-
-### Backend — `backend/.env`
+### 2) Environment files
 
 ```bash
-# Windows
-copy .env.local backend\.env
-
-# macOS / Linux
-cp .env.local backend/.env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
 ```
 
-Open `backend/.env` and fill in every value:
+Update values:
 
-```env
-# Database — Neon PostgreSQL connection string
-DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>/<db>?sslmode=require
+- `backend/.env`
+  - Required: `DATABASE_URL`, `SECRET_KEY`, `FRONTEND_URL`
+  - Optional: AI keys, SMTP/Resend, integrations
+- `frontend/.env.local`
+  - Required: `NEXT_PUBLIC_BACKEND_URL`, `NEXT_PUBLIC_LANGGRAPH_API_URL` (default local is `http://127.0.0.1:2024`)
 
-# Application Security — any long random string
-SECRET_KEY=your-secret-key-here
-
-# AI — Groq API key  →  https://console.groq.com
-GROQ_API_KEY=gsk_...
-
-# URLs
-FRONTEND_URL=http://localhost:3000
-
-# Email — Resend  →  https://resend.com
-RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=you@yourdomain.com
-RESEND_FROM_NAME=Your Company Name
-RESEND_WEBHOOK_SECRET=whsec_...
-OPERATIONS_MANAGER_EMAIL=manager@yourdomain.com
-HR_EMAIL=hr@yourdomain.com
-
-# LinkedIn OAuth  →  https://developer.linkedin.com
-LINKEDIN_CLIENT_ID=
-LINKEDIN_CLIENT_SECRET=
-LINKEDIN_REDIRECT_URI=http://localhost:3000/dashboard/integrations/callback
-
-# Indeed OAuth  →  https://developer.indeed.com
-INDEED_CLIENT_ID=
-INDEED_CLIENT_SECRET=
-INDEED_REDIRECT_URL=http://localhost:3000/callback
-```
-
-### Frontend — `frontend/.env.local`
-
-```bash
-# Windows
-copy .env.local frontend\.env.local
-
-# macOS / Linux
-cp .env.local frontend/.env.local
-```
-
-Open `frontend/.env.local` and set:
-
-```env
-NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:8123/api/v1
-```
-
----
-
-## Step 3 — Backend Setup
-
-Open a terminal and navigate to the backend folder:
+### 3) Backend install
 
 ```bash
 cd backend
-```
-
-### Option A — pip (standard)
-
-```bash
-# Create virtual environment
 python -m venv .venv
-
-# Activate — Windows
-.venv\Scripts\activate
-
-# Activate — macOS / Linux
 source .venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### Option B — uv (faster)
+(Optionally use `uv sync` if you prefer `uv`.)
+
+### 4) Database migrations
+
+From `backend/` with venv active:
 
 ```bash
-pip install uv
-uv sync
+.venv/bin/python scripts/db.py migrate
 ```
 
----
-
-## Step 4 — Run the Backend
-
-From inside `backend/` with the virtual environment active:
+If you need a fully clean local DB (destructive):
 
 ```bash
-langgraph dev
+.venv/bin/python scripts/db.py nuke --yes
 ```
 
-| URL | Description | /
-|---|---|
-| http://localhost:8123 | API root |
-| http://localhost:8123/health | Health check (DB connectivity) |
-| http://localhost:8123/api/v1/openapi.json | Swagger / OpenAPI spec |
+### 5) Seed default roles + permissions + sample users
 
-Expected output:
-```
-INFO:     Uvicorn running on http://0.0.0.0:8123 (Press CTRL+C to quit)
-INFO:     Started reloader process
+```bash
+# Optional: change the password for seeded users (default is "secret")
+export SEED_DEFAULT_PASSWORD=secret
+
+.venv/bin/python scripts/db.py seed
 ```
 
----
+**Seeded users (local/dev)**
 
-## Step 5 — Frontend Setup
+- `admin@evalyn.com` (username: `admin`) → `SUPER_ADMIN`
+- `org.admin@evalyn.com` (username: `org_admin`) → `ORG_ADMIN`
+- `hr.admin@evalyn.com` (username: `hr_admin`) → `HR_ADMIN`
+- `finance.admin@evalyn.com` (username: `finance_admin`) → `FINANCE_ADMIN`
+- `lead.*@evalyn.com` (usernames: `lead_ai`, `lead_web`, `lead_shopify`, `lead_uiux`) → `DEPARTMENT_LEAD`
 
-Open a **new terminal** and navigate to the frontend folder:
+### 6) Run backend (LangGraph dev)
+
+```bash
+langgraph dev --port 2024
+```
+
+Common URLs:
+- Backend API: `http://127.0.0.1:2024`
+- OpenAPI: `http://127.0.0.1:2024/api/v1/openapi.json`
+
+### 7) Frontend install + run
+
+In a new terminal:
 
 ```bash
 cd frontend
 npm install
-```
-
----
-
-## Step 6 — Run the Frontend
-
-```bash
 npm run dev
 ```
 
-| URL | Page |
-|---|---|
-| http://localhost:3000 | Home |
-| http://localhost:3000/login | Admin login |
-| http://localhost:3000/dashboard | HR dashboard |
-| http://localhost:3000/jobs | Public job portal |
-
-Expected output:
-```
-▲ Next.js 16.x.x
-- Local: http://localhost:3000
-```
+Frontend URL: `http://localhost:3000`
 
 ---
 
-## Running Both Servers
+## Roles + Permissions (RBAC)
 
-Two terminals must run simultaneously:
+RBAC roles + permission matrix are defined and seeded in `backend/scripts/seed_rbac.py`.
 
-| Terminal | Directory | Command |
-|---|---|---|
-| 1 — Backend | `backend/` | `uvicorn src.api.main:app --host 0.0.0.0 --port 8123 --reload` |
-| 2 — Frontend | `frontend/` | `npm run dev` |
-
----
-
-## Key Features
-
-- **AI Job Generation** — Generate complete job descriptions using Groq LLM
-- **Public Candidate Portal** — Candidates apply with resume upload at `/jobs`
-- **AI Screening** — Automatic scoring and shortlisting (threshold: 70 / 100)
-- **Email Automation** — Shortlist invitations sent automatically via Resend
-- **Hiring Workflow** — Shortlist → Interview → Hire → Onboarding
-- **Onboarding** — Automated onboarding flow for hired candidates
-- **LinkedIn & Indeed** — Post jobs directly to external job boards
-
----
-
-## API Reference
-
-All routes are prefixed with `/api/v1`.
-
-| Resource | Route |
-|---|---|
-| Auth | `/api/v1/auth` |
-| Jobs | `/api/v1/jobs` |
-| Applications | `/api/v1/applications` |
-| Candidates | `/api/v1/candidates` |
-| Interviews | `/api/v1/interviews` |
-| Onboarding | `/api/v1/onboarding` |
-| Integrations | `/api/v1/integrations` |
-| Admin | `/api/v1/admin/*` |
+Roles currently seeded:
+- `SUPER_ADMIN`
+- `ORG_ADMIN`
+- `HR_ADMIN`, `HR_STAFF`
+- `FINANCE_ADMIN`, `FINANCE_STAFF`
+- `DEPARTMENT_LEAD`, `MANAGER`, `EMPLOYEE`
+- `AUDITOR`
+- `RECRUITER`
+- `INTEGRATIONS_ADMIN`
 
 ---
 
 ## Troubleshooting
 
-**`ModuleNotFoundError` on backend start**
-Make sure the virtual environment is activated and the command is run from inside the `backend/` folder.
+- Frontend proxy errors (`ECONNREFUSED`) usually mean backend is not running or frontend points to wrong port.
+  - Ensure `frontend/.env.local` uses `NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:2024`.
+- DB errors: verify `DATABASE_URL` points to a reachable Postgres instance.
+- If migrations fail on a fresh DB, run `.venv/bin/python scripts/db.py nuke --yes` and then migrate.
 
-**Database connection error**
-Verify the `DATABASE_URL` in `backend/.env` is correct and includes `?sslmode=require` for Neon.
-
-**Emails not delivering — Resend 403**
-The API key is in test mode. Verify your sender domain at [resend.com/domains](https://resend.com/domains) and update `RESEND_FROM_EMAIL` to use that domain.
-
-**Frontend `Network Error` on API calls**
-Confirm the backend is running on port `8123` and `NEXT_PUBLIC_LANGGRAPH_API_URL` in `frontend/.env.local` is set to `http://127.0.0.1:8123/api/v1`.
-
-**CORS errors in browser**
-Add your frontend origin to `ALLOWED_ORIGINS` in `backend/src/api/core/config.py`.
-
----
-
-Built for modern HR teams.
-=======
-git config --global user.name "Abdullah"
-git config --global user.email abuk10977@gmail.com
-
-git init
-
-ls -Force
-git status
-git add index.html
-git commit -m "Hey hello"
-git log
-
-get show --> File ma chnges dkhna k lia
-
-<!-- Agr koi specific commit ki file dkhna chay to us k lia -->
-git show commit unique id:file path
-
-<!-- Agr ap koi purani file lana chty ho wps -->
-git checkout 5f0a624a66bbe8264617b9b08e4c1f5a6927e690 -- index.html
-
-<!-- agr ap phr sa latest wali file wpis lana chty ho -->
-git checkout master -- *
-
-<!-- Agr kuch galti etc hu gai file ma or usa back krna ha  -->
-get restore . (. means all file, we can use index.html here)
-
-<!-- agr ham na git add kr lia or galti b ki hui ho to phr yah use kryn gy -->
-git restore --staged .
-git restore .
-
-<!-- agr git add krna k bad koi mistake hu jay to  -->
-git git restore --worktree .
-
-<!-- agr commit krna k bad pta chly k galti ki hu to usa asa reset kryn ga  -->
-git reset --soft Head^
-git reset --hard Head^
-
-<!-- Useful logs option -->
-<!-- agr last 2 commit dkhna hyn to -->
-git log -p -2
-
-<!-- Summary dikhay ga k kia kia changes hui hyn -->
-git log --stat
-
-<!-- agr har commit 1 line ma dkhna chty hyn to -->
-git log --pretty=oneline
-
-<!-- agr koi specific function dkhna chty hyn k yah kab change ya add hua like <h1> -->
-git log -S "h1"
-
-<!-- agr commit k message k zariya search krna chao to -->
-git log --grep="v2"
-
-<!-- agr ksi specific user ka commit dkhna ha to -->
-git log --author="Abdullah khan"
-
-
-<!-- Push from local to remote repo -->
-git add
-git commit -m "v3"
-git push
-
-<!-- Understand Git Pull -->
-<!-- from remote repo to local  -->
-git pull
-
-
-<!-- Branching & Merging -->
-<!-- Make a new branch -->
-git branch new_branch(<--- name of branch)
-git branch design
-<!-- agr dusri branch par shift hona ho to -->
-git checkout design
-
-<!-- Merge two branches -->
-git merge design  (<--- branch name design)
-
-<!-- Merge Conflict -->
-<!-- agr ak hi  cheez par 2 log same hi cheez pr changes ya kam kr rhy hon -->
->>>>>>> revnix/main

@@ -29,8 +29,8 @@ export default function LoginPage() {
       document.cookie = `access_token=${access_token}; path=/; max-age=86400; SameSite=Lax`;
       document.cookie = `user_role=${role}; path=/; max-age=86400; SameSite=Lax`;
 
-      if (role === "admin" || role === "reviewer") window.location.href = "/dashboard";
-      else window.location.href = "/portal/status";
+      if (role === "candidate") window.location.href = "/portal/status";
+      else window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err?.message || "Failed to sign in. Please check your credentials.");
     } finally {
