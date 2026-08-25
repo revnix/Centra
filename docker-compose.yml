@@ -67,6 +67,9 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       OAUTHLIB_INSECURE_TRANSPORT: ${OAUTHLIB_INSECURE_TRANSPORT:-}
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      # Required by the langchain/langgraph-api base image's license check
+      # (self-hosted lite mode) — a free LangSmith account key satisfies it.
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:?LANGSMITH_API_KEY is required (free LangSmith account key for self-hosted license check)}
       PYTHONDONTWRITEBYTECODE: "1"
 
       # ── AI provider ───────────────────────────────────────────────────────
