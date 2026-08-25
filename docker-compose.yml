@@ -2,26 +2,12 @@ services:
 
   # ── Infrastructure ────────────────────────────────────────────────────────────
 
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: centra-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER:     ${POSTGRES_USER:-centra}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-centra123}
-      POSTGRES_DB:       ${POSTGRES_DB:-centra_db}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-centra} -d ${POSTGRES_DB:-centra_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - centra_net
+  # No local Postgres service — DATABASE_URL / DATABASE_URI point at an
+  # externally managed Postgres instance, supplied as required env vars
+  # (set in Coolify's Environment Variables tab for this resource, or
+  # exported before running `docker compose up` locally). There is no
+  # local fallback on purpose: a missing value should fail loudly, not
+  # silently point at a database that doesn't exist.
 
   # LangGraph's runtime queue / checkpoint cache. Required by the
   # langchain/langgraph-api base image the backend is built from.
@@ -60,32 +46,91 @@ services:
     ports:
       # The langgraph-api base image serves on 8000.
       - "${BACKEND_HOST_PORT:-8000}:8000"
-    env_file:
-      # format: raw — backend/.env holds raw JSON (GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO)
-      # that Compose's default dotenv parser rejects. `raw` splits on the first
-      # `=` and does no quote handling or interpolation.
-      - path: ./backend/.env
-        format: raw
+    # No env_file — backend/.env is gitignored and never reaches the server
+    # Coolify deploys from. Every runtime var the app actually reads (see
+    # backend/.env.example) is passed through explicitly below instead, so
+    # Coolify's Environment Variables tab is the single place that sets them.
     environment:
-      # App DB (SQLAlchemy). Overrides DATABASE_URL from backend/.env so the
-      # stack is self-contained; export DATABASE_URL to point somewhere else.
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://centra:centra123@db:5432/centra_db}
-      # LangGraph runtime storage — separate from the app's SQLAlchemy engine.
-      DATABASE_URI: ${LANGGRAPH_DATABASE_URI:-postgresql://centra:centra123@db:5432/centra_db}
-      REDIS_URI: redis://redis:6379
-      # Licensing for the self-hosted langgraph-api image.
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      # ── Core ──────────────────────────────────────────────────────────────
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # App DB (SQLAlchemy) — external managed Postgres, no local fallback.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (external Postgres connection string)}
+      # LangGraph runtime storage — separate from the app's SQLAlchemy engine,
+      # same external Postgres instance unless LANGGRAPH_DATABASE_URI overrides it.
+      DATABASE_URI: ${LANGGRAPH_DATABASE_URI:?LANGGRAPH_DATABASE_URI is required (external Postgres connection string)}
+      REDIS_URI: redis://redis:6379
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      OAUTHLIB_INSECURE_TRANSPORT: ${OAUTHLIB_INSECURE_TRANSPORT:-}
       PYTHONDONTWRITEBYTECODE: "1"
+
+      # ── AI provider ───────────────────────────────────────────────────────
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+
+      # ── Email (SMTP / IMAP) ───────────────────────────────────────────────
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL:-}
+
+      # ── Resend ────────────────────────────────────────────────────────────
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-}
+
+      # ── Cloudinary (file uploads) ────────────────────────────────────────
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+
+      # ── Gmail OAuth ───────────────────────────────────────────────────────
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI:-}
+
+      # ── LinkedIn ──────────────────────────────────────────────────────────
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+      LINKEDIN_REDIRECT_URI: ${LINKEDIN_REDIRECT_URI:-}
+
+      # ── Indeed ────────────────────────────────────────────────────────────
+      INDEED_CLIENT_ID: ${INDEED_CLIENT_ID:-}
+      INDEED_CLIENT_SECRET: ${INDEED_CLIENT_SECRET:-}
+      INDEED_REDIRECT_URI: ${INDEED_REDIRECT_URI:-}
+
+      # ── Facebook (posting) ───────────────────────────────────────────────
+      FACEBOOK_PAGE_ID: ${FACEBOOK_PAGE_ID:-}
+      FACEBOOK_ACCESS_TOKEN: ${FACEBOOK_ACCESS_TOKEN:-}
+
+      # ── WhatsApp Cloud API ────────────────────────────────────────────────
+      WA_PHONE_NUMBER_ID: ${WA_PHONE_NUMBER_ID:-}
+      WA_WABA_ID: ${WA_WABA_ID:-}
+      WA_VERIFY_TOKEN: ${WA_VERIFY_TOKEN:-}
+
+      # ── Google Drive resume storage ──────────────────────────────────────
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO: ${GOOGLE_DRIVE_SERVICE_ACCOUNT_INFO:-}
+      GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID:-}
+      GOOGLE_DRIVE_PUBLIC_SHARE: ${GOOGLE_DRIVE_PUBLIC_SHARE:-false}
+      GOOGLE_DRIVE_OAUTH_CLIENT_ID: ${GOOGLE_DRIVE_OAUTH_CLIENT_ID:-}
+      GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: ${GOOGLE_DRIVE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN: ${GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN:-}
+
+      # ── Org contact emails ────────────────────────────────────────────────
+      LEAD_AI_EMAIL: ${LEAD_AI_EMAIL:-}
+      LEAD_WEB_EMAIL: ${LEAD_WEB_EMAIL:-}
+      LEAD_UIUX_EMAIL: ${LEAD_UIUX_EMAIL:-}
+      LEAD_SHOPIFY_EMAIL: ${LEAD_SHOPIFY_EMAIL:-}
+      OPERATIONS_MANAGER_EMAIL: ${OPERATIONS_MANAGER_EMAIL:-}
+      HR_EMAIL: ${HR_EMAIL:-}
     volumes:
       # Resume/file uploads written by the app (UPLOAD_DIR=uploads).
       - backend_uploads:/deps/backend/uploads
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -112,6 +157,9 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000}
         NEXT_PUBLIC_LANGGRAPH_API_URL: ${NEXT_PUBLIC_LANGGRAPH_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_FACEBOOK_APP_ID: ${NEXT_PUBLIC_FACEBOOK_APP_ID:-}
+        NEXT_PUBLIC_FACEBOOK_CONFIG_ID: ${NEXT_PUBLIC_FACEBOOK_CONFIG_ID:-}
     image: ${FRONTEND_IMAGE:-centra-frontend:latest}
     container_name: centra-frontend
     restart: unless-stopped
@@ -124,6 +172,9 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
       NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000}
       NEXT_PUBLIC_LANGGRAPH_API_URL: ${NEXT_PUBLIC_LANGGRAPH_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_FACEBOOK_APP_ID: ${NEXT_PUBLIC_FACEBOOK_APP_ID:-}
+      NEXT_PUBLIC_FACEBOOK_CONFIG_ID: ${NEXT_PUBLIC_FACEBOOK_CONFIG_ID:-}
     depends_on:
       backend:
         condition: service_healthy
@@ -147,6 +198,5 @@ networks:
 # ── Named volumes ─────────────────────────────────────────────────────────────
 
 volumes:
-  postgres_data:
   redis_data:
   backend_uploads:
