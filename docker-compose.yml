@@ -66,6 +66,7 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       OAUTHLIB_INSECURE_TRANSPORT: ${OAUTHLIB_INSECURE_TRANSPORT:-}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       PYTHONDONTWRITEBYTECODE: "1"
 
       # ── AI provider ───────────────────────────────────────────────────────
