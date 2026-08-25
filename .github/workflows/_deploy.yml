@@ -198,7 +198,7 @@ jobs:
       - name: Call Coolify deploy webhook
         run: |
           STATUS=$(curl -sS -o /tmp/coolify_response.json -w "%{http_code}" \
-            --request GET \
+            --request POST \
             --url "${{ secrets.COOLIFY_WEBHOOK_URL }}?uuid=${{ secrets.COOLIFY_RESOURCE_UUID }}&force=false" \
             --header "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}")
           cat /tmp/coolify_response.json
