@@ -58,7 +58,7 @@ class FileService:
         secure_url = await upload_file(
             content,
             unique_name,
-            folder=f"evalyn/onboarding/{application_id}"
+            folder=f"centra/onboarding/{application_id}"
         )
 
         return secure_url

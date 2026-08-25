@@ -518,7 +518,7 @@ class InterviewScheduleService:
                    If you need to reschedule, contact our HR team as soon as possible.</p>
                 <p style="margin-top:30px;">Best regards,<br/>
                    <strong style="color:#2b6cb0;">The Hiring Team</strong><br/>
-                   Evalyn AI</p>
+                   Centra AI</p>
                 <hr style="border:0;border-top:1px solid #edf2f7;margin:30px 0;"/>
                 <p style="font-size:12px;color:#a0aec0;text-align:center;">
                     This email was sent regarding your application for

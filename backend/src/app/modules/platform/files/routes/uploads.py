@@ -24,7 +24,7 @@ async def get_cloudinary_signature():
     if not (api_secret and api_key and cloud_name):
         raise HTTPException(status_code=503, detail="Cloudinary not configured on server")
 
-    folder = "evalyn/screening-recordings"
+    folder = "centra/screening-recordings"
     ts = int(time.time())
     # Params must be sorted alphabetically
     params_str = f"folder={folder}&timestamp={ts}"
@@ -67,7 +67,7 @@ async def upload_onboarding_document(
     unique_name = f"{current_user.id}_{uuid.uuid4().hex[:8]}_{file.filename}".replace(" ", "_")
 
     from src.app.modules.platform.files.utils.cloudinary_upload import upload_file
-    file_url = await upload_file(content, unique_name, folder="evalyn/onboarding/manual")
+    file_url = await upload_file(content, unique_name, folder="centra/onboarding/manual")
 
     return {"url": file_url, "filename": file.filename, "size": len(content)}
 
@@ -92,7 +92,7 @@ async def upload_recording(file: UploadFile = File(...)):
     _log.info(f"Uploading recording: {unique_name}, size={len(content)} bytes, type={file.content_type}")
 
     from src.app.modules.platform.files.utils.cloudinary_upload import upload_file
-    url = await upload_file(content, unique_name, folder="evalyn/screening-recordings", resource_type="video")
+    url = await upload_file(content, unique_name, folder="centra/screening-recordings", resource_type="video")
 
     if not url:
         _log.error(f"Recording upload to Cloudinary failed for {unique_name}")

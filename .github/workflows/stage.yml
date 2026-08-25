@@ -1,17 +1,17 @@
-name: Deploy — Dev
+name: Deploy — Stage
 
 # All real logic lives in _deploy.yml — this file only decides when to fire
 # and which environment/tag to deploy.
 
 on:
   push:
-    branches: [dev]
+    branches: [stage]
   workflow_dispatch: {}
 
 jobs:
   deploy:
     uses: ./.github/workflows/_deploy.yml
     with:
-      environment: dev
-      image_tag: dev
+      environment: stage
+      image_tag: stage
     secrets: inherit

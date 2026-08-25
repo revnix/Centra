@@ -1,6 +1,6 @@
-# Evalyn — AI-Powered HR Automation Platform
+# Centra — AI-Powered HR Automation Platform
 
-Evalyn automates the end-to-end hiring workflow: job generation, candidate screening, shortlisting, email notifications, onboarding, and HR operations (departments, employees, shifts, attendance) — powered by LangGraph and LLM providers.
+Centra automates the end-to-end hiring workflow: job generation, candidate screening, shortlisting, email notifications, onboarding, and HR operations (departments, employees, shifts, attendance) — powered by LangGraph and LLM providers.
 
 ---
 
@@ -19,7 +19,7 @@ Evalyn automates the end-to-end hiring workflow: job generation, candidate scree
 ## Project Structure
 
 ```
-Evalyn-HR--Agent/
+Centra/
 ├── backend/                 # FastAPI + LangGraph server
 │   ├── src/
 │   ├── alembic/
@@ -103,11 +103,11 @@ export SEED_DEFAULT_PASSWORD=secret
 
 **Seeded users (local/dev)**
 
-- `admin@evalyn.com` (username: `admin`) → `SUPER_ADMIN`
-- `org.admin@evalyn.com` (username: `org_admin`) → `ORG_ADMIN`
-- `hr.admin@evalyn.com` (username: `hr_admin`) → `HR_ADMIN`
-- `finance.admin@evalyn.com` (username: `finance_admin`) → `FINANCE_ADMIN`
-- `lead.*@evalyn.com` (usernames: `lead_ai`, `lead_web`, `lead_shopify`, `lead_uiux`) → `DEPARTMENT_LEAD`
+- `admin@centra.com` (username: `admin`) → `SUPER_ADMIN`
+- `org.admin@centra.com` (username: `org_admin`) → `ORG_ADMIN`
+- `hr.admin@centra.com` (username: `hr_admin`) → `HR_ADMIN`
+- `finance.admin@centra.com` (username: `finance_admin`) → `FINANCE_ADMIN`
+- `lead.*@centra.com` (usernames: `lead_ai`, `lead_web`, `lead_shopify`, `lead_uiux`) → `DEPARTMENT_LEAD`
 
 ### 6) Run backend (LangGraph dev)
 

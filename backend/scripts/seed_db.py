@@ -26,7 +26,7 @@ async def seed_all():
         admin = result.scalars().first()
         if not admin:
             admin = User(
-                email="admin@evalyn.com",
+                email="admin@centra.com",
                 username="admin",
                 full_name="Admin User",
                 hashed_password=hashed_password,
@@ -61,13 +61,13 @@ async def seed_all():
 
         # Seed HR/Finance/Leads as admin/reviewer users for now (fine-grained ERP roles will be RBAC)
         extra_users = [
-            {"username": "org_admin", "email": "org.admin@evalyn.com", "full_name": "Org Admin", "role": UserRole.ADMIN},
-            {"username": "hr_admin", "email": "hr.admin@evalyn.com", "full_name": "HR Admin", "role": UserRole.ADMIN},
-            {"username": "finance_admin", "email": "finance.admin@evalyn.com", "full_name": "Finance Admin", "role": UserRole.ADMIN},
-            {"username": "lead_ai", "email": "lead.ai@evalyn.com", "full_name": "AI Lead", "role": UserRole.REVIEWER},
-            {"username": "lead_web", "email": "lead.web@evalyn.com", "full_name": "Web Lead", "role": UserRole.REVIEWER},
-            {"username": "lead_shopify", "email": "lead.shopify@evalyn.com", "full_name": "Shopify Lead", "role": UserRole.REVIEWER},
-            {"username": "lead_uiux", "email": "lead.uiux@evalyn.com", "full_name": "UI/UX Lead", "role": UserRole.REVIEWER},
+            {"username": "org_admin", "email": "org.admin@centra.com", "full_name": "Org Admin", "role": UserRole.ADMIN},
+            {"username": "hr_admin", "email": "hr.admin@centra.com", "full_name": "HR Admin", "role": UserRole.ADMIN},
+            {"username": "finance_admin", "email": "finance.admin@centra.com", "full_name": "Finance Admin", "role": UserRole.ADMIN},
+            {"username": "lead_ai", "email": "lead.ai@centra.com", "full_name": "AI Lead", "role": UserRole.REVIEWER},
+            {"username": "lead_web", "email": "lead.web@centra.com", "full_name": "Web Lead", "role": UserRole.REVIEWER},
+            {"username": "lead_shopify", "email": "lead.shopify@centra.com", "full_name": "Shopify Lead", "role": UserRole.REVIEWER},
+            {"username": "lead_uiux", "email": "lead.uiux@centra.com", "full_name": "UI/UX Lead", "role": UserRole.REVIEWER},
         ]
 
         for u in extra_users:
@@ -109,8 +109,8 @@ async def seed_all():
             job = Posts(
                 title='Senior AI Engineer',
                 description='We are looking for a talented AI Engineer to lead our LLM integration efforts.',
-                short_description='Lead LLM integration efforts at Evalyn.',
-                company_name='Evalyn AI',
+                short_description='Lead LLM integration efforts at Centra.',
+                company_name='Centra AI',
                 location='San Francisco, CA',
                 job_type=JobType.FULL_TIME,
                 experience_level=ExperienceLevel.MID_SENIOR,

@@ -41,7 +41,7 @@ async def upload_recording(
     secure_url = await upload_file(
         content,
         filename,
-        folder="evalyn/recordings"
+        folder="centra/recordings"
     )
 
     # Update database

@@ -4,30 +4,30 @@ services:
 
   db:
     image: pgvector/pgvector:pg16
-    container_name: evalyn-db
+    container_name: centra-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER:     ${POSTGRES_USER:-evalyn}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evalyn123}
-      POSTGRES_DB:       ${POSTGRES_DB:-evalyn_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-centra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-centra123}
+      POSTGRES_DB:       ${POSTGRES_DB:-centra_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evalyn} -d ${POSTGRES_DB:-evalyn_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-centra} -d ${POSTGRES_DB:-centra_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     networks:
-      - evalyn_net
+      - centra_net
 
   # LangGraph's runtime queue / checkpoint cache. Required by the
   # langchain/langgraph-api base image the backend is built from.
   redis:
     image: redis:7-alpine
-    container_name: evalyn-redis
+    container_name: centra-redis
     restart: unless-stopped
     command: redis-server --maxmemory-policy noeviction
     volumes:
@@ -41,7 +41,7 @@ services:
       retries: 5
       start_period: 5s
     networks:
-      - evalyn_net
+      - centra_net
 
   # ── Backend (LangGraph + FastAPI, src.api.main:app) ───────────────────────────
 
@@ -53,8 +53,8 @@ services:
       # render.yaml's dockerContext).
       context: ./backend
       dockerfile: Dockerfile
-    image: ${BACKEND_IMAGE:-evalyn-backend:latest}
-    container_name: evalyn-backend
+    image: ${BACKEND_IMAGE:-centra-backend:latest}
+    container_name: centra-backend
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -69,9 +69,9 @@ services:
     environment:
       # App DB (SQLAlchemy). Overrides DATABASE_URL from backend/.env so the
       # stack is self-contained; export DATABASE_URL to point somewhere else.
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://evalyn:evalyn123@db:5432/evalyn_db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://centra:centra123@db:5432/centra_db}
       # LangGraph runtime storage — separate from the app's SQLAlchemy engine.
-      DATABASE_URI: ${LANGGRAPH_DATABASE_URI:-postgresql://evalyn:evalyn123@db:5432/evalyn_db}
+      DATABASE_URI: ${LANGGRAPH_DATABASE_URI:-postgresql://centra:centra123@db:5432/centra_db}
       REDIS_URI: redis://redis:6379
       # Licensing for the self-hosted langgraph-api image.
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
@@ -98,7 +98,7 @@ services:
       retries: 5
       start_period: 60s
     networks:
-      - evalyn_net
+      - centra_net
 
   # ── Frontend (Next.js standalone) ─────────────────────────────────────────────
 
@@ -112,8 +112,8 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000}
         NEXT_PUBLIC_LANGGRAPH_API_URL: ${NEXT_PUBLIC_LANGGRAPH_API_URL:-http://localhost:8000}
-    image: ${FRONTEND_IMAGE:-evalyn-frontend:latest}
-    container_name: evalyn-frontend
+    image: ${FRONTEND_IMAGE:-centra-frontend:latest}
+    container_name: centra-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_HOST_PORT:-3000}:3000"
@@ -136,12 +136,12 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - evalyn_net
+      - centra_net
 
 # ── Networks ──────────────────────────────────────────────────────────────────
 
 networks:
-  evalyn_net:
+  centra_net:
     driver: bridge
 
 # ── Named volumes ─────────────────────────────────────────────────────────────

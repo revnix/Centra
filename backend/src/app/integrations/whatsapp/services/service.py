@@ -223,7 +223,7 @@ class WhatsAppService:
             phone_number_id=phone_number_id,
             waba_id=waba_id,
             access_token=access_token,
-            verify_token=settings.WA_VERIFY_TOKEN or "evalyn_webhook_secret_123",
+            verify_token=settings.WA_VERIFY_TOKEN or "centra_webhook_secret_123",
         )
 
     async def handle_webhook_event(self, event_data: Dict[str, Any]) -> Dict[str, Any]:

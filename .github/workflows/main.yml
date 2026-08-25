@@ -1,5 +1,10 @@
 name: Deploy — Production
 
+# All real logic lives in _deploy.yml — this file only decides when to fire
+# and which environment/tag to deploy. The `production` GitHub Environment
+# should have a required-reviewer protection rule, which pauses the deploy
+# job inside _deploy.yml for manual approval before it touches Coolify.
+
 on:
   # Fires when a PR is merged into main OR on a direct push to main
   push:
@@ -10,136 +15,12 @@ on:
     types: [closed]
   workflow_dispatch: {}
 
-concurrency:
-  # Never cancel a production build mid-flight
-  group: deploy-prod-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  REGISTRY: ghcr.io
-
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Detect which parts of the codebase changed
-  # ─────────────────────────────────────────────────────────────────────────────
-  changes:
+  deploy:
     # Skip if this was a PR close without merge
     if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.detect.outputs.backend }}
-      frontend: ${{ steps.detect.outputs.frontend }}
-      repo_owner: ${{ steps.owner.outputs.repo_owner }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Compute registry owner (lowercase — GHCR requires it)
-        id: owner
-        run: echo "repo_owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-
-      - name: Detect changed paths
-        id: detect
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "backend=true" >> $GITHUB_OUTPUT
-            echo "frontend=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "ALL")
-
-          if [ "$CHANGED" = "ALL" ] || echo "$CHANGED" | grep -qE '^backend/|docker-compose\.yml|\.github/workflows/main\.yml'; then
-            echo "backend=true" >> $GITHUB_OUTPUT
-          else
-            echo "backend=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [ "$CHANGED" = "ALL" ] || echo "$CHANGED" | grep -qE '^frontend/|docker-compose\.yml|\.github/workflows/main\.yml'; then
-            echo "frontend=true" >> $GITHUB_OUTPUT
-          else
-            echo "frontend=false" >> $GITHUB_OUTPUT
-          fi
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Build & push backend image tagged :latest
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-backend:
-    name: "Build Backend · :latest"
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    env:
-      BACKEND_IMAGE: ghcr.io/${{ needs.changes.outputs.repo_owner }}/evalyn-backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          push: true
-          # FROM langchain/langgraph-api — amd64 only, same as the target host.
-          platforms: linux/amd64
-          provenance: false
-          tags: |
-            ${{ env.BACKEND_IMAGE }}:latest
-            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:latest
-          cache-to: type=inline
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Build & push frontend image tagged :latest
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-frontend:
-    name: "Build Frontend · :latest"
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    env:
-      FRONTEND_IMAGE: ghcr.io/${{ needs.changes.outputs.repo_owner }}/evalyn-frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          push: true
-          platforms: linux/amd64
-          provenance: false
-          tags: |
-            ${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
-          cache-to: type=inline
-          # NEXT_PUBLIC_* are compiled into the bundle here and cannot be
-          # changed by Coolify at runtime — these must be the real public URLs.
-          build-args: |
-            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
-            NEXT_PUBLIC_BACKEND_URL=${{ vars.NEXT_PUBLIC_BACKEND_URL }}
-            NEXT_PUBLIC_LANGGRAPH_API_URL=${{ vars.NEXT_PUBLIC_LANGGRAPH_API_URL }}
-            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
-            NEXT_PUBLIC_FACEBOOK_APP_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_APP_ID }}
-            NEXT_PUBLIC_FACEBOOK_CONFIG_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_CONFIG_ID }}
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: production
+      image_tag: latest
+    secrets: inherit

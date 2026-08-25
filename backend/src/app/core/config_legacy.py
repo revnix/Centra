@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Application settings"""
 
     # Application
-    APP_NAME: str = "Evalyn"
+    APP_NAME: str = "Centra"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
@@ -113,14 +113,14 @@ class Settings(BaseSettings):
     # Email Settings (Resend)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
-    RESEND_FROM_NAME: str = "Evalyn"
+    RESEND_FROM_NAME: str = "Centra"
     
     # Aliases for compatibility (populated from .env or defaults)
     EMAILS_FROM_EMAIL: str = "onboarding@resend.dev"
-    EMAILS_FROM_NAME: str = "Evalyn"
+    EMAILS_FROM_NAME: str = "Centra"
 
-    OPERATIONS_MANAGER_EMAIL: str = "manager@evalyn.ai"
-    HR_EMAIL: str = "hr@evalyn.ai"
+    OPERATIONS_MANAGER_EMAIL: str = "manager@centra.ai"
+    HR_EMAIL: str = "hr@centra.ai"
     EMAIL_TEST_OVERRIDE: str = ""
 
     # Team lead emails

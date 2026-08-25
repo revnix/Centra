@@ -60,7 +60,7 @@ def check_for_replies():
                 
                 print(f"[{datetime.now()}] DEBUG: From: '{from_name}' <{from_email}> | Subject: '{subject}'")
                 
-                keywords = ["re:", "reply", "interview", "shortlisted", "regarding", "application", "evalyn", "invitation", "accepted", "confirmed"]
+                keywords = ["re:", "reply", "interview", "shortlisted", "regarding", "application", "centra", "invitation", "accepted", "confirmed"]
                 is_reply = any(kw in subject for kw in keywords) or subject.startswith("re:")
                 
                 if is_reply:

@@ -1,0 +1,244 @@
+name: Deploy (reusable)
+
+# Single source of truth for lint -> detect changes -> build -> push GHCR ->
+# deploy Coolify -> smoke-test. dev.yml / stage.yml / main.yml each just call
+# this with a different `environment` input. Do not duplicate this logic
+# in those files — change it here and every branch inherits it.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub Environment to use for scoped secrets/vars: dev | stage | production"
+        required: true
+        type: string
+      image_tag:
+        description: "Moving Docker tag to publish/deploy: dev | stage | latest"
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-${{ inputs.environment }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Fast sanity check — same gate for every environment
+  # ─────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: "Lint and compile"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Backend syntax check
+        working-directory: backend
+        run: python -m compileall -q src
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Detect which parts of the codebase changed
+  # ─────────────────────────────────────────────────────────────────────────────
+  changes:
+    name: "Detect changes"
+    needs: lint
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+      repo_owner: ${{ steps.owner.outputs.repo_owner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Compute registry owner (lowercase — GHCR requires it)
+        id: owner
+        run: echo "repo_owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed paths
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "ALL")
+
+          if [ "$CHANGED" = "ALL" ] || echo "$CHANGED" | grep -qE '^backend/|docker-compose\.yml|\.github/workflows/'; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+          else
+            echo "backend=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "$CHANGED" = "ALL" ] || echo "$CHANGED" | grep -qE '^frontend/|docker-compose\.yml|\.github/workflows/'; then
+            echo "frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build & push backend image
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-backend:
+    name: "Build Backend"
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      BACKEND_IMAGE: ghcr.io/${{ needs.changes.outputs.repo_owner }}/centra-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          # FROM langchain/langgraph-api — amd64 only, same as the target host.
+          platforms: linux/amd64
+          provenance: false
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ inputs.image_tag }}
+            ${{ env.BACKEND_IMAGE }}:${{ inputs.environment }}-${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:${{ inputs.image_tag }}
+          cache-to: type=inline
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build & push frontend image
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-frontend:
+    name: "Build Frontend"
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      FRONTEND_IMAGE: ghcr.io/${{ needs.changes.outputs.repo_owner }}/centra-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ inputs.image_tag }}
+            ${{ env.FRONTEND_IMAGE }}:${{ inputs.environment }}-${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:${{ inputs.image_tag }}
+          cache-to: type=inline
+          # NEXT_PUBLIC_* are compiled into the bundle here and cannot be
+          # changed by Coolify at runtime — these must be the real public
+          # URLs for this environment (scoped via the GitHub Environment).
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+            NEXT_PUBLIC_BACKEND_URL=${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+            NEXT_PUBLIC_LANGGRAPH_API_URL=${{ vars.NEXT_PUBLIC_LANGGRAPH_API_URL }}
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_FACEBOOK_APP_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_APP_ID }}
+            NEXT_PUBLIC_FACEBOOK_CONFIG_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_CONFIG_ID }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Trigger Coolify redeploy for this environment's resource. Each environment
+  # (dev/stage/production) has its own Coolify resource + webhook secrets,
+  # scoped via the GitHub Environment — this job is identical for all three.
+  # `production` gets a required-reviewer protection rule on its Environment,
+  # which pauses this job for manual approval before it runs.
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: "Deploy → Coolify"
+    needs: [changes, build-backend, build-frontend]
+    if: |
+      always() &&
+      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
+      (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped') &&
+      (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 5
+    steps:
+      - name: Call Coolify deploy webhook
+        run: |
+          STATUS=$(curl -sS -o /tmp/coolify_response.json -w "%{http_code}" \
+            --request GET \
+            --url "${{ secrets.COOLIFY_WEBHOOK_URL }}?uuid=${{ secrets.COOLIFY_RESOURCE_UUID }}&force=false" \
+            --header "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}")
+          cat /tmp/coolify_response.json
+          echo
+          if [ "$STATUS" -ge 300 ]; then
+            echo "Coolify webhook returned HTTP $STATUS"
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Smoke tests against the environment that was just deployed
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-test:
+    name: "Smoke Tests"
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 5
+    steps:
+      - name: Wait for Coolify to redeploy
+        run: sleep 45
+
+      - name: Test backend health
+        run: |
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${{ vars.NEXT_PUBLIC_BACKEND_URL }}/ok" || echo "000")
+            echo "Backend attempt $i — $STATUS"
+            [ "$STATUS" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "Backend health check failed"
+          exit 1
+
+      - name: Test frontend health
+        run: |
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${{ vars.NEXT_PUBLIC_APP_URL }}/" || echo "000")
+            echo "Frontend attempt $i — $STATUS"
+            [ "$STATUS" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "Frontend health check failed"
+          exit 1

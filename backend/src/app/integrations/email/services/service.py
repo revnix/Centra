@@ -95,7 +95,7 @@ class EmailService:
                 <h1 style="color: #2b6cb0; font-size: 26px; margin: 0;">You're Shortlisted!</h1>
             </div>
             <p>Dear <strong>{candidate_name}</strong>,</p>
-            <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Evalyn AI.</p>
+            <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Centra AI.</p>
             <p>Our recruitment team was impressed with your application and we'd like to move forward to the next stage of our hiring process.</p>
             
             <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #2b6cb0;">
@@ -108,7 +108,7 @@ class EmailService:
             
             <p style="margin-top: 30px;">Best regards,<br/>
             <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
-            Evalyn AI</p>
+            Centra AI</p>
             
             <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
             <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
@@ -134,7 +134,7 @@ class EmailService:
             <p>We wish you the very best in your career journey.</p>
             <p style="margin-top: 30px;">Best regards,<br/>
             <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
-            Evalyn AI</p>
+            Centra AI</p>
             <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
             <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
         </div>
@@ -154,7 +154,7 @@ class EmailService:
                 <h1 style="color: #2b6cb0; font-size: 26px; margin: 0;">You're Shortlisted!</h1>
             </div>
             <p>Dear <strong>{candidate_name}</strong>,</p>
-            <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Evalyn AI.</p>
+            <p>We are excited to inform you that you have been <strong>shortlisted</strong> for the <strong>{job_title}</strong> position at Centra AI.</p>
             <p>Our recruitment team was impressed with your application and we'd like to move forward to the next stage of our hiring process.</p>
 
             <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 5px solid #2b6cb0;">
@@ -172,7 +172,7 @@ class EmailService:
 
             <p style="margin-top: 30px;">Best regards,<br/>
             <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
-            Evalyn AI</p>
+            Centra AI</p>
 
             <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
             <p style="font-size: 12px; color: #a0aec0; text-align: center;">This is an automated notification. Please reply to this email if you are interested.</p>
@@ -253,7 +253,7 @@ class EmailService:
         """
         Sends password reset link.
         """
-        subject = "Reset Your Evalyn Password"
+        subject = "Reset Your Centra Password"
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
             <h2 style="color: #2b6cb0;">Password Reset Request</h2>
@@ -299,7 +299,7 @@ class EmailService:
             </div>
             <p style="color:#718096;font-size:13px;">If the button doesn't work, copy and paste this link into your browser:<br/><a href="{test_url}" style="color:#4f46e5;">{test_url}</a></p>
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
-            <p style="color:#a0aec0;font-size:12px;text-align:center;">This email was sent by Evalyn HR System. Please do not reply to this email.</p>
+            <p style="color:#a0aec0;font-size:12px;text-align:center;">This email was sent by Centra HR System. Please do not reply to this email.</p>
         </div>
         """
         return await send_email(candidate_email, subject, html)
@@ -339,7 +339,7 @@ class EmailService:
             
             <p style="margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px; font-size: 14px; color: #718096;">
                 Best regards,<br/>
-                <strong>Evalyn AI Recruitment Team</strong>
+                <strong>Centra AI Recruitment Team</strong>
             </p>
         </div>
         """
@@ -375,7 +375,7 @@ class EmailService:
             {review_section}
             <p style="margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 20px; font-size: 14px; color: #718096;">
                 Best regards,<br/>
-                <strong>Evalyn AI Recruitment Team</strong>
+                <strong>Centra AI Recruitment Team</strong>
             </p>
         </div>
         """

@@ -114,7 +114,7 @@ async def guest_apply(
         from src.app.modules.platform.files.utils.cloudinary_upload import upload_file
         safe_email = email.replace("@", "_at_").replace("+", "_")
         resume_url, user = await asyncio.gather(
-            upload_file(content, resume_file.filename or "resume", folder=f"evalyn/resumes/{safe_email}"),
+            upload_file(content, resume_file.filename or "resume", folder=f"centra/resumes/{safe_email}"),
             auth_service.get_user_by_email(email),
         )
         resume_storage_provider = "cloudinary"
@@ -445,7 +445,7 @@ async def send_interview_invite(
         <div style="white-space: pre-wrap; margin: 20px 0;">{message}</div>
         <p style="margin-top: 30px;">Best regards,<br/>
         <strong style="color: #2b6cb0;">The Hiring Team</strong><br/>
-        Evalyn AI</p>
+        Centra AI</p>
         <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 30px 0;" />
         <p style="font-size: 12px; color: #a0aec0; text-align: center;">
             This email was sent regarding your application for

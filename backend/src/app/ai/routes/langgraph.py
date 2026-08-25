@@ -22,7 +22,7 @@ async def create_thread():
 @router.get("/assistants")
 async def list_assistants():
     """LangGraph SDK lists assistants to verify connectivity"""
-    return [{"assistant_id": "workflow", "graph_id": "workflow", "name": "Evalyn Workflow"}]
+    return [{"assistant_id": "workflow", "graph_id": "workflow", "name": "Centra Workflow"}]
 
 @router.get("/assistants/{assistant_id}")
 async def get_assistant(assistant_id: str):

@@ -1,6 +1,6 @@
-# Evalyn Backend - AI Job Flow
+# Centra Backend - AI Job Flow
 
-The backend for Evalyn is built using **LangGraph** to orchestrate complex AI workflows for hiring automation.
+The backend for Centra is built using **LangGraph** to orchestrate complex AI workflows for hiring automation.
 
 ## 🚀 Orchestration with LangGraph
 
@@ -56,6 +56,6 @@ src/
 │   ├── post_creation/   # Graph nodes for generation and review
 │   ├── prompts/         # AI system and human prompts
 │   ├── states/          # Graph state definitions (TypedDict)
-│   └── evalyn.py        # Main graph orchestration logic
+│   └── centra.py        # Main graph orchestration logic
 ├── main.py              # Entry point
 ```

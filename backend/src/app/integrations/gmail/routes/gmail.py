@@ -1347,7 +1347,7 @@ async def sync_email_applications(
                     )
                     safe = sender_email.replace("@", "_at_").replace("+", "_")
                     resume_url = await upload_file(cv_bytes, att_filename,
-                                                    folder=f"evalyn/resumes/{safe}")
+                                                    folder=f"centra/resumes/{safe}")
                 except Exception as exc:
                     logger.warning("CV upload failed for %s: %s", sender_email, exc)
 
@@ -1598,7 +1598,7 @@ async def import_single_email_application(
             )
             safe = sender_email.replace("@", "_at_").replace("+", "_")
             resume_url = await upload_file(cv_bytes, cv_att["filename"],
-                                           folder=f"evalyn/resumes/{safe}")
+                                           folder=f"centra/resumes/{safe}")
         except Exception as exc:
             logger.warning("CV upload failed for %s: %s", sender_email, exc)
 

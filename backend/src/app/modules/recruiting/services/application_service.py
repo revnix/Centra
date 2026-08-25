@@ -385,7 +385,7 @@ class ApplicationService:
             candidate_email=candidate.email,
             candidate_name=candidate.full_name,
             job_title=job.title,
-            company_name=job.company_name or "Evalyn AI",
+            company_name=job.company_name or "Centra AI",
             salary=salary_str,
             joining_date=joining_date,
             onboarding_link=onboarding_link
