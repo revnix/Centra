@@ -18,8 +18,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="ERP Backend")
     app.include_router(api_v1_router)
 
-    # LangGraph SDK expects these endpoints at the root.
-    app.include_router(langgraph.router, tags=["langgraph"])
+    # # LangGraph SDK expects these endpoints at the root.
+    # app.include_router(langgraph.router, tags=["langgraph"])
     return app
 
 
