@@ -61,9 +61,9 @@ async def stream_run(thread_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/threads/{thread_id}/runs")
-async def create_run(thread_id: str, request: Request):
-    """LangGraph SDK non-streaming run"""
-    body = await request.json()
-    input_data = body.get("input", {})
-    return await graph.ainvoke(input_data, config={"configurable": {"thread_id": thread_id}})
+# @router.post("/threads/{thread_id}/runs")
+# async def create_run(thread_id: str, request: Request):
+#     """LangGraph SDK non-streaming run"""
+#     body = await request.json()
+#     input_data = body.get("input", {})
+#     return await graph.ainvoke(input_data, config={"configurable": {"thread_id": thread_id}})
