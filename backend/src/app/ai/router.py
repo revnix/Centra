@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from src.app.ai.routes import langgraph
+# from src.app.ai.routes import langgraph
 
 
 router = APIRouter(tags=["ai"])
-router.include_router(langgraph.router)
+# router.include_router(langgraph.router)

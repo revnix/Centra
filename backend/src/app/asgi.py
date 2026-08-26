@@ -11,7 +11,7 @@ should use `uvicorn src.app.asgi:app`.
 from fastapi import FastAPI
 
 from src.app.api.v1.router import api_v1_router
-from src.app.ai.routes import langgraph
+# from src.app.ai.routes import langgraph
 
 
 def create_app() -> FastAPI:
