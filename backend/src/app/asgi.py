@@ -9,18 +9,35 @@ should use `uvicorn src.app.asgi:app`.
 """
 
 from fastapi import FastAPI
-
+from fastmcp import FastMCP
 from src.app.api.v1.router import api_v1_router
 # from src.app.ai.routes import langgraph
 
 
+# def create_app() -> FastAPI:
+    # mcp_local = FastMCP.from_fastapi(app=app)  # build after app exists, using full app
+    # mcp_app = mcp_local.http_app(path="/")
+    # # No need to Register this route b/cwe wil use the langgraph cli
+    # # app.include_router(langgraph.router, tags=["langgraph"])
+
+    # fastapi_app = FastAPI(title="ERP Backend", lifespan=mcp_app.lifespan)
+    # fastapi_app.include_router(api_v1_router)
+    # fastapi_app.mount("/mcp", mcp_app)
+    # return fastapi_app
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="ERP Backend")
-    app.include_router(api_v1_router)
+    temp_app = FastAPI()
+    temp_app.include_router(api_v1_router)
 
-    # No need to Register this route b/cwe wil use the langgraph cli
-    # app.include_router(langgraph.router, tags=["langgraph"])
-    return app
+    mcp_local = FastMCP.from_fastapi(app=temp_app)
+    mcp_app = mcp_local.http_app(path="/")
 
+    fastapi_app = FastAPI(title="ERP Backend", lifespan=mcp_app.lifespan)
+    fastapi_app.include_router(api_v1_router)
+    fastapi_app.mount("/mcp", mcp_app)
+    return fastapi_app
+
+
+app = create_app()
 
 app = create_app()
