@@ -1,6 +1,7 @@
 import {
   Briefcase,
   Calendar,
+  CalendarDays,
   DatabaseZap,
   LayoutDashboard,
   Layers,
@@ -15,6 +16,7 @@ import {
   User,
   CheckSquare,
   Users2,
+  Contact,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -69,7 +71,9 @@ export const staffNav: NavItem[] = [
   { type: "item", href: "/dashboard/integrations", label: "Integrations", icon: Share2 },
   { type: "item", href: "/dashboard/admin", label: "Settings", icon: Shield },
   { type: "item", href: "/dashboard/admin/departments", label: "Departments", icon: Building2 },
+  { type: "item", href: "/dashboard/hr/employees", label: "Employees", icon: Contact },
   { type: "item", href: "/dashboard/hr/shifts", label: "Shifts", icon: CheckSquare },
+  { type: "item", href: "/dashboard/hr/attendance", label: "Attendance", icon: Calendar },
 ];
 
 // Employee base
@@ -77,6 +81,7 @@ export const employeeNav: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { type: "item", href: "/dashboard/me", label: "My Profile", icon: User },
   { type: "item", href: "/dashboard/attendance", label: "Attendance", icon: CheckSquare },
+  { type: "item", href: "/dashboard/leave", label: "Leave", icon: CalendarDays },
 ];
 
 // Lead extras (only when isLead=true)
