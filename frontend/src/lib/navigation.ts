@@ -1,6 +1,7 @@
 import {
   Briefcase,
   Calendar,
+  CalendarDays,
   DatabaseZap,
   LayoutDashboard,
   Layers,
@@ -70,6 +71,7 @@ export const staffNav: NavItem[] = [
   { type: "item", href: "/dashboard/integrations", label: "Integrations", icon: Share2 },
   { type: "item", href: "/dashboard/admin", label: "Settings", icon: Shield },
   { type: "item", href: "/dashboard/admin/departments", label: "Departments", icon: Building2 },
+  { type: "item", href: "/dashboard/hr/employees", label: "Employees", icon: Contact },
   { type: "item", href: "/dashboard/hr/shifts", label: "Shifts", icon: CheckSquare },
   { type: "item", href: "/dashboard/agent", label: "Agent", icon: Bot },
 ];
