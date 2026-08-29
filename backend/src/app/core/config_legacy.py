@@ -123,12 +123,8 @@ class Settings(BaseSettings):
     HR_EMAIL: str = "hr@centra.ai"
     EMAIL_TEST_OVERRIDE: str = ""
 
-    # Team lead emails
-    LEAD_AI_EMAIL: str = ""
-    LEAD_WEB_EMAIL: str = ""
-    LEAD_SEO_EMAIL: str = ""
-    LEAD_SHOPIFY_EMAIL: str = ""
-    LEAD_UIUX_EMAIL: str = ""
+    # Team lead emails are now managed via Department.lead_user_id in the database.
+    # No env vars needed — assign a lead to a department and their email is used automatically.
     
     @model_validator(mode='after')
     def add_frontend_url_to_cors(self) -> 'Settings':

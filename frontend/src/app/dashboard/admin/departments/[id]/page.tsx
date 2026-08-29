@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { attendanceApi, departmentsApi } from "@/lib/api";
+import { attendanceApi, departmentsApi, employeesApi } from "@/lib/api";
 import { useDepartments } from "@/lib/hooks/useDepartments";
 import { useCreateEmployee, useEmployees } from "@/lib/hooks/useEmployees";
 
@@ -38,6 +38,12 @@ export default function DepartmentDetailPage() {
   const deptEmployees = useMemo(
     () => (allEmployees ?? []).filter((e) => e.department_id === departmentId),
     [allEmployees, departmentId]
+  );
+
+  // Employees with no department assigned — show them so HR can assign
+  const unassignedEmployees = useMemo(
+    () => (allEmployees ?? []).filter((e) => e.department_id === null || e.department_id === undefined),
+    [allEmployees]
   );
 
   const shiftsQ = useQuery({
@@ -355,9 +361,36 @@ export default function DepartmentDetailPage() {
         <CardContent>
           {employeesLoading ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : deptEmployees.length === 0 ? (
+          ) : deptEmployees.length === 0 && unassignedEmployees.length === 0 ? (
             <div className="text-sm text-muted-foreground">No employees in this department yet.</div>
           ) : (
+            <>
+              {unassignedEmployees.length > 0 && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs font-bold text-amber-700 mb-2">⚠️ Unassigned Employees ({unassignedEmployees.length}) — not linked to any department</p>
+                  <div className="space-y-1">
+                    {unassignedEmployees.map((e) => (
+                      <div key={e.employee_profile_id} className="flex items-center justify-between text-xs p-2 bg-white rounded border border-amber-100">
+                        <span className="font-medium text-slate-700">{e.full_name || e.email} <span className="text-slate-400 ml-1">({e.job_title || 'No title'})</span></span>
+                        <button
+                          className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold"
+                          onClick={async () => {
+                            try {
+                              await employeesApi.update(e.employee_profile_id, { department_id: departmentId });
+                              toast.success(`${e.full_name || e.email} assigned to this department`);
+                              window.location.reload();
+                            } catch {
+                              toast.error('Failed to assign employee');
+                            }
+                          }}
+                        >
+                          Assign here
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -399,6 +432,7 @@ export default function DepartmentDetailPage() {
                 ))}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
