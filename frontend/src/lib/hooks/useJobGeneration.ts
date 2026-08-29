@@ -3,7 +3,7 @@
 import { useStream } from '@langchain/langgraph-sdk/react';
 import type { EvalynState, HITLInterrupt, HITLResponse, JDState } from '@/lib/types/langgraph';
 
-const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || '';
+const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || '';
 
 export interface JobGenerationInput {
     role: string;

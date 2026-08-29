@@ -34,4 +34,5 @@ dependencies = [
     "cloudinary",
     "google-auth",
     "google-api-python-client",
+    "fastmcp[apps]>=3.4.7",
 ]

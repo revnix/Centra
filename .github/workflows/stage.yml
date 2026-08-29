@@ -1,0 +1,20 @@
+name: Deploy — Stage
+
+# All real logic lives in _deploy.yml — this file only decides when to fire
+# and which environment/tag to deploy.
+
+on:
+  push:
+    branches: [stage]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: stage
+      image_tag: stage
+    secrets: inherit

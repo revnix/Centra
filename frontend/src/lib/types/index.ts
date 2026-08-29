@@ -3,14 +3,14 @@
  */
 
 // LangGraph types
-export * from './langgraph';
+export *  from './langgraph';
 
 
 // ============================================================================
 // USER & AUTH TYPES
 // ============================================================================
 
-export type UserRole = 'admin' | 'reviewer' | 'candidate' | 'guest';
+export type UserRole = 'admin' | 'reviewer' | 'employee' | 'candidate';
 
 export interface User {
   id: string;
