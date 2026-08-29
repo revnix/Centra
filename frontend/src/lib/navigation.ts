@@ -15,6 +15,7 @@ import {
   Building2,
   User,
   CheckSquare,
+  Contact,
   Users2,
   Bot,
 } from "lucide-react";
