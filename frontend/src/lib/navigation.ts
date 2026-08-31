@@ -1,6 +1,7 @@
 import {
   Briefcase,
   Calendar,
+  CalendarDays,
   DatabaseZap,
   LayoutDashboard,
   Layers,
@@ -14,7 +15,9 @@ import {
   Building2,
   User,
   CheckSquare,
+  Contact,
   Users2,
+  Bot,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -69,7 +72,9 @@ export const staffNav: NavItem[] = [
   { type: "item", href: "/dashboard/integrations", label: "Integrations", icon: Share2 },
   { type: "item", href: "/dashboard/admin", label: "Settings", icon: Shield },
   { type: "item", href: "/dashboard/admin/departments", label: "Departments", icon: Building2 },
+  { type: "item", href: "/dashboard/hr/employees", label: "Employees", icon: Contact },
   { type: "item", href: "/dashboard/hr/shifts", label: "Shifts", icon: CheckSquare },
+  { type: "item", href: "/dashboard/agent", label: "Agent", icon: Bot },
 ];
 
 // Employee base
@@ -77,6 +82,7 @@ export const employeeNav: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { type: "item", href: "/dashboard/me", label: "My Profile", icon: User },
   { type: "item", href: "/dashboard/attendance", label: "Attendance", icon: CheckSquare },
+  { type: "item", href: "/dashboard/agent", label: "Agent", icon: Bot },
 ];
 
 // Lead extras (only when isLead=true)
@@ -89,6 +95,7 @@ export const candidateNav: NavItem[] = [
   { type: "item", href: "/jobs", label: "Jobs", icon: Briefcase },
   { type: "item", href: "/portal/status", label: "Applications", icon: Users },
   { type: "item", href: "/portal/onboarding", label: "Onboarding", icon: UserCheck },
+  { type: "item", href: "/dashboard/agent", label: "Agent", icon: Bot },
 ];
 
 export function navForUser(role: AppRole, opts?: { isLead?: boolean }): NavItem[] {

@@ -63,7 +63,18 @@ async def _bootstrap_schema_from_models() -> None:
 
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
+    # settings.DATABASE_URL is the raw .env value (may be a bare `postgresql://`
+    # with `?sslmode=...`, which asyncpg can't take directly) — normalize it the
+    # same way alembic/env.py does before handing it to the async engine.
+    db_url = settings.DATABASE_URL
+    if "?sslmode=" in db_url:
+        db_url = db_url.split("?")[0]
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif db_url.startswith("postgresql://") and "+asyncpg" not in db_url:
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    engine = create_async_engine(db_url, pool_pre_ping=True)
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

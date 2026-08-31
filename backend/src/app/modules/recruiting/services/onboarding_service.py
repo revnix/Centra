@@ -390,6 +390,20 @@ class OnboardingService:
         
         if data.hr_verified:
             onboarding.status = OnboardingStatus.PENDING_IT_SETUP
+
+            # ── Auto-promote to Employee on HR Verification ──────────────────
+            # As soon as HR marks documents as verified, the candidate is
+            # officially an employee. Induction tasks (IT setup, Day 1) can
+            # continue in the background without blocking the role promotion.
+            await self._provision_employee_profile(onboarding)
+
+            # Also mark the linked application as HIRED
+            app_result = await self.db.execute(
+                select(Application).where(Application.id == application_id)
+            )
+            app = app_result.scalars().first()
+            if app:
+                app.status = ApplicationStatus.HIRED
         else:
             onboarding.status = OnboardingStatus.PENDING_CANDIDATE_DOCS
             
@@ -426,6 +440,112 @@ class OnboardingService:
         await self.db.refresh(onboarding)
         return onboarding
 
+    async def _provision_employee_profile(self, onboarding: "Onboarding") -> None:
+        """
+        Auto-creates an EmployeeProfile and promotes the user role to EMPLOYEE
+        when onboarding is completed. Idempotent — safe to call multiple times.
+        """
+        from src.app.modules.people.models.employee_profile import EmployeeProfile
+        from src.app.modules.platform.org.models.department import Department
+        from src.app.modules.recruiting.models.job import Posts
+
+        # 1. Guard — profile already exists
+        existing_result = await self.db.execute(
+            select(EmployeeProfile).where(EmployeeProfile.user_id == onboarding.user_id)
+        )
+        if existing_result.scalars().first():
+            logger.info(
+                f"EmployeeProfile already exists for user {onboarding.user_id} — skipping auto-provision"
+            )
+            return
+
+        # 2. Load the user
+        user_result = await self.db.execute(
+            select(User).where(User.id == onboarding.user_id)
+        )
+        user = user_result.scalars().first()
+        if not user:
+            logger.warning(
+                f"_provision_employee_profile: user {onboarding.user_id} not found — skipping"
+            )
+            return
+
+        # 3. Resolve department_id and job_title from the linked application → job
+        department_id: int | None = None
+        job_title: str | None = None
+
+        app_result = await self.db.execute(
+            select(Application).where(Application.id == onboarding.application_id)
+        )
+        app = app_result.scalars().first()
+
+        if app:
+            job_result = await self.db.execute(
+                select(Posts).where(Posts.id == app.job_id)
+            )
+            job = job_result.scalars().first()
+            if job:
+                job_title = job.title
+                # Match department string → Department row.
+                # Try exact ilike first, then partial contains as fallback.
+                if job.department:
+                    dept_name = job.department.strip()
+                    # 1. Exact match (case-insensitive)
+                    dept_result = await self.db.execute(
+                        select(Department).where(Department.name.ilike(dept_name))
+                    )
+                    dept = dept_result.scalars().first()
+
+                    # 2. Partial match — in case job.department is a substring
+                    if not dept:
+                        dept_result = await self.db.execute(
+                            select(Department).where(Department.name.ilike(f"%{dept_name}%"))
+                        )
+                        dept = dept_result.scalars().first()
+
+                    if dept:
+                        department_id = dept.id
+                        logger.info(
+                            f"_provision_employee_profile: matched job.department={dept_name!r} "
+                            f"→ dept.id={dept.id} ({dept.name!r})"
+                        )
+                    else:
+                        logger.warning(
+                            f"_provision_employee_profile: NO department match for "
+                            f"job.department={dept_name!r}. EmployeeProfile will have "
+                            f"department_id=NULL. Create a department named '{dept_name}' in the admin panel."
+                        )
+
+        # 4. Derive joining_date from onboarding record
+        from datetime import date as date_type
+        joining: date_type | None = None
+        if onboarding.joining_date:
+            joining = (
+                onboarding.joining_date.date()
+                if hasattr(onboarding.joining_date, "date")
+                else onboarding.joining_date
+            )
+
+        # 5. Create EmployeeProfile
+        profile = EmployeeProfile(
+            user_id=user.id,
+            department_id=department_id,
+            job_title=job_title,
+            joining_date=joining,
+            is_active=True,
+        )
+        self.db.add(profile)
+
+        # 6. Promote user role to EMPLOYEE
+        user.role = UserRole.EMPLOYEE
+
+        # flush within the ongoing transaction — caller does the final commit
+        await self.db.flush()
+        logger.info(
+            f"Auto-provisioned EmployeeProfile for user {user.id} "
+            f"(dept_id={department_id}, title={job_title!r})"
+        )
+
     async def _check_induction_completed(self, onboarding: Onboarding):
         induction_done = (
             onboarding.ind_hr_welcome_session and
@@ -443,6 +563,8 @@ class OnboardingService:
             app = app_result.scalars().first()
             if app:
                 app.status = ApplicationStatus.HIRED
+            # Auto-create EmployeeProfile for the hired candidate
+            await self._provision_employee_profile(onboarding)
 
     async def hr_induction_update(self, application_id: int, data: HRInductionUpdate) -> Onboarding:
         onboarding = await self.get_by_application(application_id)
@@ -565,6 +687,9 @@ class OnboardingService:
         app = app_result.scalars().first()
         if app:
             app.status = ApplicationStatus.HIRED
+
+        # Auto-create EmployeeProfile for the hired candidate (idempotent)
+        await self._provision_employee_profile(onboarding)
             
         await self.db.commit()
         await self.db.refresh(onboarding)
