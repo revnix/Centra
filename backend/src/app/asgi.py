@@ -1,13 +1,9 @@
-
-
-
-"""ASGI application."""
-
 from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI
 from fastmcp import FastMCP
+from fastmcp.utilities.lifespan import combine_lifespans
 
 from src.app.api.v1.router import api_v1_router
 from src.app.core.config import settings
@@ -55,25 +51,32 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+
+    # Get the FastMCP instance
+    from src.app.mcp.server import mcp as centra_mcp
+
+    # Create the MCP ASGI application
+    mcp_app = centra_mcp.http_app(path="/")
+
+    # Combine your existing lifespan with FastMCP lifespan
+    combined_lifespan = combine_lifespans(
+        lifespan,
+        mcp_app.lifespan,
+    )
+
+    # Create FastAPI with the combined lifespan
     app = FastAPI(
-        title="ERP Backend",
-        lifespan=lifespan,
+        title="Centra ERP Backend",
+        lifespan=combined_lifespan,
     )
 
     # Register API v1 routes
     app.include_router(api_v1_router)
 
-    # Create MCP server from the FastAPI application
-    mcp = FastMCP.from_fastapi(
-        app=app,
-        name="ERP MCP",
-    )
+    # Mount FastMCP
+    app.mount("/mcp", mcp_app)
 
-    # Create MCP HTTP application
-    mcp_app = mcp.http_app(path="/")
-
-    # Mount MCP server
-    app.mount("/mcp-server", mcp_app)
+    logger.info("Mounted FastMCP server at /mcp")
 
     return app
 

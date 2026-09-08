@@ -1,4 +1,5 @@
-from fastmcp import FastMCP
-from src.app.asgi import app  # your existing FastAPI app
+"""Compatibility module exporting Centra ERP FastMCP Server instance."""
 
-mcp = FastMCP.from_fastapi(app=app)
+from src.app.mcp.server import mcp
+
+__all__ = ["mcp"]
