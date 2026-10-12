@@ -25,6 +25,9 @@ class DepartmentResponse(BaseModel):
     name: str
     description: str | None
     lead_user_id: int | None
+    # Populated by the route via eager-loaded lead_user relationship
+    lead_user_email: str | None = None
+    lead_user_name: str | None = None
     created_at: datetime
     updated_at: datetime | None
 

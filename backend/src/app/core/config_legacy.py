@@ -29,8 +29,16 @@ class Settings(BaseSettings):
             return False
         return False
     API_V1_PREFIX: str = "/api/v1"
-    LOG_LEVEL: str = "INFO"   
+    LOG_LEVEL: str = "INFO"
     UPLOAD_DIR: str = "uploads"
+
+    # Attendance
+    ATTENDANCE_BACKDATE_LIMIT_DAYS: int = 3
+    # Phase 6 (reminders): hour of day, UTC, the daily "you haven't checked
+    # in yet" reminder job runs at. A single daily digest, not per-shift
+    # timing — v1 default, easy to change without a migration.
+    ATTENDANCE_REMINDER_HOUR_UTC: int = 11
+    ATTENDANCE_REMINDERS_ENABLED: bool = True
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     PUBLIC_URL: str = os.getenv("PUBLIC_URL", os.getenv("FRONTEND_URL", "http://localhost:3000"))
 
@@ -123,12 +131,8 @@ class Settings(BaseSettings):
     HR_EMAIL: str = "hr@centra.ai"
     EMAIL_TEST_OVERRIDE: str = ""
 
-    # Team lead emails
-    LEAD_AI_EMAIL: str = ""
-    LEAD_WEB_EMAIL: str = ""
-    LEAD_SEO_EMAIL: str = ""
-    LEAD_SHOPIFY_EMAIL: str = ""
-    LEAD_UIUX_EMAIL: str = ""
+    # Team lead emails are now managed via Department.lead_user_id in the database.
+    # No env vars needed — assign a lead to a department and their email is used automatically.
     
     @model_validator(mode='after')
     def add_frontend_url_to_cors(self) -> 'Settings':

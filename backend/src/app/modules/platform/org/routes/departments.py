@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.app.core.dependencies import (
     get_current_active_admin,
@@ -23,13 +24,34 @@ from src.app.modules.platform.users.models.user import User, UserRole
 router = APIRouter()
 
 
+def _to_dept_response(dept: Department) -> DepartmentResponse:
+    """Serialize a Department ORM object → DepartmentResponse, including lead user fields."""
+    lead_email = dept.lead_user.email if dept.lead_user else None
+    lead_name = dept.lead_user.full_name if dept.lead_user else None
+    return DepartmentResponse(
+        id=dept.id,
+        name=dept.name,
+        description=dept.description,
+        lead_user_id=dept.lead_user_id,
+        lead_user_email=lead_email,
+        lead_user_name=lead_name,
+        created_at=dept.created_at,
+        updated_at=dept.updated_at,
+    )
+
+
 @router.get("/departments", response_model=list[DepartmentResponse])
 async def list_departments(
     _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Department).order_by(Department.name.asc()))
-    return list(result.scalars().all())
+    result = await db.execute(
+        select(Department)
+        .options(selectinload(Department.lead_user))
+        .order_by(Department.name.asc())
+    )
+    departments = result.scalars().all()
+    return [_to_dept_response(d) for d in departments]
 
 
 @router.get("/departments/{department_id}", response_model=DepartmentResponse)
@@ -38,10 +60,15 @@ async def get_department(
     _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    department = await db.get(Department, department_id)
+    result = await db.execute(
+        select(Department)
+        .where(Department.id == department_id)
+        .options(selectinload(Department.lead_user))
+    )
+    department = result.scalars().first()
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
-    return department
+    return _to_dept_response(department)
 
 
 @router.post("/departments", response_model=DepartmentResponse)
@@ -63,8 +90,14 @@ async def create_department(
         await db.rollback()
         raise HTTPException(status_code=409, detail="Department name already exists")
 
-    await db.refresh(department)
-    return department
+    # Reload with lead_user eager-loaded for response
+    result = await db.execute(
+        select(Department)
+        .where(Department.id == department.id)
+        .options(selectinload(Department.lead_user))
+    )
+    department = result.scalars().first()
+    return _to_dept_response(department)
 
 
 @router.patch("/departments/{department_id}", response_model=DepartmentResponse)
@@ -74,7 +107,12 @@ async def update_department(
     current_user: User = Depends(get_current_admin_or_hr),
     db: AsyncSession = Depends(get_db),
 ):
-    department = await db.get(Department, department_id)
+    result = await db.execute(
+        select(Department)
+        .where(Department.id == department_id)
+        .options(selectinload(Department.lead_user))
+    )
+    department = result.scalars().first()
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
 
@@ -101,8 +139,14 @@ async def update_department(
         await db.rollback()
         raise HTTPException(status_code=409, detail="Department name already exists")
 
-    await db.refresh(department)
-    return department
+    # Reload to get updated lead_user relationship
+    result = await db.execute(
+        select(Department)
+        .where(Department.id == department_id)
+        .options(selectinload(Department.lead_user))
+    )
+    department = result.scalars().first()
+    return _to_dept_response(department)
 
 
 @router.delete("/departments/{department_id}")

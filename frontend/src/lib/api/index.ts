@@ -22,6 +22,25 @@ export { departmentsApi };
 export { employeesApi };
 export { dashboardApi };
 export { attendanceApi };
+export type {
+    AttendanceSession,
+    AttendanceSessionWithEmployee,
+    ShiftTemplate,
+    ShiftTemplateCreate,
+    AssignShiftRequest,
+    EmployeeShift,
+    CorrectionAction,
+    CorrectionRequestCreate,
+    Correction,
+    LeaveStatus,
+    LeaveRequestCreate,
+    LeaveRequest,
+    PublicHolidayCreate,
+    PublicHoliday,
+    MonthlySummary,
+    UnassignedEmployee,
+    BulkAssignResult,
+} from './attendance';
 export { apiClient } from './client';
 export { candidatesApi } from './candidates';
 export { codingApi } from './coding';

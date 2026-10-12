@@ -9,5 +9,6 @@
     "app": "./src/app/asgi.py:app"
   },
   "image_distro": "wolfi",
-  "pip_installer": "uv"
+  "pip_installer": "uv",
+  "env": ".env"
 }

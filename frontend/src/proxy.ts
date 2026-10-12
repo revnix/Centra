@@ -60,7 +60,9 @@ export default function proxy(request: NextRequest) {
     if (token && !isPublicRoute) {
         // Candidates should not access admin dashboard
         if (pathname.startsWith('/dashboard') && token === 'candidate') {
-            return NextResponse.redirect(new URL('/portal/status', request.url));
+            if (!pathname.startsWith('/dashboard/agent')) {
+                return NextResponse.redirect(new URL('/portal/status', request.url));
+            }
         }
 
         // Admins/Reviewers should not access candidate portal (except public parts)

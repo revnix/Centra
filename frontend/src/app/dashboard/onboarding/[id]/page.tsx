@@ -108,7 +108,8 @@ export default function CandidateProfilePage() {
         );
         try {
             await onboardingApi.hrVerify(applicationId, { hr_verified: true });
-            toast.success("Documents approved successfully!");
+            toast.success("✅ Documents approved! Candidate has been promoted to Employee.");
+            queryClient.invalidateQueries({ queryKey: ['onboarding', 'list'] });
         } catch (err: any) {
             queryClient.setQueryData(['onboarding', 'list'], (old: OnboardingResponse[] = []) =>
                 old.map(item => item.application_id === applicationId ? { ...item, hr_verified: false } : item)
@@ -349,6 +350,24 @@ export default function CandidateProfilePage() {
 
                 </div>
             </div>
+
+            {/* Employee Promotion Banner */}
+            {candidate.hr_verified && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-4 shadow-xs">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <UserCheck className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-emerald-800">🎉 Employee Profile Created</p>
+                        <p className="text-xs text-emerald-600 mt-0.5">
+                            <span className="font-semibold">{candName}</span> has been officially promoted to <span className="font-semibold">Employee</span>. Their employee profile is now active in the system.
+                        </p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500 text-white uppercase tracking-wide flex-shrink-0">
+                        EMPLOYEE
+                    </span>
+                </div>
+            )}
 
             {/* Personal Details Section */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">

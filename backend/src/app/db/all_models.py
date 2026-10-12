@@ -6,6 +6,9 @@ Needed by Alembic autogenerate and by the schema-bootstrap path in
 
 from src.app.integrations.shared.models import integration  # noqa: F401
 from src.app.modules.attendance.models import breaks  # noqa: F401
+from src.app.modules.attendance.models import correction  # noqa: F401
+from src.app.modules.attendance.models import holiday  # noqa: F401
+from src.app.modules.attendance.models import leave  # noqa: F401
 from src.app.modules.attendance.models import employee_shift  # noqa: F401
 from src.app.modules.attendance.models import session  # noqa: F401
 from src.app.modules.attendance.models import shift  # noqa: F401

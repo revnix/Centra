@@ -13,12 +13,18 @@ from src.app.modules.attendance.models.employee_shift import EmployeeShiftAssign
 from src.app.modules.attendance.models.session import AttendanceSession
 from src.app.modules.attendance.models.shift import ShiftTemplate
 from src.app.modules.attendance.schemas.attendance import (
+    AssignShiftBulkRequest,
     AssignShiftRequest,
     AttendanceActionResponse,
     EmployeeShiftResponse,
     AttendanceSessionResponse,
+    AttendanceSessionWithEmployeeResponse,
+    CorrectionRequestCreate,
+    CorrectionResponse,
+    MonthlySummaryResponse,
     ShiftTemplateCreate,
     ShiftTemplateResponse,
+    UnassignedEmployeeResponse,
 )
 from src.app.modules.attendance.services.attendance_service import AttendanceService
 from src.app.modules.platform.users.models.user import User, UserRole
@@ -240,3 +246,258 @@ async def attendance_me(
         .order_by(AttendanceSession.work_date.desc())
     )
     return list(res.scalars().all())
+
+
+@router.get("/sessions", response_model=list[AttendanceSessionWithEmployeeResponse])
+async def list_all_sessions(
+    from_date: date,
+    to_date: date,
+    department_id: int | None = None,
+    user_id: int | None = None,
+    _: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """Company-wide attendance view for HR/admin.
+
+    Previously the only way to see attendance was per-employee via /me —
+    there was no way for HR to see anyone else's. This is the fix.
+    """
+    svc = AttendanceService(db)
+    rows = await svc.list_sessions(
+        from_date, to_date, department_id=department_id, user_id=user_id
+    )
+    return [
+        AttendanceSessionWithEmployeeResponse(
+            id=session.id,
+            user_id=session.user_id,
+            work_date=session.work_date,
+            shift_id=session.shift_id,
+            check_in_at=session.check_in_at,
+            check_out_at=session.check_out_at,
+            status=session.status,
+            total_break_minutes=session.total_break_minutes,
+            late_minutes=session.late_minutes,
+            overtime_minutes=session.overtime_minutes,
+            full_name=full_name,
+            department_name=department_name,
+        )
+        for session, full_name, department_name in rows
+    ]
+
+
+@router.get("/summary", response_model=MonthlySummaryResponse)
+async def monthly_summary(
+    year: int,
+    month: int,
+    user_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Monthly attendance summary (Phase 4). Self by default; admin/hr may
+    pass `user_id` to view any employee's summary."""
+    target_user_id = current_user.id
+    if user_id is not None and user_id != current_user.id:
+        if current_user.role not in (UserRole.ADMIN, UserRole.HR):
+            raise HTTPException(status_code=403, detail="Admin or HR access required")
+        target_user_id = user_id
+
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="month must be between 1 and 12")
+
+    svc = AttendanceService(db)
+    return await svc.get_monthly_summary(target_user_id, year, month)
+
+
+@router.post("/corrections", response_model=CorrectionResponse)
+async def request_correction(
+    payload: CorrectionRequestCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """An employee asks for a past-date clock action to be applied.
+    Never touches the actual session — sits PENDING until HR decides."""
+    _require_employee(current_user)
+    svc = AttendanceService(db)
+    try:
+        correction = await svc.request_correction(
+            user_id=current_user.id,
+            work_date=payload.work_date,
+            action=payload.action,
+            requested_time=payload.requested_time,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(correction)
+        return correction
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/corrections", response_model=list[CorrectionResponse])
+async def list_corrections(
+    status: str | None = None,
+    _: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = AttendanceService(db)
+    rows = await svc.list_corrections(status=status)
+    return [
+        CorrectionResponse(
+            id=c.id,
+            user_id=c.user_id,
+            work_date=c.work_date,
+            action=c.action,
+            requested_time=c.requested_time,
+            reason=c.reason,
+            status=c.status,
+            reviewed_by=c.reviewed_by,
+            reviewed_at=c.reviewed_at,
+            created_at=c.created_at,
+            full_name=full_name,
+        )
+        for c, full_name in rows
+    ]
+
+
+@router.post("/corrections/{correction_id}/approve", response_model=CorrectionResponse)
+async def approve_correction(
+    correction_id: int,
+    current_user: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = AttendanceService(db)
+    try:
+        correction = await svc.approve_correction(correction_id, reviewer_id=current_user.id)
+        await db.commit()
+        await db.refresh(correction)
+        return correction
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/corrections/{correction_id}/reject", response_model=CorrectionResponse)
+async def reject_correction(
+    correction_id: int,
+    current_user: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = AttendanceService(db)
+    try:
+        correction = await svc.reject_correction(correction_id, reviewer_id=current_user.id)
+        await db.commit()
+        await db.refresh(correction)
+        return correction
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# --------------- Phase 7 — Rollout helpers ---------------
+
+
+@router.post("/shifts/{shift_id}/assign-bulk")
+async def assign_shift_bulk(
+    shift_id: int,
+    payload: AssignShiftBulkRequest,
+    _: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """Assign one shift template to many employees at once.
+
+    Loops the same validation the single-assign endpoint uses — if an
+    employee profile doesn't exist, the whole request is rejected rather
+    than partially applied.
+    """
+    shift = await db.get(ShiftTemplate, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+
+    # Pre-validate all profiles exist before writing anything.
+    profiles: list[EmployeeProfile] = []
+    for pid in payload.employee_profile_ids:
+        profile = await db.get(EmployeeProfile, pid)
+        if not profile:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Employee profile {pid} not found",
+            )
+        profiles.append(profile)
+
+    created = 0
+    skipped = 0
+    for profile in profiles:
+        # Check if this exact (employee, effective_from) already exists.
+        existing = await db.execute(
+            select(EmployeeShiftAssignment).where(
+                and_(
+                    EmployeeShiftAssignment.employee_profile_id == profile.id,
+                    EmployeeShiftAssignment.effective_from == payload.effective_from,
+                )
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            skipped += 1
+            continue
+
+        db.add(
+            EmployeeShiftAssignment(
+                employee_profile_id=profile.id,
+                shift_id=shift_id,
+                effective_from=payload.effective_from,
+            )
+        )
+        created += 1
+
+    await db.commit()
+    return {"ok": True, "created": created, "skipped": skipped}
+
+
+@router.get("/unassigned-employees", response_model=list[UnassignedEmployeeResponse])
+async def list_unassigned_employees(
+    _: User = Depends(get_current_admin_or_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rollout checklist: active employees with a profile but no shift
+    assignment — their In button won't work until they're assigned."""
+    from sqlalchemy.orm import aliased
+
+    # Subquery: employee_profile_ids that have at least one shift assignment.
+    assigned_subq = (
+        select(EmployeeShiftAssignment.employee_profile_id)
+        .distinct()
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            EmployeeProfile.id,
+            EmployeeProfile.user_id,
+            User.full_name,
+            User.email,
+        )
+        .join(User, EmployeeProfile.user_id == User.id)
+        .outerjoin(
+            assigned_subq,
+            EmployeeProfile.id == assigned_subq.c.employee_profile_id,
+        )
+        .where(
+            and_(
+                EmployeeProfile.is_active.is_(True),
+                assigned_subq.c.employee_profile_id.is_(None),
+            )
+        )
+        .order_by(User.full_name.asc())
+    )
+
+    rows = await db.execute(stmt)
+    return [
+        UnassignedEmployeeResponse(
+            employee_profile_id=row.id,
+            user_id=row.user_id,
+            full_name=row.full_name,
+            email=row.email,
+        )
+        for row in rows.all()
+    ]

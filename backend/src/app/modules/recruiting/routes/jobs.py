@@ -4,8 +4,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.app.core.config import settings
 from src.app.core.dependencies import get_current_user
@@ -141,16 +142,46 @@ async def generate_draft(
 
 
 @router.get("/team-members")
-async def get_team_members(current_user: User = Depends(get_current_user)):
-    mapping = [
-        ("Operations Manager", settings.OPERATIONS_MANAGER_EMAIL),
-        ("AI Lead", settings.LEAD_AI_EMAIL),
-        ("Web Lead", settings.LEAD_WEB_EMAIL),
-        ("SEO Lead", settings.LEAD_SEO_EMAIL),
-        ("Shopify Lead", settings.LEAD_SHOPIFY_EMAIL),
-        ("UI/UX Lead", settings.LEAD_UIUX_EMAIL),
-    ]
-    return [{"label": label, "email": email} for label, email in mapping if email]
+async def get_team_members(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns all department leads from the database as the reviewer list.
+    When a department is created/updated with a lead_user_id, that user's
+    email is automatically included here — no env-var seeding needed.
+    """
+    from src.app.modules.platform.org.models.department import Department
+
+    result = await db.execute(
+        select(Department)
+        .where(Department.lead_user_id.isnot(None))
+        .options(selectinload(Department.lead_user))
+        .order_by(Department.name.asc())
+    )
+    departments = result.scalars().all()
+
+    members = []
+
+    # Always include the ops manager from settings first (system-level, not dept-level)
+    if settings.OPERATIONS_MANAGER_EMAIL:
+        members.append({
+            "label": "Operations Manager",
+            "email": settings.OPERATIONS_MANAGER_EMAIL,
+            "department_id": None,
+            "department_name": None,
+        })
+
+    for dept in departments:
+        if dept.lead_user and dept.lead_user.email:
+            members.append({
+                "label": f"{dept.name} Lead",
+                "email": dept.lead_user.email,
+                "department_id": dept.id,
+                "department_name": dept.name,
+            })
+
+    return members
 
 
 @router.get("/{job_id}", response_model=JobResponse)

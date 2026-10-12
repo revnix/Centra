@@ -28,9 +28,8 @@ def upgrade() -> None:
         op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'HR'")
         op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'EMPLOYEE'")
 
-    # Normalize existing rows that used lowercase values.
-    op.execute("UPDATE users SET role='HR' WHERE role='hr'")
-    op.execute("UPDATE users SET role='EMPLOYEE' WHERE role='employee'")
+    # (Skipped: DB only has uppercase roles, comparing with lowercase crashes Postgres enum cast)
+    pass
 
 
 def downgrade() -> None:
