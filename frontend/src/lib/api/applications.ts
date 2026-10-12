@@ -14,7 +14,7 @@ export const applicationsApi = {
      * with a generic Next.js 500 before the request ever reaches FastAPI.
      */
     guestApply: async (data: FormData): Promise<{ message: string; status: string }> => {
-        const backendBase = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
+        const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:8123";
         const res = await fetch(`${backendBase}/api/v1/applications/guest`, {
             method: "POST",
             body: data,

@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-db_path = "evalyn.db"
+db_path = "centra.db"
 
 def migrate():
     if not os.path.exists(db_path):

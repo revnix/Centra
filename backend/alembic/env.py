@@ -35,8 +35,8 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from src.api.db.base import Base
-import src.api.models  # ensure models are imported
+from src.app.db.base import Base
+import src.app.db.all_models  # noqa: F401 - ensure models are imported
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

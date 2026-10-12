@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-tabs",
       "@radix-ui/react-tooltip",
     ],
+    // Increase proxy timeout for large file uploads (onboarding documents, resumes).
+    // Cloudinary uploads via the backend can take 15-30s — the default Next.js
+    // dev proxy drops the socket before the backend finishes, causing ECONNRESET.
+    proxyTimeout: 120_000, // 2 minutes
   },
   // @ts-ignore
   allowedDevOrigins: [
@@ -39,7 +43,7 @@ const nextConfig: NextConfig = {
     "revolute-jerica-uncombatant.ngrok-free.dev",
     "https://revolute-jerica-uncombatant.ngrok-free.dev",
     "issuing-coerce-consensus.ngrok-free.dev",
-    "https://issuing-coerce-consensus.ngrok-free.dev"
+    "https://issuing-coerce-consensus.ngrok-free.app"
   ],
   async redirects() {
     return [
@@ -56,7 +60,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:2024";
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || "http://127.0.0.1:8123";
     return [
       {
         source: "/api/v1/:path*",

@@ -70,7 +70,7 @@ export const screeningApi = {
     uploadRecording: (blob: Blob) => {
         const fd = new FormData();
         fd.append('file', blob, 'screening.webm');
-        return fetch('/api/v1/files/upload-recording', { method: 'POST', body: fd }).then((r) =>
+        return fetch('/api/v1/uploads/upload-recording', { method: 'POST', body: fd }).then((r) =>
             r.json()
         );
     },

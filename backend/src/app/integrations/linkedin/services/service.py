@@ -1,0 +1,210 @@
+import httpx
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, Optional
+from src.app.core.config import settings
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.app.integrations.shared.models.integration import UserIntegration
+from sqlalchemy.future import select
+
+class LinkedInService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.client_id = settings.LINKEDIN_CLIENT_ID
+        self.client_secret = settings.LINKEDIN_CLIENT_SECRET
+        self.redirect_uri = settings.LINKEDIN_REDIRECT_URI
+
+    def get_authorization_url(self, state: str) -> str:
+        """Generate the LinkedIn authorization URL."""
+        from urllib.parse import urlencode
+        base_url = "https://www.linkedin.com/oauth/v2/authorization"
+        params = {
+            "response_type": "code",
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "state": state,
+            "scope": "openid profile email w_member_social",
+        }
+        return f"{base_url}?{urlencode(params)}"
+
+    async def exchange_code_for_token(self, code: str) -> Dict[str, Any]:
+        """Exchange authorization code for an access token."""
+        url = "https://www.linkedin.com/oauth/v2/accessToken"
+        data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "redirect_uri": self.redirect_uri,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, data=data)
+            response.raise_for_status()
+            return response.json()
+
+    async def get_user_profile(self, access_token: str) -> Dict[str, Any]:
+        """Fetch user profile to get the URN (sub)."""
+        # Using OpenID Connect userinfo endpoint to get the sub (URN)
+        url = "https://api.linkedin.com/v2/userinfo"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+
+    async def save_integration(
+        self, 
+        user_id: int, 
+        token_data: Dict[str, Any], 
+        profile_data: Dict[str, Any]
+    ) -> UserIntegration:
+        """Save or update LinkedIn integration for a user."""
+        access_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in")
+        refresh_token = token_data.get("refresh_token")
+        
+        # LinkedIn URN is usually in 'sub' for OpenID Connect
+        platform_user_id = profile_data.get("sub")
+        # OpenID userinfo also returns the member's real name — show that in the UI
+        # instead of the opaque URN.
+        platform_display_name = profile_data.get("name")
+
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in) if expires_in else None
+
+        # Check for existing integration
+        result = await self.db.execute(
+            select(UserIntegration).where(
+                UserIntegration.user_id == user_id,
+                UserIntegration.platform == "linkedin"
+            )
+        )
+        integration = result.scalars().first()
+
+        if integration:
+            integration.access_token = access_token
+            integration.refresh_token = refresh_token
+            integration.expires_at = expires_at
+            integration.platform_user_id = platform_user_id
+            integration.platform_display_name = platform_display_name
+        else:
+            integration = UserIntegration(
+                user_id=user_id,
+                platform="linkedin",
+                platform_user_id=platform_user_id,
+                platform_display_name=platform_display_name,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=expires_at
+            )
+            self.db.add(integration)
+
+        await self.db.commit()
+        await self.db.refresh(integration)
+        return integration
+
+    async def post_to_linkedin(self, user_id: int, text: str, article_url: Optional[str] = None) -> Dict[str, Any]:
+        """Post a message to LinkedIn with optional article link.
+
+        Args:
+            user_id: The user's ID
+            text: The post text/commentary (full job description — will be formatted for LinkedIn)
+            article_url: Optional URL to share as an article (creates a link preview card)
+        """
+        result = await self.db.execute(
+            select(UserIntegration).where(
+                UserIntegration.user_id == user_id,
+                UserIntegration.platform == "linkedin"
+            )
+        )
+        integration = result.scalars().first()
+        if not integration:
+            raise Exception("LinkedIn integration not found. Please connect your LinkedIn account from the Integrations page.")
+
+        if integration.expires_at is not None:
+            exp = integration.expires_at
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp < datetime.now(timezone.utc):
+                raise ValueError("LinkedIn access token has expired. Please reconnect your LinkedIn account from the Integrations page.")
+
+        url = "https://api.linkedin.com/v2/ugcPosts"
+        headers = {
+            "Authorization": f"Bearer {integration.access_token}",
+            "X-Restli-Protocol-Version": "2.0.0",
+            "Content-Type": "application/json",
+        }
+
+        author = f"urn:li:person:{integration.platform_user_id}"
+
+        # LinkedIn shareCommentary.text has a hard 3000-character limit.
+        # Truncate gracefully so the API doesn't reject with 422.
+        MAX_LEN = 2900
+        if len(text) > MAX_LEN:
+            text = text[:MAX_LEN].rsplit(" ", 1)[0] + "..."
+
+        # Prepare share content — default to text-only
+        share_content = {
+            "shareCommentary": {
+                "text": text
+            },
+            "shareMediaCategory": "NONE"
+        }
+
+        # Only attach an ARTICLE card if the URL is a real, publicly reachable URL.
+        # Localhost / 127.0.0.1 / lvh.me / 192.168.x URLs cause LinkedIn to return 422.
+        LOCAL_HOSTS = ("localhost", "127.0.0.1", "lvh.me", "192.168.")
+        is_local_url = article_url and any(h in article_url for h in LOCAL_HOSTS)
+
+        if article_url and not is_local_url:
+            if not article_url.startswith("http"):
+                article_url = f"https://{article_url}"
+
+            share_content["shareMediaCategory"] = "ARTICLE"
+            share_content["media"] = [
+                {
+                    "status": "READY",
+                    "description": {
+                        "text": "Submit your application for this position."
+                    },
+                    "originalUrl": article_url,
+                    "title": {
+                        "text": "View Job Details & Apply"
+                    }
+                }
+            ]
+
+        payload = {
+            "author": author,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": share_content
+            },
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }
+
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.debug("LinkedIn UGC payload: %s", payload)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            if not response.is_success:
+                _logger.error(
+                    "LinkedIn API %s error: %s",
+                    response.status_code,
+                    response.text,
+                )
+                if response.status_code == 422:
+                    try:
+                        error_body = response.json()
+                    except ValueError:
+                        error_body = {}
+                    input_errors = error_body.get("errorDetails", {}).get("inputErrors", [])
+                    if any(err.get("code") == "DUPLICATE_POST" for err in input_errors):
+                        raise ValueError(
+                            "This exact post already exists on LinkedIn. "
+                            "Please tweak the text (e.g. add a sentence or timestamp) before publishing again."
+                        )
+            response.raise_for_status()
+            return response.json()

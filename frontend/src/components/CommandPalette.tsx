@@ -1,8 +1,26 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Briefcase, Users, Plus, ArrowRight, Layers, FileText, Settings, X, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Briefcase,
+  Layers,
+  Plus,
+  Sparkles,
+  Users,
+} from "lucide-react";
+
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from "@/components/ui/command";
 import { useApplications } from "@/lib/hooks/useApplications";
 import { useJobs } from "@/lib/hooks/useJobs";
 
@@ -14,54 +32,70 @@ interface CommandPaletteProps {
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: applications = [] } = useApplications();
   const { data: jobs = [] } = useJobs();
 
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      setQuery("");
-    }
+    if (!isOpen) setQuery("");
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        if (isOpen) onClose();
-        else {
-          // Trigger open via custom event or prop
-        }
-      }
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  const actions = useMemo(() => {
+    const all = [
+      {
+        label: "Create New Job",
+        icon: Plus,
+        shortcut: "N",
+        action: () => router.push("/dashboard/jobs/new"),
+      },
+      {
+        label: "View Candidate Pipeline",
+        icon: Layers,
+        shortcut: "P",
+        action: () => router.push("/dashboard/pipeline"),
+      },
+      {
+        label: "AI Job Generator",
+        icon: Sparkles,
+        shortcut: "G",
+        action: () => router.push("/dashboard/generated-jobs"),
+      },
+      {
+        label: "View All Applications",
+        icon: Users,
+        shortcut: "A",
+        action: () => router.push("/dashboard/applications"),
+      },
+    ];
 
-  if (!isOpen) return null;
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((a) => a.label.toLowerCase().includes(q));
+  }, [query, router]);
 
-  const filteredCandidates = applications.filter((app: any) =>
-    (app.candidate?.full_name || "").toLowerCase().includes(query.toLowerCase()) ||
-    (app.job?.title || "").toLowerCase().includes(query.toLowerCase())
-  ).slice(0, 4);
+  const filteredCandidates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return applications
+      .filter((app: any) => {
+        const name = (app.candidate?.full_name || "").toLowerCase();
+        const title = (app.job?.title || "").toLowerCase();
+        return name.includes(q) || title.includes(q);
+      })
+      .slice(0, 6);
+  }, [applications, query]);
 
-  const filteredJobs = jobs.filter((j: any) =>
-    (j.title || "").toLowerCase().includes(query.toLowerCase()) ||
-    (j.department || "").toLowerCase().includes(query.toLowerCase())
-  ).slice(0, 3);
-
-  const actions = [
-    { label: "Create New Job", icon: Plus, action: () => router.push("/dashboard/jobs/new") },
-    { label: "View Candidate Pipeline", icon: Layers, action: () => router.push("/dashboard/pipeline") },
-    { label: "AI Job Generator", icon: Sparkles, action: () => router.push("/dashboard/generated-jobs") },
-    { label: "View All Applications", icon: Users, action: () => router.push("/dashboard/applications") },
-  ].filter(a => a.label.toLowerCase().includes(query.toLowerCase()));
+  const filteredJobs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return jobs
+      .filter((j: any) => {
+        const title = (j.title || "").toLowerCase();
+        const dept = (j.department || "").toLowerCase();
+        return title.includes(q) || dept.includes(q);
+      })
+      .slice(0, 6);
+  }, [jobs, query]);
 
   const handleSelect = (fn: () => void) => {
     fn();
@@ -69,116 +103,62 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-      <div
-        className="w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Search header */}
-        <div className="flex items-center px-3.5 py-3 border-b border-zinc-200 dark:border-zinc-800">
-          <Search className="w-4 h-4 text-zinc-400 mr-2.5 flex-shrink-0" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a command or search candidates, jobs…"
-            className="w-full bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"
-          />
-          <button
-            onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-md"
-          >
-            <span className="kbd-pill">ESC</span>
-          </button>
-        </div>
+    <CommandDialog open={isOpen} onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <CommandInput
+        value={query}
+        onValueChange={setQuery}
+        placeholder="Type a command or search candidates, jobs…"
+      />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
 
-        {/* Results */}
-        <div className="max-h-96 overflow-y-auto p-2 space-y-3">
-          {/* Quick Actions */}
-          {actions.length > 0 && (
-            <div>
-              <p className="text-[0.6875rem] font-semibold text-zinc-400 uppercase tracking-wider px-2 py-1">
-                Quick Actions
-              </p>
-              {actions.map((act) => (
-                <button
-                  key={act.label}
-                  onClick={() => handleSelect(act.action)}
-                  className="w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        <CommandGroup heading="Quick Actions">
+          {actions.map((act) => (
+            <CommandItem key={act.label} onSelect={() => handleSelect(act.action)}>
+              <act.icon className="h-4 w-4" />
+              <span>{act.label}</span>
+              <CommandShortcut>↵ {act.shortcut}</CommandShortcut>
+              <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" />
+            </CommandItem>
+          ))}
+        </CommandGroup>
+
+        {(filteredCandidates.length > 0 || filteredJobs.length > 0) && <CommandSeparator />}
+
+        {filteredCandidates.length > 0 && (
+          <CommandGroup heading="Candidates">
+            {filteredCandidates.map((app: any) => {
+              const candidateName = app.candidate?.full_name || app.candidate?.email || "Candidate";
+              const jobTitle = app.job?.title || "Job";
+              return (
+                <CommandItem
+                  key={String(app.id ?? candidateName + jobTitle)}
+                  onSelect={() => handleSelect(() => router.push(`/dashboard/applications/${app.id}`))}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <act.icon className="w-4 h-4 text-indigo-500" />
-                    <span>{act.label}</span>
-                  </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
-                </button>
-              ))}
-            </div>
-          )}
+                  <Users className="h-4 w-4" />
+                  <span className="truncate">{candidateName}</span>
+                  <span className="ml-auto truncate text-xs text-muted-foreground">{jobTitle}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
 
-          {/* Candidates */}
-          {filteredCandidates.length > 0 && (
-            <div>
-              <p className="text-[0.6875rem] font-semibold text-zinc-400 uppercase tracking-wider px-2 py-1">
-                Candidates
-              </p>
-              {filteredCandidates.map((app: any) => (
-                <button
-                  key={app.id}
-                  onClick={() => handleSelect(() => router.push(`/dashboard/applications/${app.id}`))}
-                  className="w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Users className="w-4 h-4 text-zinc-400" />
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {app.candidate?.full_name || "Unknown"}
-                    </span>
-                    <span className="text-zinc-400 text-[0.75rem]">• {app.job?.title || "—"}</span>
-                  </div>
-                  <span className="text-[0.6875rem] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
-                    {app.match_score ?? app.ai_score ?? 0}%
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Jobs */}
-          {filteredJobs.length > 0 && (
-            <div>
-              <p className="text-[0.6875rem] font-semibold text-zinc-400 uppercase tracking-wider px-2 py-1">
-                Jobs
-              </p>
-              {filteredJobs.map((j: any) => (
-                <button
-                  key={j.id}
-                  onClick={() => handleSelect(() => router.push(`/dashboard/jobs/${j.id}/candidates`))}
-                  className="w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Briefcase className="w-4 h-4 text-zinc-400" />
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{j.title}</span>
-                  </div>
-                  <span className="text-[0.6875rem] text-zinc-400">{j.department || "General"}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {actions.length === 0 && filteredCandidates.length === 0 && filteredJobs.length === 0 && (
-            <div className="py-8 text-center text-xs text-zinc-400">
-              No matching commands or results found.
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-3.5 py-2 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-[0.6875rem] text-zinc-400">
-          <span>Navigation: <kbd className="kbd-pill">↑</kbd> <kbd className="kbd-pill">↓</kbd></span>
-          <span>Select: <kbd className="kbd-pill">↵</kbd></span>
-        </div>
-      </div>
-    </div>
+        {filteredJobs.length > 0 && (
+          <CommandGroup heading="Jobs">
+            {filteredJobs.map((j: any) => (
+              <CommandItem
+                key={String(j.id ?? j.title)}
+                onSelect={() => handleSelect(() => router.push(`/dashboard/jobs/${j.id}`))}
+              >
+                <Briefcase className="h-4 w-4" />
+                <span className="truncate">{j.title || "Job"}</span>
+                <span className="ml-auto truncate text-xs text-muted-foreground">{j.department || ""}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandList>
+    </CommandDialog>
   );
 }

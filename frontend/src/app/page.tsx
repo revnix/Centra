@@ -186,7 +186,7 @@ export default function LandingPage() {
               <Zap className="w-5 h-5 text-white fill-white" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-black text-slate-900 tracking-tight leading-none group-hover:text-blue-600 transition-colors">Evalyn<span className="text-blue-600">.ai</span></span>
+              <span className="text-xl font-black text-slate-900 tracking-tight leading-none group-hover:text-blue-600 transition-colors">Centra<span className="text-blue-600">.ai</span></span>
               <span
                 className={`text-[10px] font-bold text-slate-500 tracking-widest uppercase mt-0.5 transition-all duration-300 ${isScrolled ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
                   }`}
@@ -357,7 +357,7 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between pb-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-black text-slate-600 uppercase tracking-widest">After</span>
-                    <span className="text-[10px] font-black text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md">✦ Evalyn</span>
+                    <span className="text-[10px] font-black text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md">✦ Centra</span>
                   </div>
                   <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -414,7 +414,7 @@ export default function LandingPage() {
               <Zap className="w-4 h-4 text-blue-600" /> Live Execution Flow
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-slate-900">Eight Stages. Two of them are yours.</h2>
-            <p className="text-sm text-slate-600 font-medium">Evalyn handles candidate scoring and stage transitions automatically, preserving human approval gates.</p>
+            <p className="text-sm text-slate-600 font-medium">Centra handles candidate scoring and stage transitions automatically, preserving human approval gates.</p>
           </div>
 
           <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 border border-slate-200 shadow-xl space-y-12 overflow-hidden">
@@ -524,7 +524,7 @@ export default function LandingPage() {
               </span>
               on autopilot
             </h2>
-            <p className="text-base text-slate-600 font-medium">Watch how Evalyn AI autonomously processes applications from submission to onboarding.</p>
+            <p className="text-base text-slate-600 font-medium">Watch how Centra AI autonomously processes applications from submission to onboarding.</p>
           </div>
 
           {/* STAGGERED LAYOUT WITH CURVED CONNECTING ARROWS */}
@@ -593,7 +593,7 @@ export default function LandingPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Brain className="w-4 h-4 text-blue-600 animate-pulse" />
-                      <span className="font-extrabold text-slate-900 text-xs">Evalyn AI Evaluator</span>
+                      <span className="font-extrabold text-slate-900 text-xs">Centra AI Evaluator</span>
                     </div>
                     <span className="font-black text-blue-700 text-xs bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-md">
                       ⚡ 96% Match
@@ -700,7 +700,7 @@ export default function LandingPage() {
               </span>
             </h2>
             <p className="text-base text-slate-600 font-medium">
-              From evaluating applications to assigning candidates, Evalyn AI removes manual steps from recruitment processes.
+              From evaluating applications to assigning candidates, Centra AI removes manual steps from recruitment processes.
             </p>
           </div>
 
@@ -984,7 +984,7 @@ export default function LandingPage() {
               <Layers2 className="w-4 h-4 text-blue-600" /> Real-Time HR Orchestration Hub
             </span>
             <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">Gmail Sync, Test Dispatches & Onboarding Hub</h2>
-            <p className="text-sm text-slate-600 font-medium">Click on any module below to inspect Evalyn's automated candidate communication and employee handoff engine in action.</p>
+            <p className="text-sm text-slate-600 font-medium">Click on any module below to inspect Centra's automated candidate communication and employee handoff engine in action.</p>
           </div>
 
           {/* MAIN INTERACTIVE MAC-STYLE COMMAND WINDOW */}
@@ -996,7 +996,7 @@ export default function LandingPage() {
                 <div className="w-3 h-3 rounded-full bg-rose-400" />
                 <div className="w-3 h-3 rounded-full bg-amber-400" />
                 <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                <span className="text-xs font-bold text-slate-400 ml-2 font-mono">evalyn_orchestrator.v2</span>
+                <span className="text-xs font-bold text-slate-400 ml-2 font-mono">centra_orchestrator.v2</span>
               </div>
 
               {/* 3 INTERACTIVE TABS */}
@@ -1076,7 +1076,7 @@ export default function LandingPage() {
                           MA
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900">Muhammad Abriq <span className="text-[10px] text-slate-500 font-normal">&lt;abriq@evalyn.ai&gt;</span></p>
+                          <p className="font-bold text-slate-900">Muhammad Abriq <span className="text-[10px] text-slate-500 font-normal">&lt;abriq@centra.ai&gt;</span></p>
                           <p className="text-slate-600 font-medium">"Submitted coding assessment test solutions."</p>
                         </div>
                       </div>
@@ -1113,7 +1113,7 @@ export default function LandingPage() {
                     </div>
 
                     <div className="p-3 rounded-xl bg-white border border-slate-200 font-mono text-[11px] text-slate-700 flex items-center justify-between">
-                      <span>https://evalyn.ai/portal/challenge/tk_9402a8_genai</span>
+                      <span>https://centra.ai/portal/challenge/tk_9402a8_genai</span>
                       <span className="text-blue-600 font-bold">Copy Link</span>
                     </div>
 
@@ -1342,7 +1342,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto p-12 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-6 shadow-2xl relative overflow-hidden text-white">
           <h2 className="text-3xl sm:text-5xl font-black text-white">Ready to Upgrade Your HR Workflow?</h2>
           <p className="text-sm text-slate-300 max-w-xl mx-auto font-medium leading-relaxed">
-            Join modern HR teams using Evalyn AI to screen candidates, automate invitations, and streamline candidate onboarding.
+            Join modern HR teams using Centra AI to screen candidates, automate invitations, and streamline candidate onboarding.
           </p>
           <div className="pt-2">
             <button
@@ -1362,9 +1362,9 @@ export default function LandingPage() {
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
               <Zap className="w-4 h-4 text-white fill-white" />
             </div>
-            <span className="font-bold text-slate-900">Evalyn AI Recruitment OS</span>
+            <span className="font-bold text-slate-900">Centra AI Recruitment OS</span>
           </div>
-          <p>© 2026 Evalyn HR Systems. All rights reserved.</p>
+          <p>© 2026 Centra HR Systems. All rights reserved.</p>
         </div>
       </footer>
 

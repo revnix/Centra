@@ -15,7 +15,7 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #2563eb;
+  --primary: #000000;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
@@ -23,10 +23,18 @@
   --muted-foreground: #64748b;
   --accent: #f1f5f9;
   --accent-foreground: #0f172a;
-  --destructive: #dc2626;
+  --destructive: #000000;
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #94a3b8;
+  --ring: #000000;
+  --sidebar: hsl(0 0% 100%);
+  --sidebar-foreground: hsl(0 0% 0%);
+  --sidebar-primary: hsl(0 0% 0%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(0 0% 96%);
+  --sidebar-accent-foreground: hsl(0 0% 0%);
+  --sidebar-border: hsl(0 0% 90%);
+  --sidebar-ring: hsl(0 0% 0%);
 }
 
 @theme inline {
@@ -52,23 +60,31 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
 }
 
 @layer base {
   :root {
     --bg-main: #f3f6f9; /* Slightly darker light bg to make white panels pop */
     --bg-panel: #ffffff;
-    --sidebar-bg: #0b1121; /* Deep navy/charcoal */
+    --sidebar-bg: #ffffff; /* Deep navy/charcoal */
     --sidebar-border: rgba(255, 255, 255, 0.05);
 
-    --text-heading: #0f172a;
-    --text-body: #334155;
-    --text-muted: #64748b;
+    --text-heading: #000000;
+    --text-body: #111111;
+    --text-muted: #555555;
 
-    --brand-primary: #2563eb; /* Blue 600 */
-    --brand-secondary: #1d4ed8; /* Blue 700 */
-    --brand-tertiary: #0284c7; /* Sky 600 */
-    --brand-glow: rgba(37, 99, 235, 0.4);
+    --brand-primary: #000000; /* Blue 600 */
+    --brand-secondary: #000000; /* Blue 700 */
+    --brand-tertiary: #000000; /* Sky 600 */
+    --brand-glow: rgba(0, 0, 0, 0.10);
   }
 
   * {
@@ -104,7 +120,7 @@
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* Bouncy transition */
   }
-  
+
   .card-glass:hover {
     transform: translateY(-4px) scale(1.01);
     box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.1), 0 0 15px var(--brand-glow);
@@ -114,15 +130,14 @@
 
   /* Sidebar Active Glow */
   .sidebar-active {
-    background: linear-gradient(90deg, rgba(37, 99, 235, 0.2) 0%, transparent 100%);
-    border-left: 3px solid var(--brand-primary);
-    color: #ffffff;
-    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+    background: rgba(0,0,0,0.06);
+    border-left: 3px solid #000000;
+    color: #000000;
   }
 
   /* Striking Buttons */
   .btn-dribbble {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    background: #000000;
     color: white;
     border-radius: 0.75rem;
     font-weight: 600;
@@ -130,12 +145,12 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     transition: all 0.2s ease;
     border: none;
   }
   .btn-dribbble:hover {
-    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
     transform: translateY(-1px);
   }
 
@@ -158,20 +173,19 @@
 
   /* Badges */
   .badge-glow-indigo {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-    border: 1px solid rgba(37, 99, 235, 0.2);
-    box-shadow: inset 0 0 8px rgba(37, 99, 235, 0.05);
+    background: rgba(0, 0, 0, 0.06);
+    color: #000000;
+    border: 1px solid rgba(0, 0, 0, 0.12);
   }
   .badge-glow-emerald {
-    background: rgba(16, 185, 129, 0.1);
-    color: #059669;
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(0, 0, 0, 0.06);
+    color: #000000;
+    border: 1px solid rgba(0, 0, 0, 0.12);
   }
   .badge-glow-amber {
-    background: rgba(245, 158, 11, 0.1);
-    color: #d97706;
-    border: 1px solid rgba(245, 158, 11, 0.2);
+    background: rgba(0, 0, 0, 0.06);
+    color: #000000;
+    border: 1px solid rgba(0, 0, 0, 0.12);
   }
 
   /* Circular Progress */
@@ -192,13 +206,13 @@
     stroke-linecap: round;
     transition: stroke-dasharray 1s ease-out;
   }
-  
+
   /* Status Left Borders for Kanban Cards */
   .border-status-applied { border-left: 4px solid #94a3b8 !important; }
-  .border-status-screening { border-left: 4px solid #2563eb !important; }
-  .border-status-interview { border-left: 4px solid #1d4ed8 !important; }
-  .border-status-hired { border-left: 4px solid #0284c7 !important; }
-  
+  .border-status-screening { border-left: 4px solid #000000 !important; }
+  .border-status-interview { border-left: 4px solid #000000 !important; }
+  .border-status-hired { border-left: 4px solid #000000 !important; }
+
   /* Kanban Column Gradients */
   .kanban-header-sourcing { background: linear-gradient(to right, rgba(241, 245, 249, 0.8), transparent); }
   .kanban-header-eval { background: linear-gradient(to right, rgba(239, 246, 255, 0.8), transparent); }
@@ -318,4 +332,15 @@
 [contenteditable] em {
   font-style: italic;
   color: #64748b;
+}
+
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(0 0% 0%);
+  --sidebar-primary: hsl(0 0% 0%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(0 0% 96%);
+  --sidebar-accent-foreground: hsl(0 0% 0%);
+  --sidebar-border: hsl(0 0% 90%);
+  --sidebar-ring: hsl(0 0% 0%);
 }

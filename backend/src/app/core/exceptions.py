@@ -1,0 +1,2 @@
+"""Shared exception types (placeholder)."""
+

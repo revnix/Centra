@@ -1,0 +1,2 @@
+"""Finance (expenses, invoices, budgets)."""
+
